@@ -5,3 +5,4 @@ authors = ["Caio Souza <caiophilipevs@gmail.com>"]
 
 [dependencies]
 bitflags = "1.0.0"
+pretty-hex = "0.1.0"

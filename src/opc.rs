@@ -27,3 +27,25 @@ pub mod Ldy {
     pub const Absolute: u8 = 0xac;
     pub const AbsoluteX: u8 = 0xbc;
 }
+
+pub mod Sta {
+    pub const ZeroPage: u8 = 0x85;
+    pub const ZeroPageX: u8 = 0x95;
+    pub const Absolute: u8 = 0x8d;
+    pub const AbsoluteX: u8 = 0x9d;
+    pub const AbsoluteY: u8 = 0x99;
+    pub const IndirectX: u8 = 0x81;
+    pub const IndirectY: u8 = 0x91;
+}
+
+pub mod Stx {
+    pub const ZeroPage: u8 = 0x86;
+    pub const ZeroPageY: u8 = 0x96;
+    pub const Absolute: u8 = 0x8e;
+}
+
+pub mod Sty {
+    pub const ZeroPage: u8 = 0x84;
+    pub const ZeroPageX: u8 = 0x94;
+    pub const Absolute: u8 = 0x8c;
+}

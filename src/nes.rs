@@ -2,12 +2,20 @@ use cpu::Cpu;
 use opc;
 use flags::Flags;
 use std::num::Wrapping;
+use std::fmt;
+use pretty_hex::*;
 
 // RAM
 const RAM_CAPACITY: usize = 0x0800;
 
 #[derive(Copy, Clone)]
 pub struct Ram(pub [u8; RAM_CAPACITY]);
+
+impl fmt::Debug for Ram {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{:?}", (&self.0[..]).hex_dump())
+    }
+}
 
 // NES
 #[derive(Copy, Clone)]
@@ -79,93 +87,118 @@ impl Nes {
     // Value getters
     fn immediate(&mut self) -> u8 { self.fetch() }
 
-    fn zero_page(&mut self) -> u8 {
-        let addr = self.fetch();
-        self.peek_at(addr.into())
-    }
+    // Address getters
+    fn zero_page(&mut self) -> u16 { self.fetch().into() }
 
-    fn zero_page_x(&mut self) -> u8 {
-        let addr = Wrapping(self.fetch()) + Wrapping(self.cpu.x);
-        self.peek_at(addr.0.into())
-    }
+    fn zero_page_x(&mut self) -> u16 { (Wrapping(self.fetch()) + Wrapping(self.cpu.x)).0.into() }
 
-    fn zero_page_y(&mut self) -> u8 {
-        let addr = Wrapping(self.fetch()) + Wrapping(self.cpu.y);
-        self.peek_at(addr.0.into())
-    }
+    fn zero_page_y(&mut self) -> u16 { (Wrapping(self.fetch()) + Wrapping(self.cpu.y)).0.into() }
 
-    fn absolute(&mut self) -> u8 {
+    fn absolute(&mut self) -> u16 {
         let high = (self.fetch() as u16) << 8;
         let low = self.fetch() as u16;
-        self.peek_at(high + low)
+        high + low
     }
 
-    fn absolute_x(&mut self) -> u8 {
+    fn absolute_x(&mut self) -> u16 {
         let high = (self.fetch() as u16) << 8;
         let low = self.fetch() as u16;
-        let addr = Wrapping(high + low) + Wrapping(self.cpu.x as u16);
-        self.peek_at(addr.0)
+        (Wrapping(high + low) + Wrapping(self.cpu.x as u16)).0
     }
 
-    fn absolute_y(&mut self) -> u8 {
+    fn absolute_y(&mut self) -> u16 {
         let high = (self.fetch() as u16) << 8;
         let low = self.fetch() as u16;
-        let addr = Wrapping(high + low) + Wrapping(self.cpu.y as u16);
-        self.peek_at(addr.0)
+        (Wrapping(high + low) + Wrapping(self.cpu.y as u16)).0
     }
 
-    fn indirect_x(&mut self) -> u8 {
+    fn indirect_x(&mut self) -> u16 {
         let addr = Wrapping(self.fetch()) + Wrapping(self.cpu.x);
         let high = (self.peek_at(addr.0.into()) as u16) << 8;
         let low = self.peek_at((addr + Wrapping(1)).0.into()) as u16;
-        self.peek_at(high + low)
+        high + low
     }
 
-    fn indirect_y(&mut self) -> u8 {
+    fn indirect_y(&mut self) -> u16 {
         let addr = Wrapping(self.fetch());
         let high = (self.peek_at(addr.0.into()) as u16) << 8;
         let low = self.peek_at((addr + Wrapping(1)).0.into()) as u16;
-        self.peek_at((Wrapping(high + low) + Wrapping(self.cpu.y as u16)).0)
+        (Wrapping(high + low) + Wrapping(self.cpu.y as u16)).0
     }
 
     // Executes one step of the CPU
     pub fn step(&mut self) {
-        // Macro for registers
-        macro_rules! set_reg {
-            ( $setter:ident, $getter:ident ) => {{
-                let value = self.$getter();
+        // Set a value though the immediate
+        macro_rules! set_reg_imm {
+            ( $setter:ident ) => {{
+                let value = self.immediate();
                 self.cpu.$setter(value);
             }};
         }
 
-        // Macro for memory
+        // Set a value though the address returned by $setter
+        macro_rules! set_reg_addr {
+            ( $setter:ident, $getter:ident ) => {{
+                let addr = self.$getter();
+                let value = self.peek_at(addr);
+                self.cpu.$setter(value);
+            }};
+        }
+
+        // Set a value at the address returned by $setter
+        macro_rules! set_mem_addr {
+            ( $setter:ident, $getter:ident ) => {{
+                let addr = self.$setter();
+                let value = self.$getter();
+                self.put_at(addr, value);
+            }};
+        }
 
         let opcode = self.fetch();
 
         match opcode {
             // Load into A
-            opc::Lda::Immediate => set_reg!(set_a, immediate),
-            opc::Lda::ZeroPage => set_reg!(set_a, zero_page),
-            opc::Lda::ZeroPageX => set_reg!(set_a, zero_page_x),
-            opc::Lda::Absolute => set_reg!(set_a, absolute),
-            opc::Lda::AbsoluteX => set_reg!(set_a, absolute_x),
-            opc::Lda::AbsoluteY => set_reg!(set_a, absolute_y),
-            opc::Lda::IndirectX => set_reg!(set_a, indirect_x),
-            opc::Lda::IndirectY => set_reg!(set_a, indirect_y),
+            opc::Lda::Immediate => set_reg_imm!(set_a),
+            opc::Lda::ZeroPage => set_reg_addr!(set_a, zero_page),
+            opc::Lda::ZeroPageX => set_reg_addr!(set_a, zero_page_x),
+            opc::Lda::Absolute => set_reg_addr!(set_a, absolute),
+            opc::Lda::AbsoluteX => set_reg_addr!(set_a, absolute_x),
+            opc::Lda::AbsoluteY => set_reg_addr!(set_a, absolute_y),
+            opc::Lda::IndirectX => set_reg_addr!(set_a, indirect_x),
+            opc::Lda::IndirectY => set_reg_addr!(set_a, indirect_y),
 
             // Load into X
-            opc::Ldx::Immediate => set_reg!(set_x, immediate),
-            opc::Ldx::ZeroPage => set_reg!(set_x, zero_page),
-            opc::Ldx::ZeroPageY => set_reg!(set_x, zero_page_y),
-            opc::Ldx::Absolute => set_reg!(set_x, absolute),
-            opc::Ldx::AbsoluteY => set_reg!(set_x, absolute_y),
+            opc::Ldx::Immediate => set_reg_imm!(set_x),
+            opc::Ldx::ZeroPage => set_reg_addr!(set_x, zero_page),
+            opc::Ldx::ZeroPageY => set_reg_addr!(set_x, zero_page_y),
+            opc::Ldx::Absolute => set_reg_addr!(set_x, absolute),
+            opc::Ldx::AbsoluteY => set_reg_addr!(set_x, absolute_y),
 
             // Load into Y
-            opc::Ldy::Immediate => set_reg!(set_y, immediate),
-            opc::Ldy::ZeroPage => set_reg!(set_y, zero_page),
-            opc::Ldy::ZeroPageX => set_reg!(set_y, zero_page_x),
-            opc::Ldy::Absolute => set_reg!(set_y, absolute),
-            opc::Ldy::AbsoluteX => set_reg!(set_y, absolute_x),
+            opc::Ldy::Immediate => set_reg_imm!(set_y),
+            opc::Ldy::ZeroPage => set_reg_addr!(set_y, zero_page),
+            opc::Ldy::ZeroPageX => set_reg_addr!(set_y, zero_page_x),
+            opc::Ldy::Absolute => set_reg_addr!(set_y, absolute),
+            opc::Ldy::AbsoluteX => set_reg_addr!(set_y, absolute_x),
+
+            // Store from A
+            opc::Sta::ZeroPage => set_mem_addr!(zero_page, get_a),
+            opc::Sta::ZeroPageX => set_mem_addr!(zero_page_x, get_a),
+            opc::Sta::Absolute => set_mem_addr!(absolute, get_a),
+            opc::Sta::AbsoluteX => set_mem_addr!(absolute_x, get_a),
+            opc::Sta::AbsoluteY => set_mem_addr!(absolute_y, get_a),
+            opc::Sta::IndirectX => set_mem_addr!(indirect_x, get_a),
+            opc::Sta::IndirectY => set_mem_addr!(indirect_y, get_a),
+
+            // Store from X
+            opc::Stx::ZeroPage => set_mem_addr!(zero_page, get_x),
+            opc::Stx::ZeroPageY => set_mem_addr!(zero_page_y, get_x),
+            opc::Stx::Absolute => set_mem_addr!(absolute, get_x),
+
+            // Store from Y
+            opc::Sty::ZeroPage => set_mem_addr!(zero_page, get_y),
+            opc::Sty::ZeroPageX => set_mem_addr!(zero_page_x, get_y),
+            opc::Sty::Absolute => set_mem_addr!(absolute, get_y),
 
             // Not implemented
             _ => panic!("Opcode not implemented")

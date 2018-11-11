@@ -57,7 +57,7 @@ macro_rules! run {
         use nespera::opc;
 
         let mut checks = HashMap::new();
-        $( checks.insert(stringify!($reg), $value as u16); )*
+        $( checks.insert($reg.to_string(), $value as u16); )*
         let get_value = |key, value| *checks.get(key).unwrap_or_else(|| &value) as u16;
 
         let mut nes = Nes::new();
@@ -89,7 +89,7 @@ macro_rules! run {
         for (i, (&ea, &eb)) in nes.ram.0.iter().zip(control.ram.0.iter()).enumerate() {
             let ref_eb = &(eb as u16);
             let value = *checks.get(&i.to_string()[..]).unwrap_or_else(|| ref_eb) as u8;
-            assert_eq!(ea, value, "\nat address{}", i);
+            assert_eq!(ea, value, "\nat address {}", i);
         }
 
         nes
