@@ -49,3 +49,8 @@ pub mod Sty {
     pub const ZeroPageX: u8 = 0x94;
     pub const Absolute: u8 = 0x8c;
 }
+
+pub const Tax: u8 = 0xaa;
+pub const Tay: u8 = 0xa8;
+pub const Txa: u8 = 0x8a;
+pub const Tya: u8 = 0x98;

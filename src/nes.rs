@@ -128,15 +128,15 @@ impl Nes {
 
     // Executes one step of the CPU
     pub fn step(&mut self) {
-        // Set a value though the immediate
-        macro_rules! set_reg_imm {
-            ( $setter:ident ) => {{
-                let value = self.immediate();
+        // Set a value through another
+        macro_rules! set_reg_val {
+            ( $setter:ident, $getter:ident ) => {{
+                let value = self.$getter();
                 self.cpu.$setter(value);
             }};
         }
 
-        // Set a value though the address returned by $setter
+        // Set a value through the address returned by $setter
         macro_rules! set_reg_addr {
             ( $setter:ident, $getter:ident ) => {{
                 let addr = self.$getter();
@@ -158,7 +158,7 @@ impl Nes {
 
         match opcode {
             // Load into A
-            opc::Lda::Immediate => set_reg_imm!(set_a),
+            opc::Lda::Immediate => set_reg_val!(set_a, immediate),
             opc::Lda::ZeroPage => set_reg_addr!(set_a, zero_page),
             opc::Lda::ZeroPageX => set_reg_addr!(set_a, zero_page_x),
             opc::Lda::Absolute => set_reg_addr!(set_a, absolute),
@@ -168,14 +168,14 @@ impl Nes {
             opc::Lda::IndirectY => set_reg_addr!(set_a, indirect_y),
 
             // Load into X
-            opc::Ldx::Immediate => set_reg_imm!(set_x),
+            opc::Ldx::Immediate => set_reg_val!(set_x, immediate),
             opc::Ldx::ZeroPage => set_reg_addr!(set_x, zero_page),
             opc::Ldx::ZeroPageY => set_reg_addr!(set_x, zero_page_y),
             opc::Ldx::Absolute => set_reg_addr!(set_x, absolute),
             opc::Ldx::AbsoluteY => set_reg_addr!(set_x, absolute_y),
 
             // Load into Y
-            opc::Ldy::Immediate => set_reg_imm!(set_y),
+            opc::Ldy::Immediate => set_reg_val!(set_y, immediate),
             opc::Ldy::ZeroPage => set_reg_addr!(set_y, zero_page),
             opc::Ldy::ZeroPageX => set_reg_addr!(set_y, zero_page_x),
             opc::Ldy::Absolute => set_reg_addr!(set_y, absolute),
@@ -199,6 +199,12 @@ impl Nes {
             opc::Sty::ZeroPage => set_mem_addr!(zero_page, get_y),
             opc::Sty::ZeroPageX => set_mem_addr!(zero_page_x, get_y),
             opc::Sty::Absolute => set_mem_addr!(absolute, get_y),
+
+            // Transfer
+            opc::Tax => set_reg_val!(set_x, get_a),
+            opc::Tay => set_reg_val!(set_y, get_a),
+            opc::Txa => set_reg_val!(set_a, get_x),
+            opc::Tya => set_reg_val!(set_a, get_y),
 
             // Not implemented
             _ => panic!("Opcode not implemented")
