@@ -1,3 +1,5 @@
+use std::convert::From;
+
 // Flags for the P register
 bitflags! {
     pub struct Flags: u8 {
@@ -19,4 +21,8 @@ impl Flags {
             | (((value == 0) as u8) * Self::Zero.bits)
             | (((value > 127) as u8) * Self::Negative.bits);
     }
+}
+
+impl From<u8> for Flags {
+    fn from(bits: u8) -> Self { Self { bits } }
 }

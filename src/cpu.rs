@@ -31,9 +31,6 @@ impl Cpu {
     // Reset PC
     pub fn reset_pc(&mut self) { self.pc = PC_POWER_UP_STATE; }
 
-    // Getter
-    pub fn get_pc(&self) -> u16 { self.pc }
-
     // Increments PC by the value supplied
     pub fn inc_pc(&mut self) {
         self.pc = (Wrapping(self.pc) + Wrapping(1)).0;
@@ -54,4 +51,8 @@ impl Cpu {
         self.y = value;
         self.p.zn(value);
     }
+
+    pub fn set_p(&mut self, value: u8) { self.p = value.into(); }
+
+    pub fn set_sp(&mut self, value: u8) { self.sp = value; }
 }

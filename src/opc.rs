@@ -54,3 +54,10 @@ pub const Tax: u8 = 0xaa;
 pub const Tay: u8 = 0xa8;
 pub const Txa: u8 = 0x8a;
 pub const Tya: u8 = 0x98;
+pub const Tsx: u8 = 0xba;
+pub const Txs: u8 = 0x9a;
+
+pub const Pha: u8 = 0x48;
+pub const Php: u8 = 0x08;
+pub const Pla: u8 = 0x68;
+pub const Plp: u8 = 0x28;

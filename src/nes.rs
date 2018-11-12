@@ -11,17 +11,28 @@ const RAM_CAPACITY: usize = 0x0800;
 #[derive(Copy, Clone)]
 pub struct Ram(pub [u8; RAM_CAPACITY]);
 
-impl fmt::Debug for Ram {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "{:?}", (&self.0[..]).hex_dump())
-    }
-}
-
 // NES
 #[derive(Copy, Clone)]
 pub struct Nes {
     pub cpu: Cpu,
     pub ram: Ram,
+}
+
+impl fmt::Debug for Nes {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter,
+               "Nespera | a: {:x}, x: {:x}, y: {:x}, pc: {:x}, sp: {:x}, flags: {}{}{}{}{}{}{}{}\n",
+               self.cpu.a, self.cpu.x, self.cpu.y, self.cpu.pc, self.cpu.sp,
+               if self.get_c() { 'c' } else { '_' },
+               if self.get_z() { 'z' } else { '_' },
+               if self.get_i() { 'i' } else { '_' },
+               if self.get_d() { 'd' } else { '_' },
+               if self.get_b() { 'b' } else { '_' },
+               '_' /* Unused*/,
+               if self.get_o() { 'o' } else { '_' },
+               if self.get_n() { 'n' } else { '_' })?;
+        write!(formatter, "{:?}", (&self.ram.0[..]).hex_dump())
+    }
 }
 
 impl Nes {
@@ -37,6 +48,7 @@ impl Nes {
     pub fn get_a(&self) -> u8 { self.cpu.a }
     pub fn get_x(&self) -> u8 { self.cpu.x }
     pub fn get_y(&self) -> u8 { self.cpu.y }
+    pub fn get_p(&self) -> u8 { self.cpu.p.bits() }
     pub fn get_pc(&self) -> u16 { self.cpu.pc }
     pub fn get_sp(&self) -> u8 { self.cpu.sp }
 
@@ -57,7 +69,7 @@ impl Nes {
 
     // Read the value in RAM pointed by PC without changing it
     pub fn peek(&self) -> u8 {
-        self.peek_at(self.cpu.get_pc())
+        self.peek_at(self.get_pc())
     }
 
     // Write the value to RAM pointed by the address
@@ -67,7 +79,7 @@ impl Nes {
 
     // Write the value to RAM pointed by PC without changing it
     pub fn put(&mut self, value: u8) {
-        let addr = self.cpu.get_pc();
+        let addr = self.get_pc();
         self.put_at(addr, value);
     }
 
@@ -154,6 +166,25 @@ impl Nes {
             }};
         }
 
+        // Push a value
+        macro_rules! push_reg_val {
+            ( $getter:ident ) => {{
+                let addr = self.cpu.sp;
+                let value = self.$getter();
+                self.put_at(addr.into(), value);
+                self.cpu.sp -= 1;
+            }};
+        }
+
+        // Pull a value
+        macro_rules! pull_reg_val {
+            ( $setter:ident ) => {{
+                let value = self.peek_at(self.cpu.sp.into());
+                self.cpu.$setter(value);
+                self.cpu.sp += 1;
+            }};
+        }
+
         let opcode = self.fetch();
 
         match opcode {
@@ -205,6 +236,14 @@ impl Nes {
             opc::Tay => set_reg_val!(set_y, get_a),
             opc::Txa => set_reg_val!(set_a, get_x),
             opc::Tya => set_reg_val!(set_a, get_y),
+            opc::Tsx => set_reg_val!(set_x, get_sp),
+            opc::Txs => set_reg_val!(set_sp, get_x),
+
+            // Stack
+            opc::Pha => push_reg_val!(get_a),
+            opc::Php => push_reg_val!(get_p),
+            opc::Pla => pull_reg_val!(set_a),
+            opc::Plp => pull_reg_val!(set_p),
 
             // Not implemented
             _ => panic!("Opcode not implemented")
