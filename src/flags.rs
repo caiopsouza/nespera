@@ -19,7 +19,7 @@ impl Flags {
     pub fn zn(&mut self, value: u8) {
         self.bits = (self.bits & !Self::Zero.bits & !Self::Negative.bits)
             | (((value == 0) as u8) * Self::Zero.bits)
-            | (((value > 127) as u8) * Self::Negative.bits);
+            | (value & Self::Negative.bits);
     }
 }
 
