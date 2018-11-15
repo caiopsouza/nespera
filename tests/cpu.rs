@@ -1,3 +1,6 @@
+// Not all tests use everything declared here
+#![allow(dead_code)]
+
 extern crate nespera;
 
 // Byte sizes

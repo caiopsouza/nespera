@@ -4,6 +4,7 @@ use flags::Flags;
 use std::num::Wrapping;
 use std::fmt;
 use pretty_hex::*;
+use std::ops::*;
 
 // RAM
 const RAM_CAPACITY: usize = 0x0800;
@@ -148,7 +149,7 @@ impl Nes {
             }};
         }
 
-        // Set a value through the address returned by $setter
+        // Set a value through an address
         macro_rules! set_reg_addr {
             ( $setter:ident, $getter:ident ) => {{
                 let addr = self.$getter();
@@ -157,7 +158,7 @@ impl Nes {
             }};
         }
 
-        // Set a value at the address returned by $setter
+        // Set a value at an address
         macro_rules! set_mem_addr {
             ( $setter:ident, $getter:ident ) => {{
                 let addr = self.$setter();
@@ -176,7 +177,7 @@ impl Nes {
             }};
         }
 
-        // Pull a value
+        // Pull a value referenced through it's address
         macro_rules! pull_reg_val {
             ( $setter:ident ) => {{
                 let value = self.peek_at(self.cpu.sp.into());
@@ -185,8 +186,33 @@ impl Nes {
             }};
         }
 
-        let opcode = self.fetch();
+        // Operator on a value
+        macro_rules! set_op_val {
+            ( $op:ident, $getter:ident ) => {{
+                let value = self.cpu.a.$op(self.$getter());
+                self.cpu.set_a(value);
+            }};
+        }
 
+        // Operator on a value through it's address
+        macro_rules! set_op_addr {
+            ( $op:ident, $getter:ident ) => {{
+                let addr = self.$getter();
+                let value = self.cpu.a.$op(self.peek_at(addr));
+                self.cpu.set_a(value);
+            }};
+        }
+
+        // Bit test
+        macro_rules! bit_test {
+            ( $getter:ident ) => {{
+                let addr = self.$getter();
+                let value = self.cpu.a & self.peek_at(addr);
+                self.cpu.p.zno_bit_test(value);
+            }};
+        }
+
+        let opcode = self.fetch();
         match opcode {
             // Load into A
             opc::Lda::Immediate => set_reg_val!(set_a, immediate),
@@ -244,6 +270,40 @@ impl Nes {
             opc::Php => push_reg_val!(get_p),
             opc::Pla => pull_reg_val!(set_a),
             opc::Plp => pull_reg_val!(set_p),
+
+            // And
+            opc::And::Immediate => set_op_val!(bitand, immediate),
+            opc::And::ZeroPage => set_op_addr!(bitand, zero_page),
+            opc::And::ZeroPageX => set_op_addr!(bitand, zero_page_x),
+            opc::And::Absolute => set_op_addr!(bitand, absolute),
+            opc::And::AbsoluteX => set_op_addr!(bitand, absolute_x),
+            opc::And::AbsoluteY => set_op_addr!(bitand, absolute_y),
+            opc::And::IndirectX => set_op_addr!(bitand, indirect_x),
+            opc::And::IndirectY => set_op_addr!(bitand, indirect_y),
+
+            // Or
+            opc::Ora::Immediate => set_op_val!(bitor, immediate),
+            opc::Ora::ZeroPage => set_op_addr!(bitor, zero_page),
+            opc::Ora::ZeroPageX => set_op_addr!(bitor, zero_page_x),
+            opc::Ora::Absolute => set_op_addr!(bitor, absolute),
+            opc::Ora::AbsoluteX => set_op_addr!(bitor, absolute_x),
+            opc::Ora::AbsoluteY => set_op_addr!(bitor, absolute_y),
+            opc::Ora::IndirectX => set_op_addr!(bitor, indirect_x),
+            opc::Ora::IndirectY => set_op_addr!(bitor, indirect_y),
+
+            // Xor
+            opc::Eor::Immediate => set_op_val!(bitxor, immediate),
+            opc::Eor::ZeroPage => set_op_addr!(bitxor, zero_page),
+            opc::Eor::ZeroPageX => set_op_addr!(bitxor, zero_page_x),
+            opc::Eor::Absolute => set_op_addr!(bitxor, absolute),
+            opc::Eor::AbsoluteX => set_op_addr!(bitxor, absolute_x),
+            opc::Eor::AbsoluteY => set_op_addr!(bitxor, absolute_y),
+            opc::Eor::IndirectX => set_op_addr!(bitxor, indirect_x),
+            opc::Eor::IndirectY => set_op_addr!(bitxor, indirect_y),
+
+            // Bit test
+            opc::Bit::ZeroPage => bit_test!(zero_page),
+            opc::Bit::Absolute => bit_test!(absolute),
 
             // Not implemented
             _ => panic!("Opcode not implemented")

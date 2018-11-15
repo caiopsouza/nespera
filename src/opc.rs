@@ -61,3 +61,41 @@ pub const Pha: u8 = 0x48;
 pub const Php: u8 = 0x08;
 pub const Pla: u8 = 0x68;
 pub const Plp: u8 = 0x28;
+
+pub mod And {
+    pub const Immediate: u8 = 0x29;
+    pub const ZeroPage: u8 = 0x25;
+    pub const ZeroPageX: u8 = 0x35;
+    pub const Absolute: u8 = 0x2d;
+    pub const AbsoluteX: u8 = 0x3d;
+    pub const AbsoluteY: u8 = 0x39;
+    pub const IndirectX: u8 = 0x21;
+    pub const IndirectY: u8 = 0x31;
+}
+
+pub mod Ora {
+    pub const Immediate: u8 = 0x09;
+    pub const ZeroPage: u8 = 0x05;
+    pub const ZeroPageX: u8 = 0x15;
+    pub const Absolute: u8 = 0x0d;
+    pub const AbsoluteX: u8 = 0x1d;
+    pub const AbsoluteY: u8 = 0x19;
+    pub const IndirectX: u8 = 0x01;
+    pub const IndirectY: u8 = 0x11;
+}
+
+pub mod Eor {
+    pub const Immediate: u8 = 0x49;
+    pub const ZeroPage: u8 = 0x45;
+    pub const ZeroPageX: u8 = 0x55;
+    pub const Absolute: u8 = 0x4d;
+    pub const AbsoluteX: u8 = 0x5d;
+    pub const AbsoluteY: u8 = 0x59;
+    pub const IndirectX: u8 = 0x41;
+    pub const IndirectY: u8 = 0x51;
+}
+
+pub mod Bit {
+    pub const ZeroPage: u8 = 0x24;
+    pub const Absolute: u8 = 0x2c;
+}
