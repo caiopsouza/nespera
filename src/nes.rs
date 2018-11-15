@@ -108,35 +108,35 @@ impl Nes {
     fn zero_page_y(&mut self) -> u16 { (Wrapping(self.fetch()) + Wrapping(self.cpu.y)).0.into() }
 
     fn absolute(&mut self) -> u16 {
-        let high = (self.fetch() as u16) << 8;
-        let low = self.fetch() as u16;
-        high + low
+        let lsb = self.fetch() as u16;
+        let msb = (self.fetch() as u16) << 8;
+        msb + lsb
     }
 
     fn absolute_x(&mut self) -> u16 {
-        let high = (self.fetch() as u16) << 8;
-        let low = self.fetch() as u16;
-        (Wrapping(high + low) + Wrapping(self.cpu.x as u16)).0
+        let lsb = self.fetch() as u16;
+        let msb = (self.fetch() as u16) << 8;
+        (Wrapping(msb + lsb) + Wrapping(self.cpu.x as u16)).0
     }
 
     fn absolute_y(&mut self) -> u16 {
-        let high = (self.fetch() as u16) << 8;
-        let low = self.fetch() as u16;
-        (Wrapping(high + low) + Wrapping(self.cpu.y as u16)).0
+        let lsb = self.fetch() as u16;
+        let msb = (self.fetch() as u16) << 8;
+        (Wrapping(msb + lsb) + Wrapping(self.cpu.y as u16)).0
     }
 
     fn indirect_x(&mut self) -> u16 {
         let addr = Wrapping(self.fetch()) + Wrapping(self.cpu.x);
-        let high = (self.peek_at(addr.0.into()) as u16) << 8;
-        let low = self.peek_at((addr + Wrapping(1)).0.into()) as u16;
-        high + low
+        let lsb = self.peek_at((addr + Wrapping(1)).0.into()) as u16;
+        let msb = (self.peek_at(addr.0.into()) as u16) << 8;
+        msb + lsb
     }
 
     fn indirect_y(&mut self) -> u16 {
         let addr = Wrapping(self.fetch());
-        let high = (self.peek_at(addr.0.into()) as u16) << 8;
-        let low = self.peek_at((addr + Wrapping(1)).0.into()) as u16;
-        (Wrapping(high + low) + Wrapping(self.cpu.y as u16)).0
+        let lsb = self.peek_at((addr + Wrapping(1)).0.into()) as u16;
+        let msb = (self.peek_at(addr.0.into()) as u16) << 8;
+        (Wrapping(msb + lsb) + Wrapping(self.cpu.y as u16)).0
     }
 
     // Executes one step of the CPU
@@ -306,7 +306,7 @@ impl Nes {
             opc::Bit::Absolute => bit_test!(absolute),
 
             // Not implemented
-            _ => panic!("Opcode not implemented")
+            _ => panic!("Opcode not implemented: {:x?}", opcode)
         }
     }
 }

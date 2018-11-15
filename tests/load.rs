@@ -107,14 +107,14 @@ macro_rules! absolute {
 
             #[test]
             fn one_byte() {
-                run!(opc: [opc::$opcode::Absolute, high(8), low(8)];
+                run!(opc: [opc::$opcode::Absolute, lsb(8), msb(8)];
                      ram: [8 => 127];
                      res: [$register => 127, "n" => false, "z" => false]);
             }
 
             #[test]
             fn two_bytes() {
-                run!(opc: [opc::$opcode::Absolute, high(750), low(750)];
+                run!(opc: [opc::$opcode::Absolute, lsb(750), msb(750)];
                      ram: [750 => 212];
                      res: [$register => 212, "n" => true, "z" => false]);
             }
@@ -122,9 +122,9 @@ macro_rules! absolute {
             #[test]
             fn multiple_opcode() {
                 run!(opc: [
-                        opc::$opcode::Absolute, high(1), low(1),
-                        opc::$opcode::Absolute, high(0), low(0),
-                        opc::$opcode::Absolute, high(750), low(750)
+                        opc::$opcode::Absolute, lsb(1), msb(1),
+                        opc::$opcode::Absolute, lsb(0), msb(0),
+                        opc::$opcode::Absolute, lsb(750), msb(750)
                     ];
                     ram: [750 => 212];
                     res: [$register => 212, "n" => true, "z" => false]);
@@ -141,7 +141,7 @@ macro_rules! absolute_reg {
 
             #[test]
             fn one_byte() {
-                run!(opc: [opc::$opcode::$mode, high(8), low(8)];
+                run!(opc: [opc::$opcode::$mode, lsb(8), msb(8)];
                      reg: [$absolute_reg => 7];
                      ram: [15 => 127];
                      res: [$res_reg => 127, "n" => false, "z" => false]);
@@ -149,7 +149,7 @@ macro_rules! absolute_reg {
 
             #[test]
             fn two_bytes() {
-                run!(opc: [opc::$opcode::$mode, high(750), low(750)];
+                run!(opc: [opc::$opcode::$mode, lsb(750), msb(750)];
                      reg: [$absolute_reg => 7];
                      ram: [757 => 212];
                      res: [$res_reg => 212, "n" => true, "z" => false]);
@@ -157,7 +157,7 @@ macro_rules! absolute_reg {
 
             #[test]
             fn overflow() {
-                run!(opc: [opc::$opcode::$mode, high(0xfffe), low(0xfffe)];
+                run!(opc: [opc::$opcode::$mode, lsb(0xfffe), msb(0xfffe)];
                      reg: [$absolute_reg => 7];
                      ram: [5 => 212];
                      res: [$res_reg => 212, "n" => true, "z" => false]);
@@ -166,9 +166,9 @@ macro_rules! absolute_reg {
             #[test]
             fn multiple_opcode() {
                 run!(opc: [
-                        opc::$opcode::$mode, high(1), low(1),
-                        opc::$opcode::$mode, high(0), low(0),
-                        opc::$opcode::$mode, high(750), low(750)
+                        opc::$opcode::$mode, lsb(1), msb(1),
+                        opc::$opcode::$mode, lsb(0), msb(0),
+                        opc::$opcode::$mode, lsb(750), msb(750)
                     ];
                     reg: [$absolute_reg => 7];
                     ram: [757 => 212];

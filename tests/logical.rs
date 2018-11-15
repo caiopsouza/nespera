@@ -2,7 +2,7 @@ extern crate nespera;
 
 mod cpu;
 
-use cpu::{high, low};
+use cpu::*;
 
 mod and {
     use super::*;
@@ -34,9 +34,9 @@ mod and {
                 opc::And::Immediate, 0b11111110,
                 opc::And::ZeroPage, 0x098,
                 opc::And::ZeroPageX, 0x0f1,
-                opc::And::Absolute, high(0x2ee), low(0x2ee),
-                opc::And::AbsoluteX, high(0x143), low(0x143),
-                opc::And::AbsoluteY, high(0x2da), low(0x2da),
+                opc::And::Absolute, lsb(0x2ee), msb(0x2ee),
+                opc::And::AbsoluteX, lsb(0x143), msb(0x143),
+                opc::And::AbsoluteY, lsb(0x2da), msb(0x2da),
                 opc::And::IndirectX, 0x0d7,
                 opc::And::IndirectY, 0x0bb
             ];
@@ -84,9 +84,9 @@ mod ora {
                 opc::Ora::Immediate, 0b00000001,
                 opc::Ora::ZeroPage, 0x098,
                 opc::Ora::ZeroPageX, 0x0f1,
-                opc::Ora::Absolute, high(0x2ee), low(0x2ee),
-                opc::Ora::AbsoluteX, high(0x143), low(0x143),
-                opc::Ora::AbsoluteY, high(0x2da), low(0x2da),
+                opc::Ora::Absolute, lsb(0x2ee), msb(0x2ee),
+                opc::Ora::AbsoluteX, lsb(0x143), msb(0x143),
+                opc::Ora::AbsoluteY, lsb(0x2da), msb(0x2da),
                 opc::Ora::IndirectX, 0x0d7,
                 opc::Ora::IndirectY, 0x0bb
             ];
@@ -134,9 +134,9 @@ mod eor {
                 opc::Eor::Immediate, 0b00000001,
                 opc::Eor::ZeroPage, 0x098,
                 opc::Eor::ZeroPageX, 0x0f1,
-                opc::Eor::Absolute, high(0x2ee), low(0x2ee),
-                opc::Eor::AbsoluteX, high(0x143), low(0x143),
-                opc::Eor::AbsoluteY, high(0x2da), low(0x2da),
+                opc::Eor::Absolute, lsb(0x2ee), msb(0x2ee),
+                opc::Eor::AbsoluteX, lsb(0x143), msb(0x143),
+                opc::Eor::AbsoluteY, lsb(0x2da), msb(0x2da),
                 opc::Eor::IndirectX, 0x0d7,
                 opc::Eor::IndirectY, 0x0bb
             ];
@@ -199,7 +199,7 @@ mod bit {
 
     #[test]
     fn absolute() {
-        run!(opc: [opc::Bit::Absolute, high(0x398), low(0x398)];
+        run!(opc: [opc::Bit::Absolute, lsb(0x398), msb(0x398)];
             reg: [a => 0b11111111];
             ram: [0x398 => 0b10111100];
             res: ["n" => true, "z" => false, "o" => false]);

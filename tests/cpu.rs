@@ -8,10 +8,11 @@ pub const UB2: u8 = 64;
 pub const UB4: u8 = 128;
 pub const UB6: u8 = UB4 + UB2;
 
-// Helpers to decompose two bytes
-pub fn high(addr: u16) -> u8 { (addr >> 8) as u8 }
+// Most significant byte
+pub fn msb(addr: u16) -> u8 { (addr >> 8) as u8 }
 
-pub fn low(addr: u16) -> u8 { addr as u8 }
+// Least significant byte
+pub fn lsb(addr: u16) -> u8 { addr as u8 }
 
 // Run an NES and check the result
 #[macro_export]
