@@ -260,6 +260,24 @@ impl Nes {
             }}
         }
 
+        // Increment a register
+        macro_rules! inc_mem {
+            ( $addr:ident, $step:expr ) => {{
+                let addr = self.$addr();
+                let value = (Wrapping(self.peek_at(addr)) + Wrapping($step as u8)).0;
+                self.cpu.p.zn(value);
+                self.put_at(addr, value);
+            }}
+        }
+
+        // Increment an address
+        macro_rules! inc_reg {
+            ( $setter:ident, $getter:ident, $step:expr ) => {{
+                let value = (Wrapping(self.cpu.$getter()) + Wrapping($step as u8)).0;
+                self.cpu.$setter(value);
+            }}
+        }
+
         let opcode = self.fetch();
         match opcode {
             // Load into A
@@ -372,6 +390,24 @@ impl Nes {
             opc::Sbc::AbsoluteY => set_sbc!(absolute_y),
             opc::Sbc::IndirectX => set_sbc!(indirect_x),
             opc::Sbc::IndirectY => set_sbc!(indirect_y),
+
+            // Increment in memory
+            opc::Inc::ZeroPage => inc_mem!(zero_page, 1i8),
+            opc::Inc::ZeroPageX => inc_mem!(zero_page_x, 1i8),
+            opc::Inc::Absolute => inc_mem!(absolute, 1i8),
+            opc::Inc::AbsoluteX => inc_mem!(absolute_x, 1i8),
+
+            // Decrement in memory
+            opc::Dec::ZeroPage => inc_mem!(zero_page, -1i8),
+            opc::Dec::ZeroPageX => inc_mem!(zero_page_x, -1i8),
+            opc::Dec::Absolute => inc_mem!(absolute, -1i8),
+            opc::Dec::AbsoluteX => inc_mem!(absolute_x, -1i8),
+
+            // Increment and decrement registers
+            opc::Inx => inc_reg!(set_x, get_x, 1i8),
+            opc::Dex => inc_reg!(set_x, get_x, -1i8),
+            opc::Iny => inc_reg!(set_y, get_y, 1i8),
+            opc::Dey => inc_reg!(set_y, get_y, -1i8),
 
             // Shifts Left
             opc::Asl::Accumulator => self.cpu.shift_a_left(),
