@@ -97,10 +97,13 @@ impl Nes {
         self.cpu.inc_pc();
     }
 
-    // Value getters
-    fn immediate(&mut self) -> u8 { self.fetch() }
-
     // Address getters
+    fn immediate(&mut self) -> u16 {
+        let pc = self.get_pc();
+        self.cpu.inc_pc();
+        pc
+    }
+
     fn zero_page(&mut self) -> u16 { self.fetch().into() }
 
     fn zero_page_x(&mut self) -> u16 { (Wrapping(self.fetch()) + Wrapping(self.cpu.x)).0.into() }
@@ -150,7 +153,7 @@ impl Nes {
         }
 
         // Set a value through an address
-        macro_rules! set_reg_addr {
+        macro_rules! set_reg {
             ( $setter:ident, $getter:ident ) => {{
                 let addr = self.$getter();
                 let value = self.peek_at(addr);
@@ -159,7 +162,7 @@ impl Nes {
         }
 
         // Set a value at an address
-        macro_rules! set_mem_addr {
+        macro_rules! set_mem {
             ( $setter:ident, $getter:ident ) => {{
                 let addr = self.$setter();
                 let value = self.$getter();
@@ -168,7 +171,7 @@ impl Nes {
         }
 
         // Push a value
-        macro_rules! push_reg_val {
+        macro_rules! push_reg {
             ( $getter:ident ) => {{
                 let addr = self.cpu.sp;
                 let value = self.$getter();
@@ -178,7 +181,7 @@ impl Nes {
         }
 
         // Pull a value referenced through it's address
-        macro_rules! pull_reg_val {
+        macro_rules! pull_reg {
             ( $setter:ident ) => {{
                 let value = self.peek_at(self.cpu.sp.into());
                 self.cpu.$setter(value);
@@ -186,16 +189,8 @@ impl Nes {
             }};
         }
 
-        // Operator on a value
-        macro_rules! set_op_val {
-            ( $op:ident, $getter:ident ) => {{
-                let value = self.cpu.a.$op(self.$getter());
-                self.cpu.set_a(value);
-            }};
-        }
-
         // Operator on a value through it's address
-        macro_rules! set_op_addr {
+        macro_rules! set_op {
             ( $op:ident, $getter:ident ) => {{
                 let addr = self.$getter();
                 let value = self.cpu.a.$op(self.peek_at(addr));
@@ -212,16 +207,8 @@ impl Nes {
             }};
         }
 
-        // Addition on a value
-        macro_rules! set_adc_val {
-            ( $getter:ident ) => {{
-                let value = Wrapping(self.get_c() as u8) + Wrapping(self.$getter());
-                self.cpu.adc_a(value.0);
-            }};
-        }
-
         // Addition on a value through it's address
-        macro_rules! set_adc_addr {
+        macro_rules! set_adc {
             ( $getter:ident ) => {{
                 let addr = self.$getter();
                 let value = Wrapping(self.get_c() as u8) + Wrapping(self.peek_at(addr));
@@ -230,15 +217,7 @@ impl Nes {
         }
 
         // Subtraction on a value
-        macro_rules! set_sbc_val {
-            ( $getter:ident ) => {{
-                let value = Wrapping(1) - Wrapping(self.get_c() as u8) + Wrapping(self.$getter());
-                self.cpu.sbc_a(value.0);
-            }};
-        }
-
-        // Subtraction on a value
-        macro_rules! set_sbc_addr {
+        macro_rules! set_sbc {
             ( $getter:ident ) => {{
                 let addr = self.$getter();
                 let value = Wrapping(1) - Wrapping(self.get_c() as u8) + Wrapping(self.peek_at(addr));
@@ -249,47 +228,47 @@ impl Nes {
         let opcode = self.fetch();
         match opcode {
             // Load into A
-            opc::Lda::Immediate => set_reg_val!(set_a, immediate),
-            opc::Lda::ZeroPage => set_reg_addr!(set_a, zero_page),
-            opc::Lda::ZeroPageX => set_reg_addr!(set_a, zero_page_x),
-            opc::Lda::Absolute => set_reg_addr!(set_a, absolute),
-            opc::Lda::AbsoluteX => set_reg_addr!(set_a, absolute_x),
-            opc::Lda::AbsoluteY => set_reg_addr!(set_a, absolute_y),
-            opc::Lda::IndirectX => set_reg_addr!(set_a, indirect_x),
-            opc::Lda::IndirectY => set_reg_addr!(set_a, indirect_y),
+            opc::Lda::Immediate => set_reg!(set_a, immediate),
+            opc::Lda::ZeroPage => set_reg!(set_a, zero_page),
+            opc::Lda::ZeroPageX => set_reg!(set_a, zero_page_x),
+            opc::Lda::Absolute => set_reg!(set_a, absolute),
+            opc::Lda::AbsoluteX => set_reg!(set_a, absolute_x),
+            opc::Lda::AbsoluteY => set_reg!(set_a, absolute_y),
+            opc::Lda::IndirectX => set_reg!(set_a, indirect_x),
+            opc::Lda::IndirectY => set_reg!(set_a, indirect_y),
 
             // Load into X
-            opc::Ldx::Immediate => set_reg_val!(set_x, immediate),
-            opc::Ldx::ZeroPage => set_reg_addr!(set_x, zero_page),
-            opc::Ldx::ZeroPageY => set_reg_addr!(set_x, zero_page_y),
-            opc::Ldx::Absolute => set_reg_addr!(set_x, absolute),
-            opc::Ldx::AbsoluteY => set_reg_addr!(set_x, absolute_y),
+            opc::Ldx::Immediate => set_reg!(set_x, immediate),
+            opc::Ldx::ZeroPage => set_reg!(set_x, zero_page),
+            opc::Ldx::ZeroPageY => set_reg!(set_x, zero_page_y),
+            opc::Ldx::Absolute => set_reg!(set_x, absolute),
+            opc::Ldx::AbsoluteY => set_reg!(set_x, absolute_y),
 
             // Load into Y
-            opc::Ldy::Immediate => set_reg_val!(set_y, immediate),
-            opc::Ldy::ZeroPage => set_reg_addr!(set_y, zero_page),
-            opc::Ldy::ZeroPageX => set_reg_addr!(set_y, zero_page_x),
-            opc::Ldy::Absolute => set_reg_addr!(set_y, absolute),
-            opc::Ldy::AbsoluteX => set_reg_addr!(set_y, absolute_x),
+            opc::Ldy::Immediate => set_reg!(set_y, immediate),
+            opc::Ldy::ZeroPage => set_reg!(set_y, zero_page),
+            opc::Ldy::ZeroPageX => set_reg!(set_y, zero_page_x),
+            opc::Ldy::Absolute => set_reg!(set_y, absolute),
+            opc::Ldy::AbsoluteX => set_reg!(set_y, absolute_x),
 
             // Store from A
-            opc::Sta::ZeroPage => set_mem_addr!(zero_page, get_a),
-            opc::Sta::ZeroPageX => set_mem_addr!(zero_page_x, get_a),
-            opc::Sta::Absolute => set_mem_addr!(absolute, get_a),
-            opc::Sta::AbsoluteX => set_mem_addr!(absolute_x, get_a),
-            opc::Sta::AbsoluteY => set_mem_addr!(absolute_y, get_a),
-            opc::Sta::IndirectX => set_mem_addr!(indirect_x, get_a),
-            opc::Sta::IndirectY => set_mem_addr!(indirect_y, get_a),
+            opc::Sta::ZeroPage => set_mem!(zero_page, get_a),
+            opc::Sta::ZeroPageX => set_mem!(zero_page_x, get_a),
+            opc::Sta::Absolute => set_mem!(absolute, get_a),
+            opc::Sta::AbsoluteX => set_mem!(absolute_x, get_a),
+            opc::Sta::AbsoluteY => set_mem!(absolute_y, get_a),
+            opc::Sta::IndirectX => set_mem!(indirect_x, get_a),
+            opc::Sta::IndirectY => set_mem!(indirect_y, get_a),
 
             // Store from X
-            opc::Stx::ZeroPage => set_mem_addr!(zero_page, get_x),
-            opc::Stx::ZeroPageY => set_mem_addr!(zero_page_y, get_x),
-            opc::Stx::Absolute => set_mem_addr!(absolute, get_x),
+            opc::Stx::ZeroPage => set_mem!(zero_page, get_x),
+            opc::Stx::ZeroPageY => set_mem!(zero_page_y, get_x),
+            opc::Stx::Absolute => set_mem!(absolute, get_x),
 
             // Store from Y
-            opc::Sty::ZeroPage => set_mem_addr!(zero_page, get_y),
-            opc::Sty::ZeroPageX => set_mem_addr!(zero_page_x, get_y),
-            opc::Sty::Absolute => set_mem_addr!(absolute, get_y),
+            opc::Sty::ZeroPage => set_mem!(zero_page, get_y),
+            opc::Sty::ZeroPageX => set_mem!(zero_page_x, get_y),
+            opc::Sty::Absolute => set_mem!(absolute, get_y),
 
             // Transfer
             opc::Tax => set_reg_val!(set_x, get_a),
@@ -300,64 +279,64 @@ impl Nes {
             opc::Txs => set_reg_val!(set_sp, get_x),
 
             // Stack
-            opc::Pha => push_reg_val!(get_a),
-            opc::Php => push_reg_val!(get_p),
-            opc::Pla => pull_reg_val!(set_a),
-            opc::Plp => pull_reg_val!(set_p),
+            opc::Pha => push_reg!(get_a),
+            opc::Php => push_reg!(get_p),
+            opc::Pla => pull_reg!(set_a),
+            opc::Plp => pull_reg!(set_p),
 
             // And
-            opc::And::Immediate => set_op_val!(bitand, immediate),
-            opc::And::ZeroPage => set_op_addr!(bitand, zero_page),
-            opc::And::ZeroPageX => set_op_addr!(bitand, zero_page_x),
-            opc::And::Absolute => set_op_addr!(bitand, absolute),
-            opc::And::AbsoluteX => set_op_addr!(bitand, absolute_x),
-            opc::And::AbsoluteY => set_op_addr!(bitand, absolute_y),
-            opc::And::IndirectX => set_op_addr!(bitand, indirect_x),
-            opc::And::IndirectY => set_op_addr!(bitand, indirect_y),
+            opc::And::Immediate => set_op!(bitand, immediate),
+            opc::And::ZeroPage => set_op!(bitand, zero_page),
+            opc::And::ZeroPageX => set_op!(bitand, zero_page_x),
+            opc::And::Absolute => set_op!(bitand, absolute),
+            opc::And::AbsoluteX => set_op!(bitand, absolute_x),
+            opc::And::AbsoluteY => set_op!(bitand, absolute_y),
+            opc::And::IndirectX => set_op!(bitand, indirect_x),
+            opc::And::IndirectY => set_op!(bitand, indirect_y),
 
             // Or
-            opc::Ora::Immediate => set_op_val!(bitor, immediate),
-            opc::Ora::ZeroPage => set_op_addr!(bitor, zero_page),
-            opc::Ora::ZeroPageX => set_op_addr!(bitor, zero_page_x),
-            opc::Ora::Absolute => set_op_addr!(bitor, absolute),
-            opc::Ora::AbsoluteX => set_op_addr!(bitor, absolute_x),
-            opc::Ora::AbsoluteY => set_op_addr!(bitor, absolute_y),
-            opc::Ora::IndirectX => set_op_addr!(bitor, indirect_x),
-            opc::Ora::IndirectY => set_op_addr!(bitor, indirect_y),
+            opc::Ora::Immediate => set_op!(bitor, immediate),
+            opc::Ora::ZeroPage => set_op!(bitor, zero_page),
+            opc::Ora::ZeroPageX => set_op!(bitor, zero_page_x),
+            opc::Ora::Absolute => set_op!(bitor, absolute),
+            opc::Ora::AbsoluteX => set_op!(bitor, absolute_x),
+            opc::Ora::AbsoluteY => set_op!(bitor, absolute_y),
+            opc::Ora::IndirectX => set_op!(bitor, indirect_x),
+            opc::Ora::IndirectY => set_op!(bitor, indirect_y),
 
             // Xor
-            opc::Eor::Immediate => set_op_val!(bitxor, immediate),
-            opc::Eor::ZeroPage => set_op_addr!(bitxor, zero_page),
-            opc::Eor::ZeroPageX => set_op_addr!(bitxor, zero_page_x),
-            opc::Eor::Absolute => set_op_addr!(bitxor, absolute),
-            opc::Eor::AbsoluteX => set_op_addr!(bitxor, absolute_x),
-            opc::Eor::AbsoluteY => set_op_addr!(bitxor, absolute_y),
-            opc::Eor::IndirectX => set_op_addr!(bitxor, indirect_x),
-            opc::Eor::IndirectY => set_op_addr!(bitxor, indirect_y),
+            opc::Eor::Immediate => set_op!(bitxor, immediate),
+            opc::Eor::ZeroPage => set_op!(bitxor, zero_page),
+            opc::Eor::ZeroPageX => set_op!(bitxor, zero_page_x),
+            opc::Eor::Absolute => set_op!(bitxor, absolute),
+            opc::Eor::AbsoluteX => set_op!(bitxor, absolute_x),
+            opc::Eor::AbsoluteY => set_op!(bitxor, absolute_y),
+            opc::Eor::IndirectX => set_op!(bitxor, indirect_x),
+            opc::Eor::IndirectY => set_op!(bitxor, indirect_y),
 
             // Bit test
             opc::Bit::ZeroPage => bit_test!(zero_page),
             opc::Bit::Absolute => bit_test!(absolute),
 
             // Addition
-            opc::Adc::Immediate => set_adc_val!(immediate),
-            opc::Adc::ZeroPage => set_adc_addr!(zero_page),
-            opc::Adc::ZeroPageX => set_adc_addr!(zero_page_x),
-            opc::Adc::Absolute => set_adc_addr!(absolute),
-            opc::Adc::AbsoluteX => set_adc_addr!(absolute_x),
-            opc::Adc::AbsoluteY => set_adc_addr!(absolute_y),
-            opc::Adc::IndirectX => set_adc_addr!(indirect_x),
-            opc::Adc::IndirectY => set_adc_addr!(indirect_y),
+            opc::Adc::Immediate => set_adc!(immediate),
+            opc::Adc::ZeroPage => set_adc!(zero_page),
+            opc::Adc::ZeroPageX => set_adc!(zero_page_x),
+            opc::Adc::Absolute => set_adc!(absolute),
+            opc::Adc::AbsoluteX => set_adc!(absolute_x),
+            opc::Adc::AbsoluteY => set_adc!(absolute_y),
+            opc::Adc::IndirectX => set_adc!(indirect_x),
+            opc::Adc::IndirectY => set_adc!(indirect_y),
 
             // Subtraction
-            opc::Sbc::Immediate => set_sbc_val!(immediate),
-            opc::Sbc::ZeroPage => set_sbc_addr!(zero_page),
-            opc::Sbc::ZeroPageX => set_sbc_addr!(zero_page_x),
-            opc::Sbc::Absolute => set_sbc_addr!(absolute),
-            opc::Sbc::AbsoluteX => set_sbc_addr!(absolute_x),
-            opc::Sbc::AbsoluteY => set_sbc_addr!(absolute_y),
-            opc::Sbc::IndirectX => set_sbc_addr!(indirect_x),
-            opc::Sbc::IndirectY => set_sbc_addr!(indirect_y),
+            opc::Sbc::Immediate => set_sbc!(immediate),
+            opc::Sbc::ZeroPage => set_sbc!(zero_page),
+            opc::Sbc::ZeroPageX => set_sbc!(zero_page_x),
+            opc::Sbc::Absolute => set_sbc!(absolute),
+            opc::Sbc::AbsoluteX => set_sbc!(absolute_x),
+            opc::Sbc::AbsoluteY => set_sbc!(absolute_y),
+            opc::Sbc::IndirectX => set_sbc!(indirect_x),
+            opc::Sbc::IndirectY => set_sbc!(indirect_y),
 
             // Not implemented
             _ => panic!("Opcode not implemented: 0x{:02x?}", opcode)
