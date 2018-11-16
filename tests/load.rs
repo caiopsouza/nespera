@@ -188,7 +188,7 @@ macro_rules! indirect_x {
             fn regular() {
                 run!(opc: [opc::$opcode::IndirectX, 15];
                     reg: [x => 2];
-                    ram: [17 => 0x07, 18 => 0x10, 0x0710 => 20];
+                    ram: [17 => 0x10, 18 => 0x07, 0x0710 => 20];
                     res: [$register => 20, "n" => false, "z" => false]);
             }
 
@@ -196,7 +196,7 @@ macro_rules! indirect_x {
             fn overflow() {
                 run!(opc: [opc::$opcode::IndirectX, UB6 + 15];
                     reg: [x => UB6 + 2];
-                    ram: [UB4 + 17 => 0x07, UB4 + 18 => 0x10, 0x0710 => 20];
+                    ram: [UB4 + 17 => 0x10, UB4 + 18 => 0x07, 0x0710 => 20];
                     res: [$register => 20, "n" => false, "z" => false]);
             }
 
@@ -208,8 +208,8 @@ macro_rules! indirect_x {
                     ];
                     reg: [x => 2];
                     ram: [
-                        7 => 0x06, 8 => 0x09, 0x0609 => 78,
-                        17 => 0x07, 18 => 0x10, 0x0710 => 131];
+                        7 => 0x09, 8 => 0x06, 0x0609 => 78,
+                        17 => 0x10, 18 => 0x07, 0x0710 => 131];
                     res: [$register => 131, "n" => true, "z" => false]);
             }
         }
@@ -226,7 +226,7 @@ macro_rules! indirect_y {
             fn regular() {
                 run!(opc: [opc::$opcode::IndirectY, 0x2a];
                     reg: [y => 0x03];
-                    ram: [0x2a => 0x07, 0x2b => 0x35, 0x0738 => 0x2f];
+                    ram: [0x2a => 0x35, 0x2b => 0x07, 0x0738 => 0x2f];
                     res: [$register => 0x2f, "n" => false, "z" => false]);
             }
 
@@ -234,7 +234,7 @@ macro_rules! indirect_y {
             fn overflow() {
                 run!(opc: [opc::$opcode::IndirectY, 0x35];
                     reg: [y => 0x10];
-                    ram: [0x35 => 0xff, 0x36 => 0xfe, 0x0e => 0x2f];
+                    ram: [0x35 => 0xfe, 0x36 => 0xff, 0x0e => 0x2f];
                     res: [$register => 0x2f, "n" => false, "z" => false]);
             }
 
@@ -246,8 +246,8 @@ macro_rules! indirect_y {
                     ];
                     reg: [y => 0x10];
                     ram: [
-                        0x2a => 0x07, 0x2b => 0x35, 0x0745 => 0x2a,
-                        0x35 => 0xff, 0x36 => 0xfe, 0x0e => 0x2f];
+                        0x2a => 0x35, 0x2b => 0x07, 0x0745 => 0x2a,
+                        0x35 => 0xfe, 0x36 => 0xff, 0x0e => 0x2f];
                     res: [$register => 0x2f, "n" => false, "z" => false]);
             }
         }

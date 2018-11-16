@@ -160,7 +160,7 @@ mod sta {
         fn regular() {
             run!(opc: [opc::Sta::IndirectX, 15];
                 reg: [a => 244, x => 2];
-                ram: [17 => 0x07, 18 => 0x10, 0x0710 => 52];
+                ram: [17 => 0x10, 18 => 0x07, 0x0710 => 52];
                 res: [0x0710 => 244]);
         }
 
@@ -168,7 +168,7 @@ mod sta {
         fn overflow() {
             run!(opc: [opc::Sta::IndirectX, UB6 + 15];
                 reg: [a => 244, x => UB6 + 2];
-                ram: [UB4 + 17 => 0x07, UB4 + 18 => 0x10];
+                ram: [UB4 + 17 => 0x10, UB4 + 18 => 0x07];
                 res: [0x0710 => 244]);
         }
 
@@ -180,8 +180,8 @@ mod sta {
                 ];
                 reg: [a => 244, x => 2];
                 ram: [
-                    22 => 0x06, 23 => 0x09,
-                    114 => 0x07, 115 => 0x10];
+                    22 => 0x09, 23 => 0x06,
+                    114 => 0x10, 115 => 0x07];
                 res: [0x0609 => 244, 0x0710 => 244]);
         }
     }
@@ -193,7 +193,7 @@ mod sta {
         fn regular() {
             run!(opc: [opc::Sta::IndirectY, 0x2a];
                 reg: [a => 244, y => 0x03];
-                ram: [0x2a => 0x07, 0x2b => 0x35];
+                ram: [0x2a => 0x35, 0x2b => 0x07];
                 res: [0x0738 => 244]);
         }
 
@@ -201,7 +201,7 @@ mod sta {
         fn overflow() {
             run!(opc: [opc::Sta::IndirectY, 0x2a];
                 reg: [a => 244, y => 0x28];
-                ram: [0x2a => 0xff, 0x2b => 0xfe];
+                ram: [0x2a => 0xfe, 0x2b => 0xff];
                 res: [0x26 => 244]);
         }
 
@@ -213,8 +213,8 @@ mod sta {
                 ];
                 reg: [a => 244, y => 0x50];
                 ram: [
-                    0x2a => 0x07, 0x2b => 0x35,
-                    0x35 => 0xff, 0x36 => 0xfe];
+                    0x2a => 0x35, 0x2b => 0x07,
+                    0x35 => 0xfe, 0x36 => 0xff];
                 res: [0x0785 => 244, 0x4e => 244]);
         }
     }

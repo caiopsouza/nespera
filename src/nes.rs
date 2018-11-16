@@ -127,15 +127,15 @@ impl Nes {
 
     fn indirect_x(&mut self) -> u16 {
         let addr = Wrapping(self.fetch()) + Wrapping(self.cpu.x);
-        let lsb = self.peek_at((addr + Wrapping(1)).0.into()) as u16;
-        let msb = (self.peek_at(addr.0.into()) as u16) << 8;
+        let lsb = self.peek_at(addr.0.into()) as u16;
+        let msb = (self.peek_at((addr + Wrapping(1)).0.into()) as u16) << 8;
         msb + lsb
     }
 
     fn indirect_y(&mut self) -> u16 {
         let addr = Wrapping(self.fetch());
-        let lsb = self.peek_at((addr + Wrapping(1)).0.into()) as u16;
-        let msb = (self.peek_at(addr.0.into()) as u16) << 8;
+        let lsb = self.peek_at(addr.0.into()) as u16;
+        let msb = (self.peek_at((addr + Wrapping(1)).0.into()) as u16) << 8;
         (Wrapping(msb + lsb) + Wrapping(self.cpu.y as u16)).0
     }
 
