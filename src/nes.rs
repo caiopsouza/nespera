@@ -212,6 +212,40 @@ impl Nes {
             }};
         }
 
+        // Addition on a value
+        macro_rules! set_adc_val {
+            ( $getter:ident ) => {{
+                let value = Wrapping(self.get_c() as u8) + Wrapping(self.$getter());
+                self.cpu.adc_a(value.0);
+            }};
+        }
+
+        // Addition on a value through it's address
+        macro_rules! set_adc_addr {
+            ( $getter:ident ) => {{
+                let addr = self.$getter();
+                let value = Wrapping(self.get_c() as u8) + Wrapping(self.peek_at(addr));
+                self.cpu.adc_a(value.0);
+            }};
+        }
+
+        // Subtraction on a value
+        macro_rules! set_sbc_val {
+            ( $getter:ident ) => {{
+                let value = Wrapping(1) - Wrapping(self.get_c() as u8) + Wrapping(self.$getter());
+                self.cpu.sbc_a(value.0);
+            }};
+        }
+
+        // Subtraction on a value
+        macro_rules! set_sbc_addr {
+            ( $getter:ident ) => {{
+                let addr = self.$getter();
+                let value = Wrapping(1) - Wrapping(self.get_c() as u8) + Wrapping(self.peek_at(addr));
+                self.cpu.sbc_a(value.0);
+            }};
+        }
+
         let opcode = self.fetch();
         match opcode {
             // Load into A
@@ -305,8 +339,28 @@ impl Nes {
             opc::Bit::ZeroPage => bit_test!(zero_page),
             opc::Bit::Absolute => bit_test!(absolute),
 
+            // Addition
+            opc::Adc::Immediate => set_adc_val!(immediate),
+            opc::Adc::ZeroPage => set_adc_addr!(zero_page),
+            opc::Adc::ZeroPageX => set_adc_addr!(zero_page_x),
+            opc::Adc::Absolute => set_adc_addr!(absolute),
+            opc::Adc::AbsoluteX => set_adc_addr!(absolute_x),
+            opc::Adc::AbsoluteY => set_adc_addr!(absolute_y),
+            opc::Adc::IndirectX => set_adc_addr!(indirect_x),
+            opc::Adc::IndirectY => set_adc_addr!(indirect_y),
+
+            // Subtraction
+            opc::Sbc::Immediate => set_sbc_val!(immediate),
+            opc::Sbc::ZeroPage => set_sbc_addr!(zero_page),
+            opc::Sbc::ZeroPageX => set_sbc_addr!(zero_page_x),
+            opc::Sbc::Absolute => set_sbc_addr!(absolute),
+            opc::Sbc::AbsoluteX => set_sbc_addr!(absolute_x),
+            opc::Sbc::AbsoluteY => set_sbc_addr!(absolute_y),
+            opc::Sbc::IndirectX => set_sbc_addr!(indirect_x),
+            opc::Sbc::IndirectY => set_sbc_addr!(indirect_y),
+
             // Not implemented
-            _ => panic!("Opcode not implemented: {:x?}", opcode)
+            _ => panic!("Opcode not implemented: 0x{:02x?}", opcode)
         }
     }
 }

@@ -99,3 +99,25 @@ pub mod Bit {
     pub const ZeroPage: u8 = 0x24;
     pub const Absolute: u8 = 0x2c;
 }
+
+pub mod Adc {
+    pub const Immediate: u8 = 0x69;
+    pub const ZeroPage: u8 = 0x65;
+    pub const ZeroPageX: u8 = 0x75;
+    pub const Absolute: u8 = 0x6d;
+    pub const AbsoluteX: u8 = 0x7d;
+    pub const AbsoluteY: u8 = 0x79;
+    pub const IndirectX: u8 = 0x61;
+    pub const IndirectY: u8 = 0x71;
+}
+
+pub mod Sbc {
+    pub const Immediate: u8 = 0xe9;
+    pub const ZeroPage: u8 = 0xe5;
+    pub const ZeroPageX: u8 = 0xf5;
+    pub const Absolute: u8 = 0xed;
+    pub const AbsoluteX: u8 = 0xfd;
+    pub const AbsoluteY: u8 = 0xf9;
+    pub const IndirectX: u8 = 0xe1;
+    pub const IndirectY: u8 = 0xf1;
+}

@@ -55,4 +55,16 @@ impl Cpu {
     pub fn set_p(&mut self, value: u8) { self.p = value.into(); }
 
     pub fn set_sp(&mut self, value: u8) { self.sp = value; }
+
+    // Sums a value into A
+    pub fn adc_a(&mut self, value: u8) {
+        self.p.znco_adc(self.a, value);
+        self.a = (Wrapping(self.a) + Wrapping(value)).0;
+    }
+
+    // Sums a value into A
+    pub fn sbc_a(&mut self, value: u8) {
+        self.p.znco_sbc(self.a, value);
+        self.a = (Wrapping(self.a) - Wrapping(value)).0;
+    }
 }

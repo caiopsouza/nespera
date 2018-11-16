@@ -1,4 +1,5 @@
 use std::convert::From;
+use std::num::Wrapping;
 
 // Flags for the P register
 bitflags! {
@@ -44,7 +45,7 @@ impl Flags {
 
     // Set the Zero, Negative, Carry and Overflow flags according to the difference of the values passed
     pub fn znco_sbc(&mut self, a: u8, b: u8) {
-        self.znco_adc(a, -(b as i8) as u8);
+        self.znco_adc(a, (-Wrapping(b as i8)).0 as u8);
         self.toggle(Flags::Carry);
     }
 }

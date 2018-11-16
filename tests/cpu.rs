@@ -66,8 +66,15 @@ macro_rules! run {
 
         let mut nes = Nes::new();
         $( nes.write($opcode); )*
-        $( nes.put_at($addr as u16, $ram as u8); )*
-        $( nes.cpu.$initial_reg = $initial_value.into(); )*
+
+        $(
+            let addr = $addr as u16;
+            // Prevents from writing twice at the same address which can hinder testing
+            if nes.peek_at(addr) != 0 { panic!("Trying to write twice in 0x{:x?}", addr); }
+            nes.put_at(addr, $ram as u8);
+        )*
+
+        $( nes.cpu.$initial_reg = ($initial_value as u8).into(); )*
 
         let control = nes.clone();
 
