@@ -1,4 +1,5 @@
 use cpu::Cpu;
+use cpu::Flags;
 use opc;
 use std::num::Wrapping;
 use std::fmt;
@@ -213,7 +214,49 @@ impl Nes {
             ( $setter:ident, $getter:ident ) => {{
                 let addr = self.$getter();
                 let value = self.peek_at(addr);
-                self.cpu.cmp_a(value);
+                self.cpu.$setter(value);
+            }}
+        }
+
+        // Shift left
+        macro_rules! asl {
+            ( $addr:ident ) => {{
+                let addr = self.$addr();
+                let mut value = self.peek_at(addr);
+                self.cpu.p.znc_left_shift(value);
+                self.put_at(addr, value << 1);
+            }}
+        }
+
+        // Shift Right
+        macro_rules! lsr {
+            ( $addr:ident ) => {{
+                let addr = self.$addr();
+                let mut value = self.peek_at(addr);
+                self.cpu.p.znc_right_shift(value);
+                self.put_at(addr, value >> 1);
+            }}
+        }
+
+        // Rotates left
+        macro_rules! rol {
+            ( $addr:ident ) => {{
+                let addr = self.$addr();
+                let mut value = self.peek_at(addr);
+                self.cpu.p.znc_left_shift(value);
+                let carry = self.cpu.p.bits() & Flags::Carry.bits();
+                self.put_at(addr, (value << 1) | carry);
+            }}
+        }
+
+        // Rotates right
+        macro_rules! ror {
+            ( $addr:ident ) => {{
+                let addr = self.$addr();
+                let mut value = self.peek_at(addr);
+                self.cpu.p.znc_left_shift(value);
+                let carry = (self.cpu.p.bits() & Flags::Carry.bits()) << 7;
+                self.put_at(addr, (value >> 1) | carry);
             }}
         }
 
@@ -329,6 +372,34 @@ impl Nes {
             opc::Sbc::AbsoluteY => set_sbc!(absolute_y),
             opc::Sbc::IndirectX => set_sbc!(indirect_x),
             opc::Sbc::IndirectY => set_sbc!(indirect_y),
+
+            // Shifts Left
+            opc::Asl::Accumulator => self.cpu.shift_a_left(),
+            opc::Asl::ZeroPage => asl!(zero_page),
+            opc::Asl::ZeroPageX => asl!(zero_page_x),
+            opc::Asl::Absolute => asl!(absolute),
+            opc::Asl::AbsoluteX => asl!(absolute_x),
+
+            // Shifts Right
+            opc::Lsr::Accumulator => self.cpu.shift_a_right(),
+            opc::Lsr::ZeroPage => lsr!(zero_page),
+            opc::Lsr::ZeroPageX => lsr!(zero_page_x),
+            opc::Lsr::Absolute => lsr!(absolute),
+            opc::Lsr::AbsoluteX => lsr!(absolute_x),
+
+            // Rotates Left
+            opc::Rol::Accumulator => self.cpu.rotate_a_left(),
+            opc::Rol::ZeroPage => rol!(zero_page),
+            opc::Rol::ZeroPageX => rol!(zero_page_x),
+            opc::Rol::Absolute => rol!(absolute),
+            opc::Rol::AbsoluteX => rol!(absolute_x),
+
+            // Rotates Right
+            opc::Ror::Accumulator => self.cpu.rotate_a_right(),
+            opc::Ror::ZeroPage => ror!(zero_page),
+            opc::Ror::ZeroPageX => ror!(zero_page_x),
+            opc::Ror::Absolute => ror!(absolute),
+            opc::Ror::AbsoluteX => ror!(absolute_x),
 
             // Compare A
             opc::Cmp::Immediate => cmp!(cmp_a, immediate),

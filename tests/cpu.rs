@@ -60,6 +60,9 @@ macro_rules! run {
         use nespera::nes::Nes;
         use nespera::opc;
 
+        #[allow(unused_imports)]
+        use nespera::flags;
+
         let mut checks = HashMap::new();
         $( checks.insert($reg.to_string(), $value as u16); )*
         let get_value = |key, value| *checks.get(key).unwrap_or_else(|| &value) as u16;

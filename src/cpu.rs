@@ -1,4 +1,5 @@
-use flags::Flags;
+pub use flags::Flags;
+
 use std::num::Wrapping;
 
 // Power up state of the CPU
@@ -90,4 +91,28 @@ impl Cpu {
     pub fn cmp_a(&mut self, value: u8) { self.p.znc_cmp(self.a, value); }
     pub fn cmp_x(&mut self, value: u8) { self.p.znc_cmp(self.x, value); }
     pub fn cmp_y(&mut self, value: u8) { self.p.znc_cmp(self.y, value); }
+
+    // Shifts A left
+    pub fn shift_a_left(&mut self) {
+        self.p.znc_left_shift(self.a);
+        self.a <<= 1;
+    }
+
+    // Shifts A right
+    pub fn shift_a_right(&mut self) {
+        self.p.znc_right_shift(self.a);
+        self.a >>= 1;
+    }
+
+    // Rotates A left
+    pub fn rotate_a_left(&mut self) {
+        self.p.znc_left_shift(self.a);
+        self.a = (self.a << 1) | (self.p.bits() & Flags::Carry.bits());
+    }
+
+    // Rotates A right
+    pub fn rotate_a_right(&mut self) {
+        self.p.znc_right_rotate(self.a);
+        self.a = (self.a >> 1) | ((self.p.bits() & Flags::Carry.bits()) << 7);
+    }
 }

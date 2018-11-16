@@ -122,6 +122,38 @@ pub mod Sbc {
     pub const IndirectY: u8 = 0xf1;
 }
 
+pub mod Asl {
+    pub const Accumulator: u8 = 0x0a;
+    pub const ZeroPage: u8 = 0x06;
+    pub const ZeroPageX: u8 = 0x16;
+    pub const Absolute: u8 = 0x0e;
+    pub const AbsoluteX: u8 = 0x1e;
+}
+
+pub mod Lsr {
+    pub const Accumulator: u8 = 0x4a;
+    pub const ZeroPage: u8 = 0x46;
+    pub const ZeroPageX: u8 = 0x56;
+    pub const Absolute: u8 = 0x4e;
+    pub const AbsoluteX: u8 = 0x5e;
+}
+
+pub mod Rol {
+    pub const Accumulator: u8 = 0x2a;
+    pub const ZeroPage: u8 = 0x26;
+    pub const ZeroPageX: u8 = 0x36;
+    pub const Absolute: u8 = 0x2e;
+    pub const AbsoluteX: u8 = 0x3e;
+}
+
+pub mod Ror {
+    pub const Accumulator: u8 = 0x6a;
+    pub const ZeroPage: u8 = 0x66;
+    pub const ZeroPageX: u8 = 0x76;
+    pub const Absolute: u8 = 0x6e;
+    pub const AbsoluteX: u8 = 0x7e;
+}
+
 pub mod Cmp {
     pub const Immediate: u8 = 0xc9;
     pub const ZeroPage: u8 = 0xc5;

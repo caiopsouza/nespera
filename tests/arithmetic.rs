@@ -97,3 +97,171 @@ mod sbc {
             res: ["a" => 0xa6, "n" => true, "z" => false, "c" => false, "o" => false]);
     }
 }
+
+mod asl {
+    use super::*;
+
+    #[test]
+    fn accumulator() {
+        run!(opc: [opc::Asl::Accumulator];
+            reg: [a => 0b11011111];
+            res: ["a" => 0b10111110, "c" => true, "n" => true, "z" => false]);
+    }
+
+    #[test]
+    fn zero_page() {
+        run!(opc: [opc::Asl::ZeroPage, 0x2b];
+            ram: [0x2b => 0b11011111];
+            res: [0x2b => 0b10111110, "c" => true, "n" => true, "z" => false]);
+    }
+
+    #[test]
+    fn zero_page_x() {
+        run!(opc: [opc::Asl::ZeroPageX, 0x2b];
+            reg: [x => 0x01];
+            ram: [0x2c => 0b11011111];
+            res: [0x2c => 0b10111110, "c" => true, "n" => true, "z" => false]);
+    }
+
+    #[test]
+    fn absolute() {
+        run!(opc: [opc::Asl::Absolute, lsb(0x2ee), msb(0x2ee)];
+            ram: [0x2ee => 0b11011111];
+            res: [0x2ee => 0b10111110, "c" => true, "n" => true, "z" => false]);
+    }
+
+    #[test]
+    fn absolute_x() {
+        run!(opc: [opc::Asl::AbsoluteX, lsb(0x2ee), msb(0x2ee)];
+            reg: [x => 0x01];
+            ram: [0x2ef => 0b11011111];
+            res: [0x2ef => 0b10111110, "c" => true, "n" => true, "z" => false]);
+    }
+}
+
+mod lsr {
+    use super::*;
+
+    #[test]
+    fn accumulator() {
+        run!(opc: [opc::Lsr::Accumulator];
+            reg: [a => 0b11011111];
+            res: ["a" => 0b01101111, "c" => true, "n" => false, "z" => false]);
+    }
+
+    #[test]
+    fn zero_page() {
+        run!(opc: [opc::Lsr::ZeroPage, 0x2b];
+            ram: [0x2b => 0b11011111];
+            res: [0x2b => 0b01101111, "c" => true, "n" => false, "z" => false]);
+    }
+
+    #[test]
+    fn zero_page_x() {
+        run!(opc: [opc::Lsr::ZeroPageX, 0x2b];
+            reg: [x => 0x01];
+            ram: [0x2c => 0b11011111];
+            res: [0x2c => 0b01101111, "c" => true, "n" => false, "z" => false]);
+    }
+
+    #[test]
+    fn absolute() {
+        run!(opc: [opc::Lsr::Absolute, lsb(0x2ee), msb(0x2ee)];
+            ram: [0x2ee => 0b11011111];
+            res: [0x2ee => 0b01101111, "c" => true, "n" => false, "z" => false]);
+    }
+
+    #[test]
+    fn absolute_x() {
+        run!(opc: [opc::Lsr::AbsoluteX, lsb(0x2ee), msb(0x2ee)];
+            reg: [x => 0x01];
+            ram: [0x2ef => 0b11011111];
+            res: [0x2ef => 0b01101111, "c" => true, "n" => false, "z" => false]);
+    }
+}
+
+mod rol {
+    use super::*;
+
+    #[test]
+    fn accumulator() {
+        run!(opc: [opc::Rol::Accumulator];
+            reg: [p => flags::Flags::Carry.bits(), a => 0b11011111];
+            res: ["a" => 0b10111111, "c" => true, "n" => true, "z" => false]);
+    }
+
+    #[test]
+    fn zero_page() {
+        run!(opc: [opc::Rol::ZeroPage, 0x2b];
+            reg: [p => flags::Flags::Carry.bits()];
+            ram: [0x2b => 0b11011111];
+            res: [0x2b => 0b10111111, "c" => true, "n" => true, "z" => false]);
+    }
+
+    #[test]
+    fn zero_page_x() {
+        run!(opc: [opc::Rol::ZeroPageX, 0x2b];
+            reg: [p => flags::Flags::Carry.bits(), x => 0x01];
+            ram: [0x2c => 0b11011111];
+            res: [0x2c => 0b10111111, "c" => true, "n" => true, "z" => false]);
+    }
+
+    #[test]
+    fn absolute() {
+        run!(opc: [opc::Rol::Absolute, lsb(0x2ee), msb(0x2ee)];
+            reg: [p => flags::Flags::Carry.bits()];
+            ram: [0x2ee => 0b11011111];
+            res: [0x2ee => 0b10111111, "c" => true, "n" => true, "z" => false]);
+    }
+
+    #[test]
+    fn absolute_x() {
+        run!(opc: [opc::Rol::AbsoluteX, lsb(0x2ee), msb(0x2ee)];
+            reg: [p => flags::Flags::Carry.bits(), x => 0x01];
+            ram: [0x2ef => 0b11011111];
+            res: [0x2ef => 0b10111111, "c" => true, "n" => true, "z" => false]);
+    }
+}
+
+mod ror {
+    use super::*;
+
+    #[test]
+    fn accumulator() {
+        run!(opc: [opc::Ror::Accumulator];
+            reg: [p => flags::Flags::Carry.bits(), a => 0b11011111];
+            res: ["a" => 0b11101111, "c" => true, "n" => true, "z" => false]);
+    }
+
+    #[test]
+    fn zero_page() {
+        run!(opc: [opc::Ror::ZeroPage, 0x2b];
+            reg: [p => flags::Flags::Carry.bits()];
+            ram: [0x2b => 0b11011111];
+            res: [0x2b => 0b11101111, "c" => true, "n" => true, "z" => false]);
+    }
+
+    #[test]
+    fn zero_page_x() {
+        run!(opc: [opc::Ror::ZeroPageX, 0x2b];
+            reg: [p => flags::Flags::Carry.bits(), x => 0x01];
+            ram: [0x2c => 0b11011111];
+            res: [0x2c => 0b11101111, "c" => true, "n" => true, "z" => false]);
+    }
+
+    #[test]
+    fn absolute() {
+        run!(opc: [opc::Ror::Absolute, lsb(0x2ee), msb(0x2ee)];
+            reg: [p => flags::Flags::Carry.bits()];
+            ram: [0x2ee => 0b11011111];
+            res: [0x2ee => 0b11101111, "c" => true, "n" => true, "z" => false]);
+    }
+
+    #[test]
+    fn absolute_x() {
+        run!(opc: [opc::Ror::AbsoluteX, lsb(0x2ee), msb(0x2ee)];
+            reg: [p => flags::Flags::Carry.bits(), x => 0x01];
+            ram: [0x2ef => 0b11011111];
+            res: [0x2ef => 0b11101111, "c" => true, "n" => true, "z" => false]);
+    }
+}

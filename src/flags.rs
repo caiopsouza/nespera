@@ -33,10 +33,8 @@ impl Flags {
     // Set the Zero, Negative, Carry and Overflow flags according to the sum of the values passed
     pub fn znco_adc(&mut self, a: u8, b: u8) {
         let value: u16 = a as u16 + b as u16;
-
-        self.bits = (self.bits & !Self::Zero.bits & !Self::Negative.bits & !Self::Carry.bits & !Self::Overflow.bits)
-            | ((((value as u8) == 0) as u8) * Self::Zero.bits)
-            | ((value as u8) & Self::Negative.bits)
+        self.zn(value as u8);
+        self.bits = (self.bits & !Self::Carry.bits & !Self::Overflow.bits)
             | (((value & 0x0100u16) >> 8) as u8) // When adding, carry happens if bit 8 is set
             // Overflow happens when the sign of the addends is the same and differs from the sign of the sum
             | ((!(a ^ b) & (a ^ value as u8) & 0x80) >> 1)
@@ -50,13 +48,32 @@ impl Flags {
     }
 
     // Set the Zero, Negative and Carry flag based on a comparison
-    pub fn znc_cmp(&mut self, a: u8, b: u8) {
-        let diff: i16 = (a as i8) as i16 - (b as i8) as i16;
+    pub fn znc_cmp(&mut self, value: u8, other: u8) {
+        let diff: i16 = (value as i8) as i16 - (other as i8) as i16;
 
         self.bits = (self.bits & !Self::Zero.bits & !Self::Negative.bits & !Self::Carry.bits)
             | (((diff == 0) as u8) * Self::Zero.bits)
             | (((diff >= 0) as u8) * Self::Carry.bits)
             | (((diff < 0) as u8) * Self::Negative.bits)
+    }
+
+    // Set the Zero, Negative and Carry Flag based on the left shift of the value passed
+    pub fn znc_left_shift(&mut self, original_value: u8) {
+        self.bits = (self.bits & !Self::Carry.bits) | ((original_value & 0b1000000) >> 6);
+        self.zn(original_value << 1);
+    }
+
+    // Set the Zero, Negative and Carry Flag based on the right shift of the value passed
+    pub fn znc_right_shift(&mut self, original_value: u8) {
+        self.bits = (self.bits & !Self::Carry.bits) | (original_value & 0b0000001);
+        self.zn(original_value >> 1);
+    }
+
+    // Set the Zero, Negative and Carry Flag based on the right rotation of the value passed
+    pub fn znc_right_rotate(&mut self, original_value: u8) {
+        let carry = (self.bits & Self::Carry.bits) << 7;
+        self.bits = (self.bits & !Self::Carry.bits) | (original_value & 0b0000001);
+        self.zn((original_value >> 1) | carry);
     }
 }
 
