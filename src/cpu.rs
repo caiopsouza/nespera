@@ -28,6 +28,24 @@ impl Cpu {
         }
     }
 
+    // Getters for registers
+    pub fn get_a(&self) -> u8 { self.a }
+    pub fn get_x(&self) -> u8 { self.x }
+    pub fn get_y(&self) -> u8 { self.y }
+    pub fn get_p(&self) -> u8 { self.p.bits() }
+    pub fn get_pc(&self) -> u16 { self.pc }
+    pub fn get_sp(&self) -> u8 { self.sp }
+
+    // Getters for flags
+    pub fn get_c(&self) -> bool { self.p.intersects(Flags::Carry) }
+    pub fn get_z(&self) -> bool { self.p.intersects(Flags::Zero) }
+    pub fn get_i(&self) -> bool { self.p.intersects(Flags::InterruptDisable) }
+    pub fn get_d(&self) -> bool { self.p.intersects(Flags::DecimalMode) }
+    pub fn get_b(&self) -> bool { self.p.intersects(Flags::BreakCommand) }
+    pub fn get_u(&self) -> bool { self.p.intersects(Flags::Unused) }
+    pub fn get_o(&self) -> bool { self.p.intersects(Flags::Overflow) }
+    pub fn get_n(&self) -> bool { self.p.intersects(Flags::Negative) }
+
     // Reset PC
     pub fn reset_pc(&mut self) { self.pc = PC_POWER_UP_STATE; }
 

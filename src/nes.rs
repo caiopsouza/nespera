@@ -1,6 +1,5 @@
 use cpu::Cpu;
 use opc;
-use flags::Flags;
 use std::num::Wrapping;
 use std::fmt;
 use pretty_hex::*;
@@ -24,14 +23,14 @@ impl fmt::Debug for Nes {
         write!(formatter,
                "Nespera | a: {:x}, x: {:x}, y: {:x}, pc: {:x}, sp: {:x}, flags: {}{}{}{}{}{}{}{}\n",
                self.cpu.a, self.cpu.x, self.cpu.y, self.cpu.pc, self.cpu.sp,
-               if self.get_c() { 'c' } else { '_' },
-               if self.get_z() { 'z' } else { '_' },
-               if self.get_i() { 'i' } else { '_' },
-               if self.get_d() { 'd' } else { '_' },
-               if self.get_b() { 'b' } else { '_' },
+               if self.cpu.get_c() { 'c' } else { '_' },
+               if self.cpu.get_z() { 'z' } else { '_' },
+               if self.cpu.get_i() { 'i' } else { '_' },
+               if self.cpu.get_d() { 'd' } else { '_' },
+               if self.cpu.get_b() { 'b' } else { '_' },
                '_' /* Unused*/,
-               if self.get_o() { 'o' } else { '_' },
-               if self.get_n() { 'n' } else { '_' })?;
+               if self.cpu.get_o() { 'o' } else { '_' },
+               if self.cpu.get_n() { 'n' } else { '_' })?;
         write!(formatter, "{:?}", (&self.ram.0[..]).hex_dump())
     }
 }
@@ -45,24 +44,6 @@ impl Nes {
         }
     }
 
-    // Getters for registers
-    pub fn get_a(&self) -> u8 { self.cpu.a }
-    pub fn get_x(&self) -> u8 { self.cpu.x }
-    pub fn get_y(&self) -> u8 { self.cpu.y }
-    pub fn get_p(&self) -> u8 { self.cpu.p.bits() }
-    pub fn get_pc(&self) -> u16 { self.cpu.pc }
-    pub fn get_sp(&self) -> u8 { self.cpu.sp }
-
-    // Getters for flags
-    pub fn get_c(&self) -> bool { self.cpu.p.intersects(Flags::Carry) }
-    pub fn get_z(&self) -> bool { self.cpu.p.intersects(Flags::Zero) }
-    pub fn get_i(&self) -> bool { self.cpu.p.intersects(Flags::InterruptDisable) }
-    pub fn get_d(&self) -> bool { self.cpu.p.intersects(Flags::DecimalMode) }
-    pub fn get_b(&self) -> bool { self.cpu.p.intersects(Flags::BreakCommand) }
-    pub fn get_u(&self) -> bool { self.cpu.p.intersects(Flags::Unused) }
-    pub fn get_o(&self) -> bool { self.cpu.p.intersects(Flags::Overflow) }
-    pub fn get_n(&self) -> bool { self.cpu.p.intersects(Flags::Negative) }
-
     // Read the value in RAM pointed by the address
     pub fn peek_at(&self, addr: u16) -> u8 {
         self.ram.0[addr as usize]
@@ -70,7 +51,7 @@ impl Nes {
 
     // Read the value in RAM pointed by PC without changing it
     pub fn peek(&self) -> u8 {
-        self.peek_at(self.get_pc())
+        self.peek_at(self.cpu.get_pc())
     }
 
     // Write the value to RAM pointed by the address
@@ -80,7 +61,7 @@ impl Nes {
 
     // Write the value to RAM pointed by PC without changing it
     pub fn put(&mut self, value: u8) {
-        let addr = self.get_pc();
+        let addr = self.cpu.get_pc();
         self.put_at(addr, value);
     }
 
@@ -99,7 +80,7 @@ impl Nes {
 
     // Address getters
     fn immediate(&mut self) -> u16 {
-        let pc = self.get_pc();
+        let pc = self.cpu.pc;
         self.cpu.inc_pc();
         pc
     }
@@ -147,7 +128,7 @@ impl Nes {
         // Set a value through another
         macro_rules! set_reg_val {
             ( $setter:ident, $getter:ident ) => {{
-                let value = self.$getter();
+                let value = self.cpu.$getter();
                 self.cpu.$setter(value);
             }};
         }
@@ -165,7 +146,7 @@ impl Nes {
         macro_rules! set_mem {
             ( $setter:ident, $getter:ident ) => {{
                 let addr = self.$setter();
-                let value = self.$getter();
+                let value = self.cpu.$getter();
                 self.put_at(addr, value);
             }};
         }
@@ -174,7 +155,7 @@ impl Nes {
         macro_rules! push_reg {
             ( $getter:ident ) => {{
                 let addr = self.cpu.sp;
-                let value = self.$getter();
+                let value = self.cpu.$getter();
                 self.put_at(addr.into(), value);
                 self.cpu.sp -= 1;
             }};
@@ -211,16 +192,18 @@ impl Nes {
         macro_rules! set_adc {
             ( $getter:ident ) => {{
                 let addr = self.$getter();
-                let value = Wrapping(self.get_c() as u8) + Wrapping(self.peek_at(addr));
+                let value = Wrapping(self.cpu.get_c() as u8) + Wrapping(self.peek_at(addr));
                 self.cpu.adc_a(value.0);
             }};
         }
 
-        // Subtraction on a value
+        // Subtraction on a value through it's address
         macro_rules! set_sbc {
             ( $getter:ident ) => {{
                 let addr = self.$getter();
-                let value = Wrapping(1) - Wrapping(self.get_c() as u8) + Wrapping(self.peek_at(addr));
+                let value = Wrapping(1)
+                    - Wrapping(self.cpu.get_c() as u8)
+                    + Wrapping(self.peek_at(addr));
                 self.cpu.sbc_a(value.0);
             }};
         }

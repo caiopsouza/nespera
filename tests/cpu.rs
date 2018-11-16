@@ -81,21 +81,21 @@ macro_rules! run {
         nes.cpu.reset_pc();
         while nes.peek() != 0 { nes.step(); }
 
-        assert_eq!(nes.get_a(), get_value("a", control.get_a() as u16) as u8, "\n in register a");
-        assert_eq!(nes.get_x(), get_value("x", control.get_x() as u16) as u8, "\n in register x");
-        assert_eq!(nes.get_y(), get_value("y", control.get_y() as u16) as u8, "\n in register y");
+        assert_eq!(nes.cpu.get_a(), get_value("a", control.cpu.get_a() as u16) as u8, "\n in register a");
+        assert_eq!(nes.cpu.get_x(), get_value("x", control.cpu.get_x() as u16) as u8, "\n in register x");
+        assert_eq!(nes.cpu.get_y(), get_value("y", control.cpu.get_y() as u16) as u8, "\n in register y");
 
-        assert_eq!(nes.get_pc(), get_value("pc", control.get_pc() as u16) as u16, "\n in register pc");
-        assert_eq!(nes.get_sp(), get_value("sp", control.get_sp() as u16) as u8, "\n in register sp");
+        assert_eq!(nes.cpu.get_pc(), get_value("pc", control.cpu.get_pc() as u16) as u16, "\n in register pc");
+        assert_eq!(nes.cpu.get_sp(), get_value("sp", control.cpu.get_sp() as u16) as u8, "\n in register sp");
 
-        assert_eq!(nes.get_c(), get_value("c", control.get_c() as u16) != 0, "\n in carry flag");
-        assert_eq!(nes.get_z(), get_value("z", control.get_z() as u16) != 0, "\n in zero flag");
-        assert_eq!(nes.get_i(), get_value("i", control.get_i() as u16) != 0, "\n in interrupt disable flag");
-        assert_eq!(nes.get_d(), get_value("d", control.get_d() as u16) != 0, "\n in decimal mode");
-        assert_eq!(nes.get_b(), get_value("b", control.get_b() as u16) != 0, "\n in break command");
-        assert_eq!(nes.get_u(), get_value("u", control.get_u() as u16) != 0, "\n in unused");
-        assert_eq!(nes.get_o(), get_value("o", control.get_o() as u16) != 0, "\n in overflow");
-        assert_eq!(nes.get_n(), get_value("n", control.get_n() as u16) != 0, "\n in negative");
+        assert_eq!(nes.cpu.get_c(), get_value("c", control.cpu.get_c() as u16) != 0, "\n in carry flag");
+        assert_eq!(nes.cpu.get_z(), get_value("z", control.cpu.get_z() as u16) != 0, "\n in zero flag");
+        assert_eq!(nes.cpu.get_i(), get_value("i", control.cpu.get_i() as u16) != 0, "\n in interrupt disable flag");
+        assert_eq!(nes.cpu.get_d(), get_value("d", control.cpu.get_d() as u16) != 0, "\n in decimal mode");
+        assert_eq!(nes.cpu.get_b(), get_value("b", control.cpu.get_b() as u16) != 0, "\n in break command");
+        assert_eq!(nes.cpu.get_u(), get_value("u", control.cpu.get_u() as u16) != 0, "\n in unused");
+        assert_eq!(nes.cpu.get_o(), get_value("o", control.cpu.get_o() as u16) != 0, "\n in overflow");
+        assert_eq!(nes.cpu.get_n(), get_value("n", control.cpu.get_n() as u16) != 0, "\n in negative");
 
         for (i, (&ea, &eb)) in nes.ram.0.iter().zip(control.ram.0.iter()).enumerate() {
             let ref_eb = &(eb as u16);
