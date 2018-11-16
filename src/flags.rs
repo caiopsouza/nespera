@@ -30,16 +30,22 @@ impl Flags {
     }
 
     // Set the Zero, Negative, Carry and Overflow flags according to the sum of the values passed
-    pub fn znco(&mut self, a: u8, b: u8) {
+    pub fn znco_adc(&mut self, a: u8, b: u8) {
         let value: u16 = a as u16 + b as u16;
 
         self.bits = (self.bits & !Self::Zero.bits & !Self::Negative.bits & !Self::Carry.bits & !Self::Overflow.bits)
             | ((((value as u8) == 0) as u8) * Self::Zero.bits)
             | ((value as u8) & Self::Negative.bits)
-            | (((value & 0x0100u16) >> 8) as u8) // Carry happens if bit 8 is set
+            | (((value & 0x0100u16) >> 8) as u8) // When adding, carry happens if bit 8 is set
             // Overflow happens when the sign of the addends is the same and differs from the sign of the sum
             | ((!(a ^ b) & (a ^ value as u8) & 0x80) >> 1)
         ;
+    }
+
+    // Set the Zero, Negative, Carry and Overflow flags according to the difference of the values passed
+    pub fn znco_sbc(&mut self, a: u8, b: u8) {
+        self.znco_adc(a, -(b as i8) as u8);
+        self.toggle(Flags::Carry);
     }
 }
 
@@ -91,31 +97,79 @@ mod zno_bit_test {
     fn negative_overflow() { test(204, Flags::empty(), Flags::Negative | Flags::Overflow); }
 }
 
+// Based on https://stackoverflow.com/a/8982549
 #[cfg(test)]
 mod znco {
     use super::*;
 
-    fn test(a: u8, b: u8, result: Flags) {
-        let mut flags = Flags::empty();
-        flags.znco(a, b);
-        assert_eq!(flags, result, "\nvalue: {:x?}", a as u16 + b as u16);
+    #[cfg(test)]
+    mod adc {
+        use super::*;
+
+        fn test(a: u8, b: u8, result: Flags) {
+            let mut flags = Flags::empty();
+            flags.znco_adc(a, b);
+            assert_eq!(flags, result, "\nexpr: 0x{:02x?} + 0x{:02x?} = 0x{:02x?}", a, b, a as u16 + b as u16);
+        }
+
+        #[test]
+        fn flags() { test(0x7f, 0x00, Flags::empty()); }
+
+        #[test]
+        fn flags_c() { test(0xff, 0x7f, Flags::Carry); }
+
+        #[test]
+        fn flags_z() { test(0x00, 0x00, Flags::Zero); }
+
+        #[test]
+        fn flags_zc() { test(0xff, 0x01, Flags::Zero | Flags::Carry); }
+
+        #[test]
+        fn flags_n() { test(0xff, 0x00, Flags::Negative); }
+
+        #[test]
+        fn flags_nc() { test(0xff, 0xff, Flags::Negative | Flags::Carry); }
+
+        #[test]
+        fn flags_co() { test(0xff, 0x80, Flags::Carry | Flags::Overflow); }
+
+        #[test]
+        fn flags_zco() { test(0x80, 0x80, Flags::Zero | Flags::Carry | Flags::Overflow); }
+
+        #[test]
+        fn flags_no() { test(0x7f, 0x7f, Flags::Negative | Flags::Overflow); }
     }
 
-    #[test]
-    fn sum_0x00_0x00() { test(0x00u8, 0x00u8, Flags::Zero); }
+    #[cfg(test)]
+    mod sbc {
+        use super::*;
+        use std::num::Wrapping;
 
-    #[test]
-    fn sum_0xa0_0xa0() { test(0xa0u8, 0xa0u8, Flags::Carry | Flags::Overflow); }
+        fn test(a: u8, b: u8, result: Flags) {
+            let mut flags = Flags::empty();
+            flags.znco_sbc(a, b);
+            assert_eq!(flags, result, "\nexpr: 0x{0:02x?} - 0x{1:02x?} = 0x{0:02x?} + 0x{2:02x?} = 0x{3:02x?}", a, b, -(b as i8) as u8, (Wrapping(a as u16) - Wrapping(b as u16)).0);
+        }
 
-    #[test]
-    fn sum_0x90_0x90() { test(0x90u8, 0x90u8, Flags::Carry | Flags::Overflow); }
+        #[test]
+        fn flags() { test(0xff, 0xfe, Flags::empty()); }
 
-    #[test]
-    fn sum_0x80_0x80() { test(0x80u8, 0x80u8, Flags::Zero | Flags::Carry | Flags::Overflow); }
+        #[test]
+        fn flags_c() { test(0x7e, 0xff, Flags::Carry); }
 
-    #[test]
-    fn sum_0x00_0x80() { test(0x00u8, 0x80u8, Flags::Negative); }
+        #[test]
+        fn flags_z() { test(0xff, 0xff, Flags::Zero); }
 
-    #[test]
-    fn sum_0xe0_0xe0() { test(0xe0u8, 0xe0u8, Flags::Negative | Flags::Carry); }
+        #[test]
+        fn flags_n() { test(0xff, 0x7f, Flags::Negative); }
+
+        #[test]
+        fn flags_nc() { test(0xfe, 0xff, Flags::Negative | Flags::Carry); }
+
+        #[test]
+        fn flags_o() { test(0xfe, 0x7f, Flags::Overflow); }
+
+        #[test]
+        fn flags_nco() { test(0x7f, 0xff, Flags::Negative | Flags::Carry | Flags::Overflow); }
+    }
 }
