@@ -230,3 +230,13 @@ pub const Clv: u8 = 0xb8;
 pub const Sec: u8 = 0x38;
 pub const Sed: u8 = 0xf8;
 pub const Sei: u8 = 0x78;
+
+// Branches
+pub const Bcs: u8 = 0xb0;
+pub const Bcc: u8 = 0x90;
+pub const Beq: u8 = 0xf0;
+pub const Bne: u8 = 0xd0;
+pub const Bmi: u8 = 0x30;
+pub const Bpl: u8 = 0x10;
+pub const Bvc: u8 = 0x50;
+pub const Bvs: u8 = 0x70;

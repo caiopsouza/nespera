@@ -278,6 +278,14 @@ impl Nes {
             }}
         }
 
+        // Branch if the condition is true
+        macro_rules! branch {
+            ( $condition:expr ) => {{
+                let offset = (self.fetch() as i8) as u16;
+                if $condition { self.cpu.pc = (Wrapping(self.cpu.pc) + Wrapping(offset)).0; }
+            }}
+        }
+
         let opcode = self.fetch();
         match opcode {
             // Load into A
@@ -465,6 +473,16 @@ impl Nes {
             opc::Sec => self.cpu.set_flag(Flags::Carry),
             opc::Sed => self.cpu.set_flag(Flags::DecimalMode),
             opc::Sei => self.cpu.set_flag(Flags::InterruptDisable),
+
+            // Branches
+            opc::Bcs => branch!(self.cpu.p.contains(Flags::Carry)),
+            opc::Bcc => branch!(!self.cpu.p.contains(Flags::Carry)),
+            opc::Beq => branch!(self.cpu.p.contains(Flags::Zero)),
+            opc::Bne => branch!(!self.cpu.p.contains(Flags::Zero)),
+            opc::Bmi => branch!(self.cpu.p.contains(Flags::Negative)),
+            opc::Bpl => branch!(!self.cpu.p.contains(Flags::Negative)),
+            opc::Bvc => branch!(self.cpu.p.contains(Flags::Overflow)),
+            opc::Bvs => branch!(!self.cpu.p.contains(Flags::Overflow)),
 
             // Not implemented
             _ => panic!("Opcode not implemented: 0x{:02x?}", opcode)

@@ -57,7 +57,10 @@ macro_rules! run {
     => {{
         use std::collections::HashMap;
 
+        #[allow(unused_imports)]
         use nespera::nes::Nes;
+
+        #[allow(unused_imports)]
         use nespera::opc;
 
         #[allow(unused_imports)]
