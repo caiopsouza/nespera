@@ -24,14 +24,14 @@ impl Flags {
     }
 
     // Set the Zero, Negative and Overflow flags according to the value passed using "Bit Test" rules
-    pub fn zno_bit_test(&mut self, value: u8) {
+    pub fn znv_bit_test(&mut self, value: u8) {
         self.bits = (self.bits & !Self::Zero.bits & !Self::Negative.bits & !Self::Overflow.bits)
             | (((value == 0) as u8) * Self::Zero.bits)
             | (value & (Self::Negative.bits | Self::Overflow.bits));
     }
 
     // Set the Zero, Negative, Carry and Overflow flags according to the sum of the values passed
-    pub fn znco_adc(&mut self, a: u8, b: u8) {
+    pub fn zncv_adc(&mut self, a: u8, b: u8) {
         let value: u16 = a as u16 + b as u16;
         self.zn(value as u8);
         self.bits = (self.bits & !Self::Carry.bits & !Self::Overflow.bits)
@@ -42,8 +42,8 @@ impl Flags {
     }
 
     // Set the Zero, Negative, Carry and Overflow flags according to the difference of the values passed
-    pub fn znco_sbc(&mut self, a: u8, b: u8) {
-        self.znco_adc(a, (-Wrapping(b as i8)).0 as u8);
+    pub fn zncv_sbc(&mut self, a: u8, b: u8) {
+        self.zncv_adc(a, (-Wrapping(b as i8)).0 as u8);
         self.toggle(Flags::Carry); // Carry when subtraction is the opposition of adding
     }
 
@@ -105,7 +105,7 @@ mod zno_bit_test {
     use super::*;
 
     fn test(value: u8, mut initial: Flags, result: Flags) {
-        initial.zno_bit_test(value);
+        initial.znv_bit_test(value);
         assert_eq!(initial, result, "\nvalue: {:x?}", value);
     }
 
@@ -136,7 +136,7 @@ mod znco {
 
         fn test(a: u8, b: u8, result: Flags) {
             let mut flags = Flags::empty();
-            flags.znco_adc(a, b);
+            flags.zncv_adc(a, b);
             assert_eq!(flags, result, "\nexpr: 0x{:02x?} + 0x{:02x?} = 0x{:02x?}", a, b, a as u16 + b as u16);
         }
 
@@ -159,13 +159,13 @@ mod znco {
         fn flags_nc() { test(0xff, 0xff, Flags::Negative | Flags::Carry); }
 
         #[test]
-        fn flags_co() { test(0xff, 0x80, Flags::Carry | Flags::Overflow); }
+        fn flags_cv() { test(0xff, 0x80, Flags::Carry | Flags::Overflow); }
 
         #[test]
-        fn flags_zco() { test(0x80, 0x80, Flags::Zero | Flags::Carry | Flags::Overflow); }
+        fn flags_zcv() { test(0x80, 0x80, Flags::Zero | Flags::Carry | Flags::Overflow); }
 
         #[test]
-        fn flags_no() { test(0x7f, 0x7f, Flags::Negative | Flags::Overflow); }
+        fn flags_nv() { test(0x7f, 0x7f, Flags::Negative | Flags::Overflow); }
     }
 
     #[cfg(test)]
@@ -175,7 +175,7 @@ mod znco {
 
         fn test(a: u8, b: u8, result: Flags) {
             let mut flags = Flags::empty();
-            flags.znco_sbc(a, b);
+            flags.zncv_sbc(a, b);
             assert_eq!(flags, result, "\nexpr: 0x{0:02x?} - 0x{1:02x?} = 0x{0:02x?} + 0x{2:02x?} = 0x{3:02x?}", a, b, -(b as i8) as u8, (Wrapping(a as u16) - Wrapping(b as u16)).0);
         }
 
@@ -195,10 +195,10 @@ mod znco {
         fn flags_nc() { test(0xfe, 0xff, Flags::Negative | Flags::Carry); }
 
         #[test]
-        fn flags_o() { test(0xfe, 0x7f, Flags::Overflow); }
+        fn flags_v() { test(0xfe, 0x7f, Flags::Overflow); }
 
         #[test]
-        fn flags_nco() { test(0x7f, 0xff, Flags::Negative | Flags::Carry | Flags::Overflow); }
+        fn flags_ncv() { test(0x7f, 0xff, Flags::Negative | Flags::Carry | Flags::Overflow); }
     }
 }
 

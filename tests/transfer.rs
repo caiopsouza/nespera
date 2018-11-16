@@ -73,6 +73,6 @@ fn plp() {
         ram: [177 => 246];
         res: [
             "p" => 246, "sp" => 178,
-            "n" => true, "o" => true, "u" => true, "b" => true,
+            "n" => true, "v" => true, "u" => true, "b" => true,
             "d" => false, "i" => true, "z" => true, "c" => false]);
 }

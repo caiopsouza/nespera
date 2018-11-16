@@ -30,7 +30,7 @@ impl fmt::Debug for Nes {
                if self.cpu.get_d() { 'd' } else { '_' },
                if self.cpu.get_b() { 'b' } else { '_' },
                '_' /* Unused*/,
-               if self.cpu.get_o() { 'o' } else { '_' },
+               if self.cpu.get_v() { 'v' } else { '_' },
                if self.cpu.get_n() { 'n' } else { '_' })?;
         write!(formatter, "{:?}", (&self.ram.0[..]).hex_dump())
     }
@@ -185,7 +185,7 @@ impl Nes {
             ( $getter:ident ) => {{
                 let addr = self.$getter();
                 let value = self.cpu.a & self.peek_at(addr);
-                self.cpu.p.zno_bit_test(value);
+                self.cpu.p.znv_bit_test(value);
             }};
         }
 

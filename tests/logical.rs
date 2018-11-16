@@ -162,7 +162,7 @@ mod bit {
         run!(opc: [opc::Bit::ZeroPage, 0x098];
             reg: [a => 0b00110011];
             ram: [0x098 => 0b00111100];
-            res: ["n" => false, "z" => false, "o" => false]);
+            res: ["n" => false, "z" => false, "v" => false]);
     }
 
     #[test]
@@ -170,7 +170,7 @@ mod bit {
         run!(opc: [opc::Bit::ZeroPage, 0x098];
             reg: [a => 0b00000011];
             ram: [0x098 => 0b10111100];
-            res: ["n" => false, "z" => true, "o" => false]);
+            res: ["n" => false, "z" => true, "v" => false]);
     }
 
     #[test]
@@ -178,7 +178,7 @@ mod bit {
         run!(opc: [opc::Bit::ZeroPage, 0x098];
             reg: [a => 0b10110011];
             ram: [0x098 => 0b10111100];
-            res: ["n" => true, "z" => false, "o" => false]);
+            res: ["n" => true, "z" => false, "v" => false]);
     }
 
     #[test]
@@ -186,7 +186,7 @@ mod bit {
         run!(opc: [opc::Bit::ZeroPage, 0x098];
             reg: [a => 0b11110011];
             ram: [0x098 => 0b01111100];
-            res: ["n" => false, "z" => false, "o" => true]);
+            res: ["n" => false, "z" => false, "v" => true]);
     }
 
     #[test]
@@ -194,7 +194,7 @@ mod bit {
         run!(opc: [opc::Bit::ZeroPage, 0x098];
             reg: [a => 0b11110011];
             ram: [0x098 => 0b11111100];
-            res: ["n" => true, "z" => false, "o" => true]);
+            res: ["n" => true, "z" => false, "v" => true]);
     }
 
     #[test]
@@ -202,6 +202,6 @@ mod bit {
         run!(opc: [opc::Bit::Absolute, lsb(0x398), msb(0x398)];
             reg: [a => 0b11111111];
             ram: [0x398 => 0b10111100];
-            res: ["n" => true, "z" => false, "o" => false]);
+            res: ["n" => true, "z" => false, "v" => false]);
     }
 }

@@ -44,7 +44,7 @@ impl Cpu {
     pub fn get_d(&self) -> bool { self.p.intersects(Flags::DecimalMode) }
     pub fn get_b(&self) -> bool { self.p.intersects(Flags::BreakCommand) }
     pub fn get_u(&self) -> bool { self.p.intersects(Flags::Unused) }
-    pub fn get_o(&self) -> bool { self.p.intersects(Flags::Overflow) }
+    pub fn get_v(&self) -> bool { self.p.intersects(Flags::Overflow) }
     pub fn get_n(&self) -> bool { self.p.intersects(Flags::Negative) }
 
     // Reset PC
@@ -77,13 +77,13 @@ impl Cpu {
 
     // Sums a value into A
     pub fn adc_a(&mut self, value: u8) {
-        self.p.znco_adc(self.a, value);
+        self.p.zncv_adc(self.a, value);
         self.a = (Wrapping(self.a) + Wrapping(value)).0;
     }
 
     // Sums a value into A
     pub fn sbc_a(&mut self, value: u8) {
-        self.p.znco_sbc(self.a, value);
+        self.p.zncv_sbc(self.a, value);
         self.a = (Wrapping(self.a) - Wrapping(value)).0;
     }
 

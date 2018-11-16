@@ -11,7 +11,7 @@ mod adc {
     fn immediate() {
         run!(opc: [opc::Adc::Immediate, 0xff];
             reg: [a => 0x80];
-            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => true, "o" => true]);
+            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => true, "v" => true]);
     }
 
     #[test]
@@ -19,7 +19,7 @@ mod adc {
         run!(opc: [opc::Adc::ZeroPage, 0x0e];
             reg: [a => 0x80];
             ram: [0x0e => 0xff];
-            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => true, "o" => true]);
+            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => true, "v" => true]);
     }
 
     #[test]
@@ -47,7 +47,7 @@ mod adc {
                 0x099 => 0x78, 0x09a => 0x01, 0x0178 => 0x03,
                 0x074 => 0x47, 0x075 => 0x03, 0x034a => 0xfe
             ];
-            res: ["a" => 0x57, "n" => false, "z" => false, "c" => false, "o" => false]);
+            res: ["a" => 0x57, "n" => false, "z" => false, "c" => false, "v" => false]);
     }
 }
 
@@ -58,7 +58,7 @@ mod sbc {
     fn immediate() {
         run!(opc: [opc::Sbc::Immediate, 0x7f];
             reg: [a => 0xff];
-            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => false, "o" => true]);
+            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => false, "v" => true]);
     }
 
     #[test]
@@ -66,7 +66,7 @@ mod sbc {
         run!(opc: [opc::Sbc::ZeroPage, 0x0e];
             reg: [a => 0xff];
             ram: [0x0e => 0x7f];
-            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => false, "o" => true]);
+            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => false, "v" => true]);
     }
 
     #[test]
@@ -94,7 +94,7 @@ mod sbc {
                 0x099 => 0x78, 0x09a => 0x01, 0x0178 => 0x03,
                 0x074 => 0x47, 0x075 => 0x03, 0x034a => 0xfe
             ];
-            res: ["a" => 0xa6, "n" => true, "z" => false, "c" => false, "o" => false]);
+            res: ["a" => 0xa6, "n" => true, "z" => false, "c" => false, "v" => false]);
     }
 }
 

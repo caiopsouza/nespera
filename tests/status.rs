@@ -27,7 +27,7 @@ fn cli() {
 fn clv() {
     run!(opc: [opc::Clv];
         reg: [p => flags::Flags::Overflow.bits()];
-        res: ["o" => false]);
+        res: ["v" => false]);
 }
 
 #[test]

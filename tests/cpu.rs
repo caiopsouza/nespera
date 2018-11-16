@@ -97,7 +97,7 @@ macro_rules! run {
         assert_eq!(nes.cpu.get_d(), get_value("d", control.cpu.get_d() as u16) != 0, "\n in decimal mode");
         assert_eq!(nes.cpu.get_b(), get_value("b", control.cpu.get_b() as u16) != 0, "\n in break command");
         assert_eq!(nes.cpu.get_u(), get_value("u", control.cpu.get_u() as u16) != 0, "\n in unused");
-        assert_eq!(nes.cpu.get_o(), get_value("o", control.cpu.get_o() as u16) != 0, "\n in overflow");
+        assert_eq!(nes.cpu.get_v(), get_value("v", control.cpu.get_v() as u16) != 0, "\n in overflow");
         assert_eq!(nes.cpu.get_n(), get_value("n", control.cpu.get_n() as u16) != 0, "\n in negative");
 
         for (i, (&ea, &eb)) in nes.ram.0.iter().zip(control.ram.0.iter()).enumerate() {
