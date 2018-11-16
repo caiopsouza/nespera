@@ -421,6 +421,15 @@ impl Nes {
             opc::Cpy::ZeroPage => cmp!(cmp_y, zero_page),
             opc::Cpy::Absolute => cmp!(cmp_y, absolute),
 
+            // Status flags
+            opc::Clc => self.cpu.clear_flag(Flags::Carry),
+            opc::Cld => self.cpu.clear_flag(Flags::DecimalMode),
+            opc::Cli => self.cpu.clear_flag(Flags::InterruptDisable),
+            opc::Clv => self.cpu.clear_flag(Flags::Overflow),
+            opc::Sec => self.cpu.set_flag(Flags::Carry),
+            opc::Sed => self.cpu.set_flag(Flags::DecimalMode),
+            opc::Sei => self.cpu.set_flag(Flags::InterruptDisable),
+
             // Not implemented
             _ => panic!("Opcode not implemented: 0x{:02x?}", opcode)
         }

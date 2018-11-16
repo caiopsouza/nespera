@@ -176,3 +176,11 @@ pub mod Cpy {
     pub const ZeroPage: u8 = 0xc4;
     pub const Absolute: u8 = 0xcc;
 }
+
+pub const Clc: u8 = 0x18;
+pub const Cld: u8 = 0xd8;
+pub const Cli: u8 = 0x58;
+pub const Clv: u8 = 0xb8;
+pub const Sec: u8 = 0x38;
+pub const Sed: u8 = 0xf8;
+pub const Sei: u8 = 0x78;

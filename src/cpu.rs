@@ -115,4 +115,8 @@ impl Cpu {
         self.p.znc_right_rotate(self.a);
         self.a = (self.a >> 1) | ((self.p.bits() & Flags::Carry.bits()) << 7);
     }
+
+    // Flag operations
+    pub fn set_flag(&mut self, flag: Flags) { self.p.insert(flag); }
+    pub fn clear_flag(&mut self, flag: Flags) { self.p.remove(flag); }
 }
