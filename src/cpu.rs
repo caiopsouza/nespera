@@ -85,4 +85,9 @@ impl Cpu {
         self.p.znco_sbc(self.a, value);
         self.a = (Wrapping(self.a) - Wrapping(value)).0;
     }
+
+    // Comparisons
+    pub fn cmp_a(&mut self, value: u8) { self.p.znc_cmp(self.a, value); }
+    pub fn cmp_x(&mut self, value: u8) { self.p.znc_cmp(self.x, value); }
+    pub fn cmp_y(&mut self, value: u8) { self.p.znc_cmp(self.y, value); }
 }

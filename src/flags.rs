@@ -46,7 +46,17 @@ impl Flags {
     // Set the Zero, Negative, Carry and Overflow flags according to the difference of the values passed
     pub fn znco_sbc(&mut self, a: u8, b: u8) {
         self.znco_adc(a, (-Wrapping(b as i8)).0 as u8);
-        self.toggle(Flags::Carry);
+        self.toggle(Flags::Carry); // Carry when subtraction is the opposition of adding
+    }
+
+    // Set the Zero, Negative and Carry flag based on a comparison
+    pub fn znc_cmp(&mut self, a: u8, b: u8) {
+        let diff: i16 = (a as i8) as i16 - (b as i8) as i16;
+
+        self.bits = (self.bits & !Self::Zero.bits & !Self::Negative.bits & !Self::Carry.bits)
+            | (((diff == 0) as u8) * Self::Zero.bits)
+            | (((diff >= 0) as u8) * Self::Carry.bits)
+            | (((diff < 0) as u8) * Self::Negative.bits)
     }
 }
 
@@ -173,4 +183,25 @@ mod znco {
         #[test]
         fn flags_nco() { test(0x7f, 0xff, Flags::Negative | Flags::Carry | Flags::Overflow); }
     }
+}
+
+
+#[cfg(test)]
+mod znc_cmp {
+    use super::*;
+
+    fn test(a: u8, b: u8, result: Flags) {
+        let mut flags = Flags::empty();
+        flags.znc_cmp(a, b);
+        assert_eq!(flags, result, "\nexpr: 0x{:02x?} + 0x{:02x?}", a, b);
+    }
+
+    #[test]
+    fn carry() { test(0xff, 0xfe, Flags::Carry); }
+
+    #[test]
+    fn zero_carry() { test(0xff, 0xff, Flags::Zero | Flags::Carry); }
+
+    #[test]
+    fn negative() { test(0x80, 0xff, Flags::Negative); }
 }

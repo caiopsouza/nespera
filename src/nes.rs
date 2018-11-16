@@ -208,6 +208,15 @@ impl Nes {
             }};
         }
 
+        // Compares
+        macro_rules! cmp {
+            ( $setter:ident, $getter:ident ) => {{
+                let addr = self.$getter();
+                let value = self.peek_at(addr);
+                self.cpu.cmp_a(value);
+            }}
+        }
+
         let opcode = self.fetch();
         match opcode {
             // Load into A
@@ -320,6 +329,26 @@ impl Nes {
             opc::Sbc::AbsoluteY => set_sbc!(absolute_y),
             opc::Sbc::IndirectX => set_sbc!(indirect_x),
             opc::Sbc::IndirectY => set_sbc!(indirect_y),
+
+            // Compare A
+            opc::Cmp::Immediate => cmp!(cmp_a, immediate),
+            opc::Cmp::ZeroPage => cmp!(cmp_a, zero_page),
+            opc::Cmp::ZeroPageX => cmp!(cmp_a, zero_page_x),
+            opc::Cmp::Absolute => cmp!(cmp_a, absolute),
+            opc::Cmp::AbsoluteX => cmp!(cmp_a, absolute_x),
+            opc::Cmp::AbsoluteY => cmp!(cmp_a, absolute_y),
+            opc::Cmp::IndirectX => cmp!(cmp_a, indirect_x),
+            opc::Cmp::IndirectY => cmp!(cmp_a, indirect_y),
+
+            // Compare X
+            opc::Cpx::Immediate => cmp!(cmp_x, immediate),
+            opc::Cpx::ZeroPage => cmp!(cmp_x, zero_page),
+            opc::Cpx::Absolute => cmp!(cmp_x, absolute),
+
+            // Compare X
+            opc::Cpy::Immediate => cmp!(cmp_y, immediate),
+            opc::Cpy::ZeroPage => cmp!(cmp_y, zero_page),
+            opc::Cpy::Absolute => cmp!(cmp_y, absolute),
 
             // Not implemented
             _ => panic!("Opcode not implemented: 0x{:02x?}", opcode)

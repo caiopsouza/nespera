@@ -121,3 +121,26 @@ pub mod Sbc {
     pub const IndirectX: u8 = 0xe1;
     pub const IndirectY: u8 = 0xf1;
 }
+
+pub mod Cmp {
+    pub const Immediate: u8 = 0xc9;
+    pub const ZeroPage: u8 = 0xc5;
+    pub const ZeroPageX: u8 = 0xd5;
+    pub const Absolute: u8 = 0xcd;
+    pub const AbsoluteX: u8 = 0xdd;
+    pub const AbsoluteY: u8 = 0xd9;
+    pub const IndirectX: u8 = 0xc1;
+    pub const IndirectY: u8 = 0xd1;
+}
+
+pub mod Cpx {
+    pub const Immediate: u8 = 0xe0;
+    pub const ZeroPage: u8 = 0xe4;
+    pub const Absolute: u8 = 0xec;
+}
+
+pub mod Cpy {
+    pub const Immediate: u8 = 0xc0;
+    pub const ZeroPage: u8 = 0xc4;
+    pub const Absolute: u8 = 0xcc;
+}
