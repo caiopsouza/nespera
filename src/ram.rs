@@ -24,4 +24,10 @@ impl Ram {
     pub fn put_at(&mut self, addr: u16, value: u8) {
         self.0[addr as usize] = value;
     }
+
+    // Write the value to RAM pointed by the address
+    pub fn put_at_16(&mut self, addr: u16, value: u16) {
+        self.put_at(addr, value as u8);
+        self.put_at((Wrapping(addr) + Wrapping(1)).0, (value >> 8) as u8);
+    }
 }

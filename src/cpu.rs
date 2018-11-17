@@ -36,8 +36,6 @@ impl Cpu {
     pub fn get_p(&self) -> u8 { self.p.bits() }
     pub fn get_sp(&self) -> u8 { self.sp }
     pub fn get_pc(&self) -> u16 { self.pc }
-    pub fn get_pc_msb(&self) -> u8 { self.pc as u8 }
-    pub fn get_pc_lsb(&self) -> u8 { (self.pc >> 8) as u8 }
 
     // Getters for flags
     pub fn get_c(&self) -> bool { self.p.intersects(Flags::Carry) }

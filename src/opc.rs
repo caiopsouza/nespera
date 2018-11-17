@@ -247,5 +247,8 @@ pub mod Jmp {
     pub const Indirect: u8 = 0x6c;
 }
 
+pub const Jsr: u8 = 0x20;
+pub const Rts: u8 = 0x60;
+
 // No operation
 pub const Nop: u8 = 0xea;

@@ -26,7 +26,7 @@ pub struct Nes {
 impl fmt::Debug for Nes {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(formatter,
-               "Nespera | a: {:x}, x: {:x}, y: {:x}, pc: {:x}, sp: {:x}, flags: {}{}{}{}{}{}{}{}\n",
+               "Nespera | a: 0x{:x}, x: 0x{:x}, y: 0x{:x}, pc: 0x{:x}, sp: 0x{:x}, flags: {}{}{}{}{}{}{}{}\n",
                self.cpu.a, self.cpu.x, self.cpu.y, self.cpu.pc, self.cpu.sp,
                if self.cpu.get_c() { 'c' } else { '_' },
                if self.cpu.get_z() { 'z' } else { '_' },
@@ -442,6 +442,21 @@ impl Nes {
             // Jump
             opc::Jmp::Absolute => pipe!(self.absolute() => self.cpu.set_pc),
             opc::Jmp::Indirect => pipe!(self.indirect() => self.cpu.set_pc),
+
+            // Call
+            opc::Jsr => {
+                let pc = wrap_add!(self.cpu.pc, 1);
+                self.cpu.pc = self.fetch_16();
+
+                self.ram.put_at_16(self.cpu.sp as u16, pc);
+                self.cpu.sp = wrap_add!(self.cpu.sp, -2i8 as u8);
+            }
+
+            // Return
+            opc::Rts => {
+                self.cpu.sp = wrap_add!(self.cpu.sp, 2u8);
+                self.cpu.pc = wrap_add!(self.ram.peek_at_16(self.cpu.sp as u16), 1);
+            }
 
             // Not implemented
             _ => panic!("Opcode not implemented: 0x{:02x?}", opcode)
