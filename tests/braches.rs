@@ -1,7 +1,7 @@
 extern crate nespera;
 
-use nespera::flags;
-use nespera::opc;
+use nespera::hardware::flags;
+use nespera::hardware::opc;
 
 mod cpu;
 

@@ -1,4 +1,4 @@
-pub use flags::Flags;
+use hardware::flags::Flags;
 
 use std::num::Wrapping;
 

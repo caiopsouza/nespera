@@ -58,13 +58,13 @@ macro_rules! run {
         use std::collections::HashMap;
 
         #[allow(unused_imports)]
-        use nespera::nes::Nes;
+        use nespera::hardware::nes::Nes;
 
         #[allow(unused_imports)]
-        use nespera::opc;
+        use nespera::hardware::opc;
 
         #[allow(unused_imports)]
-        use nespera::flags;
+        use nespera::hardware::flags;
 
         let mut checks = HashMap::new();
         $( checks.insert($reg.to_string(), $value as u16); )*

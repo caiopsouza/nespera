@@ -1,11 +1,13 @@
-use cpu::Cpu;
-use cpu::Flags;
-use opc;
+use hardware::cpu::Cpu;
+use hardware::flags::Flags;
+use hardware::opc;
+use hardware::ram::Ram;
+
 use std::num::Wrapping;
 use std::fmt;
-use pretty_hex::*;
 use std::ops::*;
-use ram::Ram;
+
+use pretty_hex::*;
 
 // Adds two number wrapping the result
 macro_rules! wrap_add {
