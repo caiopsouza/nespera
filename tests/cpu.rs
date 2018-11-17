@@ -71,13 +71,13 @@ macro_rules! run {
         let get_value = |key, value| *checks.get(key).unwrap_or_else(|| &value) as u16;
 
         let mut nes = Nes::new();
-        $( nes.write($opcode); )*
+        $( let pc = nes.cpu.pc; nes.ram.put_at(pc, $opcode); nes.cpu.pc += 1; )*
 
         $(
             let addr = $addr as u16;
             // Prevents from writing twice at the same address which can hinder testing
-            if nes.peek_at(addr) != 0 { panic!("Trying to write twice in 0x{:x?}", addr); }
-            nes.put_at(addr, $ram as u8);
+            if nes.ram.peek_at(addr) != 0 { panic!("Trying to write twice in 0x{:x?}", addr); }
+            nes.ram.put_at(addr, $ram as u8);
         )*
 
         $( nes.cpu.$initial_reg = ($initial_value as u8).into(); )*
@@ -85,7 +85,8 @@ macro_rules! run {
         let control = nes.clone();
 
         nes.cpu.reset_pc();
-        while nes.peek() != 0 { nes.step(); }
+        let mut pc = nes.cpu.pc;
+        while nes.ram.peek_at(pc) != 0 { nes.step(); pc = nes.cpu.pc; }
 
         assert_eq!(nes.cpu.get_a(), get_value("a", control.cpu.get_a() as u16) as u8, "\n in register a");
         assert_eq!(nes.cpu.get_x(), get_value("x", control.cpu.get_x() as u16) as u8, "\n in register x");

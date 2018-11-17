@@ -240,3 +240,12 @@ pub const Bmi: u8 = 0x30;
 pub const Bpl: u8 = 0x10;
 pub const Bvc: u8 = 0x50;
 pub const Bvs: u8 = 0x70;
+
+// Jump
+pub mod Jmp {
+    pub const Absolute: u8 = 0x4c;
+    pub const Indirect: u8 = 0x6c;
+}
+
+// No operation
+pub const Nop: u8 = 0xea;

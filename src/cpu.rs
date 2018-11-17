@@ -19,7 +19,7 @@ pub struct Cpu {
 impl Cpu {
     // Create a new CPU. It has the default "power up" state.
     pub fn new() -> Self {
-        Cpu {
+        Self {
             a: 0,
             x: 0,
             y: 0,
@@ -34,8 +34,10 @@ impl Cpu {
     pub fn get_x(&self) -> u8 { self.x }
     pub fn get_y(&self) -> u8 { self.y }
     pub fn get_p(&self) -> u8 { self.p.bits() }
-    pub fn get_pc(&self) -> u16 { self.pc }
     pub fn get_sp(&self) -> u8 { self.sp }
+    pub fn get_pc(&self) -> u16 { self.pc }
+    pub fn get_pc_msb(&self) -> u8 { self.pc as u8 }
+    pub fn get_pc_lsb(&self) -> u8 { (self.pc >> 8) as u8 }
 
     // Getters for flags
     pub fn get_c(&self) -> bool { self.p.intersects(Flags::Carry) }
@@ -50,10 +52,8 @@ impl Cpu {
     // Reset PC
     pub fn reset_pc(&mut self) { self.pc = PC_POWER_UP_STATE; }
 
-    // Increments PC by the value supplied
-    pub fn inc_pc(&mut self) {
-        self.pc = (Wrapping(self.pc) + Wrapping(1)).0;
-    }
+    // Increments PC
+    pub fn inc_pc(&mut self) { self.pc = (Wrapping(self.pc) + Wrapping(1)).0; }
 
     // Set registers
     pub fn set_a(&mut self, value: u8) {
