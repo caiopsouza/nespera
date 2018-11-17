@@ -7,6 +7,15 @@ use pretty_hex::*;
 use std::ops::*;
 use ram::Ram;
 
+// Adds two number wrapping the result
+macro_rules! wrap_add {
+    ( $first:expr $( ,$rest:expr )* ) => {{
+        let mut res = Wrapping($first);
+        $( res += Wrapping($rest); )*
+        res.0
+     }};
+}
+
 // NES
 #[derive(Copy, Clone)]
 pub struct Nes {
@@ -41,16 +50,16 @@ impl Nes {
     }
 
     // Read the value in RAM pointed by PC and advances it
-    pub fn fetch(&mut self) -> u8 {
+    fn fetch(&mut self) -> u8 {
         let data = self.ram.peek_at(self.cpu.pc);
         self.cpu.inc_pc();
         data
     }
 
     // Read the value in RAM pointed by PC as an i16 and advances it
-    pub fn fetch_16(&mut self) -> u16 {
+    fn fetch_16(&mut self) -> u16 {
         let pc = self.cpu.pc;
-        self.cpu.pc = (Wrapping(self.cpu.pc) + Wrapping(2)).0;
+        self.cpu.pc = wrap_add!(self.cpu.pc, 2);
         self.ram.peek_at_16(pc)
     }
 
@@ -63,20 +72,20 @@ impl Nes {
 
     fn zero_page(&mut self) -> u16 { self.fetch().into() }
 
-    fn zero_page_x(&mut self) -> u16 { (Wrapping(self.fetch()) + Wrapping(self.cpu.x)).0.into() }
+    fn zero_page_x(&mut self) -> u16 { wrap_add!(self.fetch(), self.cpu.x).into() }
 
-    fn zero_page_y(&mut self) -> u16 { (Wrapping(self.fetch()) + Wrapping(self.cpu.y)).0.into() }
+    fn zero_page_y(&mut self) -> u16 { wrap_add!(self.fetch(), self.cpu.y).into() }
 
     fn absolute(&mut self) -> u16 { self.fetch_16() }
 
     fn absolute_x(&mut self) -> u16 {
         let addr = self.fetch_16();
-        (Wrapping(addr) + Wrapping(self.cpu.x as u16)).0
+        wrap_add!(addr, self.cpu.x as u16)
     }
 
     fn absolute_y(&mut self) -> u16 {
         let addr = self.fetch_16();
-        (Wrapping(addr) + Wrapping(self.cpu.y as u16)).0
+        wrap_add!(addr, self.cpu.y as u16)
     }
 
     fn indirect(&mut self) -> u16 {
@@ -86,33 +95,25 @@ impl Nes {
     }
 
     fn indirect_x(&mut self) -> u16 {
-        let addr = (Wrapping(self.fetch()) + Wrapping(self.cpu.x)).0 as u16;
+        let addr = wrap_add!(self.fetch(), self.cpu.x) as u16;
         self.ram.peek_at_16(addr)
     }
 
     fn indirect_y(&mut self) -> u16 {
         let addr = self.fetch();
         let addr = self.ram.peek_at_16(addr.into());
-        (Wrapping(addr) + Wrapping(self.cpu.y as u16)).0
+        wrap_add!(addr, self.cpu.y as u16)
     }
 
     // Executes one step of the CPU
     pub fn step(&mut self) {
-        // Set a value through another
-        macro_rules! set_reg_val {
-            ( $setter:ident, $getter:ident ) => {{
-                let value = self.cpu.$getter();
-                self.cpu.$setter(value);
-            }};
-        }
-
-        // Set a value through an address
-        macro_rules! set_reg {
-            ( $setter:ident, $getter:ident ) => {{
-                let addr = self.$getter();
-                let value = self.ram.peek_at(addr);
-                self.cpu.$setter(value);
-            }};
+        // Pipe
+        macro_rules! pipe {
+            ( $initial:expr $( => $s:ident $( .$ident:ident )* )* ) => {{
+                let res = $initial;
+                $( let res = $s $( .$ident )* (res); )*
+                res.into()
+            }}
         }
 
         // Set a value at an address
@@ -123,6 +124,22 @@ impl Nes {
                 self.ram.put_at(addr, value);
             }};
         }
+
+        // Load macros
+        macro_rules! lda { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.set_a) }; }
+        macro_rules! ldx { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.set_x) }; }
+        macro_rules! ldy { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.set_y) }; }
+
+        // Logic operator macros
+        macro_rules! and { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.a.bitand => self.cpu.set_a) }; }
+        macro_rules! ora { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.a.bitor => self.cpu.set_a) }; }
+        macro_rules! eor { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.a.bitxor => self.cpu.set_a) }; }
+        macro_rules! bit { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.a.bitand => self.cpu.p.znv_bit_test) }; }
+
+        // Compares
+        macro_rules! cmp { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.cmp_a) }; }
+        macro_rules! cpx { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.cmp_x) }; }
+        macro_rules! cpy { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.cmp_y) }; }
 
         // Push a value
         macro_rules! push_reg {
@@ -143,30 +160,12 @@ impl Nes {
             }};
         }
 
-        // Operator on a value through it's address
-        macro_rules! set_op {
-            ( $op:ident, $getter:ident ) => {{
-                let addr = self.$getter();
-                let value = self.cpu.a.$op(self.ram.peek_at(addr));
-                self.cpu.set_a(value);
-            }};
-        }
-
-        // Bit test
-        macro_rules! bit_test {
-            ( $getter:ident ) => {{
-                let addr = self.$getter();
-                let value = self.cpu.a & self.ram.peek_at(addr);
-                self.cpu.p.znv_bit_test(value);
-            }};
-        }
-
         // Addition on a value through it's address
         macro_rules! set_adc {
             ( $getter:ident ) => {{
                 let addr = self.$getter();
-                let value = Wrapping(self.cpu.get_c() as u8) + Wrapping(self.ram.peek_at(addr));
-                self.cpu.adc_a(value.0);
+                let value = wrap_add!(self.cpu.get_c() as u8, self.ram.peek_at(addr));
+                self.cpu.adc_a(value);
             }};
         }
 
@@ -174,20 +173,9 @@ impl Nes {
         macro_rules! set_sbc {
             ( $getter:ident ) => {{
                 let addr = self.$getter();
-                let value = Wrapping(1)
-                    - Wrapping(self.cpu.get_c() as u8)
-                    + Wrapping(self.ram.peek_at(addr));
-                self.cpu.sbc_a(value.0);
+                let value = wrap_add!(1, (-(self.cpu.get_c() as i8)) as u8, self.ram.peek_at(addr));
+                self.cpu.sbc_a(value as u8);
             }};
-        }
-
-        // Compares
-        macro_rules! cmp {
-            ( $setter:ident, $getter:ident ) => {{
-                let addr = self.$getter();
-                let value = self.ram.peek_at(addr);
-                self.cpu.$setter(value);
-            }}
         }
 
         // Shift left
@@ -236,17 +224,9 @@ impl Nes {
         macro_rules! inc_mem {
             ( $addr:ident, $step:expr ) => {{
                 let addr = self.$addr();
-                let value = (Wrapping(self.ram.peek_at(addr)) + Wrapping($step as u8)).0;
+                let value = wrap_add!(self.ram.peek_at(addr), $step as u8);
                 self.cpu.p.zn(value);
                 self.ram.put_at(addr, value);
-            }}
-        }
-
-        // Increment an address
-        macro_rules! inc_reg {
-            ( $setter:ident, $getter:ident, $step:expr ) => {{
-                let value = (Wrapping(self.cpu.$getter()) + Wrapping($step as u8)).0;
-                self.cpu.$setter(value);
             }}
         }
 
@@ -254,15 +234,7 @@ impl Nes {
         macro_rules! branch {
             ( $condition:expr ) => {{
                 let offset = (self.fetch() as i8) as u16;
-                if $condition { self.cpu.pc = (Wrapping(self.cpu.pc) + Wrapping(offset)).0; }
-            }}
-        }
-
-        // Jump
-        macro_rules! jump {
-            ( $addr:ident ) => {{
-                let addr = self.$addr();
-                self.cpu.pc = addr;
+                if $condition { self.cpu.pc = wrap_add!(self.cpu.pc, offset); }
             }}
         }
 
@@ -272,28 +244,28 @@ impl Nes {
             opc::Nop => {}
 
             // Load into A
-            opc::Lda::Immediate => set_reg!(set_a, immediate),
-            opc::Lda::ZeroPage => set_reg!(set_a, zero_page),
-            opc::Lda::ZeroPageX => set_reg!(set_a, zero_page_x),
-            opc::Lda::Absolute => set_reg!(set_a, absolute),
-            opc::Lda::AbsoluteX => set_reg!(set_a, absolute_x),
-            opc::Lda::AbsoluteY => set_reg!(set_a, absolute_y),
-            opc::Lda::IndirectX => set_reg!(set_a, indirect_x),
-            opc::Lda::IndirectY => set_reg!(set_a, indirect_y),
+            opc::Lda::Immediate => lda!(immediate),
+            opc::Lda::ZeroPage => lda!(zero_page),
+            opc::Lda::ZeroPageX => lda!(zero_page_x),
+            opc::Lda::Absolute => lda!(absolute),
+            opc::Lda::AbsoluteX => lda!(absolute_x),
+            opc::Lda::AbsoluteY => lda!(absolute_y),
+            opc::Lda::IndirectX => lda!(indirect_x),
+            opc::Lda::IndirectY => lda!(indirect_y),
 
             // Load into X
-            opc::Ldx::Immediate => set_reg!(set_x, immediate),
-            opc::Ldx::ZeroPage => set_reg!(set_x, zero_page),
-            opc::Ldx::ZeroPageY => set_reg!(set_x, zero_page_y),
-            opc::Ldx::Absolute => set_reg!(set_x, absolute),
-            opc::Ldx::AbsoluteY => set_reg!(set_x, absolute_y),
+            opc::Ldx::Immediate => ldx!(immediate),
+            opc::Ldx::ZeroPage => ldx!(zero_page),
+            opc::Ldx::ZeroPageY => ldx!(zero_page_y),
+            opc::Ldx::Absolute => ldx!(absolute),
+            opc::Ldx::AbsoluteY => ldx!(absolute_y),
 
             // Load into Y
-            opc::Ldy::Immediate => set_reg!(set_y, immediate),
-            opc::Ldy::ZeroPage => set_reg!(set_y, zero_page),
-            opc::Ldy::ZeroPageX => set_reg!(set_y, zero_page_x),
-            opc::Ldy::Absolute => set_reg!(set_y, absolute),
-            opc::Ldy::AbsoluteX => set_reg!(set_y, absolute_x),
+            opc::Ldy::Immediate => ldy!(immediate),
+            opc::Ldy::ZeroPage => ldy!(zero_page),
+            opc::Ldy::ZeroPageX => ldy!(zero_page_x),
+            opc::Ldy::Absolute => ldy!(absolute),
+            opc::Ldy::AbsoluteX => ldy!(absolute_x),
 
             // Store from A
             opc::Sta::ZeroPage => set_mem!(zero_page, get_a),
@@ -315,12 +287,12 @@ impl Nes {
             opc::Sty::Absolute => set_mem!(absolute, get_y),
 
             // Transfer
-            opc::Tax => set_reg_val!(set_x, get_a),
-            opc::Tay => set_reg_val!(set_y, get_a),
-            opc::Txa => set_reg_val!(set_a, get_x),
-            opc::Tya => set_reg_val!(set_a, get_y),
-            opc::Tsx => set_reg_val!(set_x, get_sp),
-            opc::Txs => set_reg_val!(set_sp, get_x),
+            opc::Tax => pipe!(self.cpu.get_a() => self.cpu.set_x),
+            opc::Tay => pipe!(self.cpu.get_a() => self.cpu.set_y),
+            opc::Txa => pipe!(self.cpu.get_x() => self.cpu.set_a),
+            opc::Tya => pipe!(self.cpu.get_y() => self.cpu.set_a),
+            opc::Tsx => pipe!(self.cpu.get_sp() => self.cpu.set_x),
+            opc::Txs => pipe!(self.cpu.get_x() => self.cpu.set_sp),
 
             // Stack
             opc::Pha => push_reg!(get_a),
@@ -329,38 +301,38 @@ impl Nes {
             opc::Plp => pull_reg!(set_p),
 
             // And
-            opc::And::Immediate => set_op!(bitand, immediate),
-            opc::And::ZeroPage => set_op!(bitand, zero_page),
-            opc::And::ZeroPageX => set_op!(bitand, zero_page_x),
-            opc::And::Absolute => set_op!(bitand, absolute),
-            opc::And::AbsoluteX => set_op!(bitand, absolute_x),
-            opc::And::AbsoluteY => set_op!(bitand, absolute_y),
-            opc::And::IndirectX => set_op!(bitand, indirect_x),
-            opc::And::IndirectY => set_op!(bitand, indirect_y),
+            opc::And::Immediate => and!(immediate),
+            opc::And::ZeroPage => and!(zero_page),
+            opc::And::ZeroPageX => and!(zero_page_x),
+            opc::And::Absolute => and!(absolute),
+            opc::And::AbsoluteX => and!(absolute_x),
+            opc::And::AbsoluteY => and!(absolute_y),
+            opc::And::IndirectX => and!(indirect_x),
+            opc::And::IndirectY => and!(indirect_y),
 
             // Or
-            opc::Ora::Immediate => set_op!(bitor, immediate),
-            opc::Ora::ZeroPage => set_op!(bitor, zero_page),
-            opc::Ora::ZeroPageX => set_op!(bitor, zero_page_x),
-            opc::Ora::Absolute => set_op!(bitor, absolute),
-            opc::Ora::AbsoluteX => set_op!(bitor, absolute_x),
-            opc::Ora::AbsoluteY => set_op!(bitor, absolute_y),
-            opc::Ora::IndirectX => set_op!(bitor, indirect_x),
-            opc::Ora::IndirectY => set_op!(bitor, indirect_y),
+            opc::Ora::Immediate => ora!(immediate),
+            opc::Ora::ZeroPage => ora!(zero_page),
+            opc::Ora::ZeroPageX => ora!(zero_page_x),
+            opc::Ora::Absolute => ora!(absolute),
+            opc::Ora::AbsoluteX => ora!(absolute_x),
+            opc::Ora::AbsoluteY => ora!(absolute_y),
+            opc::Ora::IndirectX => ora!(indirect_x),
+            opc::Ora::IndirectY => ora!(indirect_y),
 
             // Xor
-            opc::Eor::Immediate => set_op!(bitxor, immediate),
-            opc::Eor::ZeroPage => set_op!(bitxor, zero_page),
-            opc::Eor::ZeroPageX => set_op!(bitxor, zero_page_x),
-            opc::Eor::Absolute => set_op!(bitxor, absolute),
-            opc::Eor::AbsoluteX => set_op!(bitxor, absolute_x),
-            opc::Eor::AbsoluteY => set_op!(bitxor, absolute_y),
-            opc::Eor::IndirectX => set_op!(bitxor, indirect_x),
-            opc::Eor::IndirectY => set_op!(bitxor, indirect_y),
+            opc::Eor::Immediate => eor!(immediate),
+            opc::Eor::ZeroPage => eor!(zero_page),
+            opc::Eor::ZeroPageX => eor!(zero_page_x),
+            opc::Eor::Absolute => eor!(absolute),
+            opc::Eor::AbsoluteX => eor!(absolute_x),
+            opc::Eor::AbsoluteY => eor!(absolute_y),
+            opc::Eor::IndirectX => eor!(indirect_x),
+            opc::Eor::IndirectY => eor!(indirect_y),
 
             // Bit test
-            opc::Bit::ZeroPage => bit_test!(zero_page),
-            opc::Bit::Absolute => bit_test!(absolute),
+            opc::Bit::ZeroPage => bit!(zero_page),
+            opc::Bit::Absolute => bit!(absolute),
 
             // Addition
             opc::Adc::Immediate => set_adc!(immediate),
@@ -395,10 +367,10 @@ impl Nes {
             opc::Dec::AbsoluteX => inc_mem!(absolute_x, -1i8),
 
             // Increment and decrement registers
-            opc::Inx => inc_reg!(set_x, get_x, 1i8),
-            opc::Dex => inc_reg!(set_x, get_x, -1i8),
-            opc::Iny => inc_reg!(set_y, get_y, 1i8),
-            opc::Dey => inc_reg!(set_y, get_y, -1i8),
+            opc::Inx => pipe!(wrap_add!(self.cpu.get_x(), 1i8 as u8) => self.cpu.set_x),
+            opc::Dex => pipe!(wrap_add!(self.cpu.get_x(), -1i8 as u8) => self.cpu.set_x),
+            opc::Iny => pipe!(wrap_add!(self.cpu.get_y(), 1i8 as u8) => self.cpu.set_y),
+            opc::Dey => pipe!(wrap_add!(self.cpu.get_y(), -1i8 as u8) => self.cpu.set_y),
 
             // Shifts Left
             opc::Asl::Accumulator => self.cpu.shift_a_left(),
@@ -429,24 +401,24 @@ impl Nes {
             opc::Ror::AbsoluteX => ror!(absolute_x),
 
             // Compare A
-            opc::Cmp::Immediate => cmp!(cmp_a, immediate),
-            opc::Cmp::ZeroPage => cmp!(cmp_a, zero_page),
-            opc::Cmp::ZeroPageX => cmp!(cmp_a, zero_page_x),
-            opc::Cmp::Absolute => cmp!(cmp_a, absolute),
-            opc::Cmp::AbsoluteX => cmp!(cmp_a, absolute_x),
-            opc::Cmp::AbsoluteY => cmp!(cmp_a, absolute_y),
-            opc::Cmp::IndirectX => cmp!(cmp_a, indirect_x),
-            opc::Cmp::IndirectY => cmp!(cmp_a, indirect_y),
+            opc::Cmp::Immediate => cmp!(immediate),
+            opc::Cmp::ZeroPage => cmp!(zero_page),
+            opc::Cmp::ZeroPageX => cmp!(zero_page_x),
+            opc::Cmp::Absolute => cmp!(absolute),
+            opc::Cmp::AbsoluteX => cmp!(absolute_x),
+            opc::Cmp::AbsoluteY => cmp!(absolute_y),
+            opc::Cmp::IndirectX => cmp!(indirect_x),
+            opc::Cmp::IndirectY => cmp!(indirect_y),
 
             // Compare X
-            opc::Cpx::Immediate => cmp!(cmp_x, immediate),
-            opc::Cpx::ZeroPage => cmp!(cmp_x, zero_page),
-            opc::Cpx::Absolute => cmp!(cmp_x, absolute),
+            opc::Cpx::Immediate => cpx!(immediate),
+            opc::Cpx::ZeroPage => cpx!(zero_page),
+            opc::Cpx::Absolute => cpx!(absolute),
 
             // Compare X
-            opc::Cpy::Immediate => cmp!(cmp_y, immediate),
-            opc::Cpy::ZeroPage => cmp!(cmp_y, zero_page),
-            opc::Cpy::Absolute => cmp!(cmp_y, absolute),
+            opc::Cpy::Immediate => cpy!(immediate),
+            opc::Cpy::ZeroPage => cpy!(zero_page),
+            opc::Cpy::Absolute => cpy!(absolute),
 
             // Status flags
             opc::Clc => self.cpu.clear_flag(Flags::Carry),
@@ -468,8 +440,8 @@ impl Nes {
             opc::Bvs => branch!(!self.cpu.p.contains(Flags::Overflow)),
 
             // Jump
-            opc::Jmp::Absolute => jump!(absolute),
-            opc::Jmp::Indirect => jump!(indirect),
+            opc::Jmp::Absolute => pipe!(self.absolute() => self.cpu.set_pc),
+            opc::Jmp::Indirect => pipe!(self.indirect() => self.cpu.set_pc),
 
             // Not implemented
             _ => panic!("Opcode not implemented: 0x{:02x?}", opcode)

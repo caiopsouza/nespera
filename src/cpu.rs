@@ -73,6 +73,8 @@ impl Cpu {
 
     pub fn set_p(&mut self, value: u8) { self.p = value.into(); }
 
+    pub fn set_pc(&mut self, value: u16) { self.pc = value; }
+
     pub fn set_sp(&mut self, value: u8) { self.sp = value; }
 
     // Sums a value into A
