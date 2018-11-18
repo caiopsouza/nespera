@@ -71,13 +71,13 @@ macro_rules! run {
         let get_value = |key, value| *checks.get(key).unwrap_or_else(|| &value) as u16;
 
         let mut nes = Nes::new();
-        $( let pc = nes.cpu.pc; nes.ram.put_at(pc, $opcode); nes.cpu.pc += 1; )*
+        $( let pc = nes.cpu.pc; nes.mem.put_at(pc, $opcode); nes.cpu.pc += 1; )*
 
         $(
             let addr = $addr as u16;
             // Prevents from writing twice at the same address which can hinder testing
-            if nes.ram.peek_at(addr) != 0 { panic!("Trying to write twice in 0x{:x?}", addr); }
-            nes.ram.put_at(addr, $ram as u8);
+            if nes.mem.peek_at(addr) != 0 { panic!("Trying to write twice in 0x{:x?}", addr); }
+            nes.mem.put_at(addr, $ram as u8);
         )*
 
         $( nes.cpu.$initial_reg = ($initial_value as u8).into(); )*
@@ -86,7 +86,7 @@ macro_rules! run {
 
         nes.cpu.reset_pc();
         let mut pc = nes.cpu.pc;
-        while nes.ram.peek_at(pc) != 0 { nes.step(); pc = nes.cpu.pc; }
+        while nes.mem.peek_at(pc) != 0 { nes.step(); pc = nes.cpu.pc; }
 
         assert_eq!(nes.cpu.get_a(), get_value("a", control.cpu.get_a() as u16) as u8, "\n in register a\n\n{:?}", nes);
         assert_eq!(nes.cpu.get_x(), get_value("x", control.cpu.get_x() as u16) as u8, "\n in register x\n\n{:?}", nes);
@@ -104,7 +104,7 @@ macro_rules! run {
         assert_eq!(nes.cpu.get_v(), get_value("v", control.cpu.get_v() as u16) != 0, "\n in overflow\n\n{:?}", nes);
         assert_eq!(nes.cpu.get_n(), get_value("n", control.cpu.get_n() as u16) != 0, "\n in negative\n\n{:?}", nes);
 
-        for (i, (&ea, &eb)) in nes.ram.0.iter().zip(control.ram.0.iter()).enumerate() {
+        for (i, (&ea, &eb)) in nes.mem.get_ram().iter().zip(control.mem.get_ram().iter()).enumerate() {
             let ref_eb = &(eb as u16);
             let value = *checks.get(&i.to_string()[..]).unwrap_or_else(|| ref_eb) as u8;
             assert_eq!(ea, value, "\nat address 0x{:x?}\n{:?}", i, nes);

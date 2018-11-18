@@ -1,13 +1,11 @@
 use hardware::cpu::Cpu;
 use hardware::flags::Flags;
 use hardware::opc;
-use hardware::ram::Ram;
+use hardware::mem::Memory;
 
 use std::num::Wrapping;
 use std::fmt;
 use std::ops::*;
-
-use pretty_hex::*;
 
 // Adds two number wrapping the result
 macro_rules! wrap_add {
@@ -22,7 +20,7 @@ macro_rules! wrap_add {
 #[derive(Copy, Clone)]
 pub struct Nes {
     pub cpu: Cpu,
-    pub ram: Ram,
+    pub mem: Memory,
 }
 
 impl fmt::Debug for Nes {
@@ -38,7 +36,7 @@ impl fmt::Debug for Nes {
                '_' /* Unused*/,
                if self.cpu.get_v() { 'v' } else { '_' },
                if self.cpu.get_n() { 'n' } else { '_' })?;
-        write!(formatter, "{:?}", (&self.ram.0[..]).hex_dump())
+        write!(formatter, "{:?}", &self.mem)
     }
 }
 
@@ -47,22 +45,22 @@ impl Nes {
     pub fn new() -> Self {
         Self {
             cpu: Cpu::new(),
-            ram: Ram::new(),
+            mem: Memory::new(),
         }
     }
 
-    // Read the value in RAM pointed by PC and advances it
+    // Read the value in memory pointed by PC and advances it
     fn fetch(&mut self) -> u8 {
-        let data = self.ram.peek_at(self.cpu.pc);
+        let data = self.mem.peek_at(self.cpu.pc);
         self.cpu.inc_pc();
         data
     }
 
-    // Read the value in RAM pointed by PC as an i16 and advances it
+    // Read the value in memory pointed by PC as an i16 and advances it
     fn fetch_16(&mut self) -> u16 {
         let pc = self.cpu.pc;
         self.cpu.pc = wrap_add!(self.cpu.pc, 2);
-        self.ram.peek_at_16(pc)
+        self.mem.peek_at_16(pc)
     }
 
     // Address getters
@@ -92,18 +90,18 @@ impl Nes {
 
     fn indirect(&mut self) -> u16 {
         let mut addr = self.fetch_16();
-        addr = self.ram.peek_at_16(addr);
-        self.ram.peek_at_16(addr)
+        addr = self.mem.peek_at_16(addr);
+        self.mem.peek_at_16(addr)
     }
 
     fn indirect_x(&mut self) -> u16 {
         let addr = wrap_add!(self.fetch(), self.cpu.x) as u16;
-        self.ram.peek_at_16(addr)
+        self.mem.peek_at_16(addr)
     }
 
     fn indirect_y(&mut self) -> u16 {
         let addr = self.fetch();
-        let addr = self.ram.peek_at_16(addr.into());
+        let addr = self.mem.peek_at_16(addr.into());
         wrap_add!(addr, self.cpu.y as u16)
     }
 
@@ -123,32 +121,32 @@ impl Nes {
             ( $setter:ident, $getter:ident ) => {{
                 let addr = self.$setter();
                 let value = self.cpu.$getter();
-                self.ram.put_at(addr, value);
+                self.mem.put_at(addr, value);
             }};
         }
 
         // Load macros
-        macro_rules! lda { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.set_a) }; }
-        macro_rules! ldx { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.set_x) }; }
-        macro_rules! ldy { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.set_y) }; }
+        macro_rules! lda { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.set_a) }; }
+        macro_rules! ldx { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.set_x) }; }
+        macro_rules! ldy { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.set_y) }; }
 
         // Logic operator macros
-        macro_rules! and { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.a.bitand => self.cpu.set_a) }; }
-        macro_rules! ora { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.a.bitor => self.cpu.set_a) }; }
-        macro_rules! eor { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.a.bitxor => self.cpu.set_a) }; }
-        macro_rules! bit { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.a.bitand => self.cpu.p.znv_bit_test) }; }
+        macro_rules! and { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.a.bitand => self.cpu.set_a) }; }
+        macro_rules! ora { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.a.bitor => self.cpu.set_a) }; }
+        macro_rules! eor { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.a.bitxor => self.cpu.set_a) }; }
+        macro_rules! bit { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.a.bitand => self.cpu.p.znv_bit_test) }; }
 
         // Compares
-        macro_rules! cmp { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.cmp_a) }; }
-        macro_rules! cpx { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.cmp_x) }; }
-        macro_rules! cpy { ( $addr:ident ) => { pipe!(self.$addr() => self.ram.peek_at => self.cpu.cmp_y) }; }
+        macro_rules! cmp { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.cmp_a) }; }
+        macro_rules! cpx { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.cmp_x) }; }
+        macro_rules! cpy { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.cmp_y) }; }
 
         // Push a value
         macro_rules! push_reg {
             ( $getter:ident ) => {{
                 let addr = self.cpu.sp;
                 let value = self.cpu.$getter();
-                self.ram.put_at(addr.into(), value);
+                self.mem.put_at(addr.into(), value);
                 self.cpu.sp -= 1;
             }};
         }
@@ -156,7 +154,7 @@ impl Nes {
         // Pull a value referenced through it's address
         macro_rules! pull_reg {
             ( $setter:ident ) => {{
-                let value = self.ram.peek_at(self.cpu.sp.into());
+                let value = self.mem.peek_at(self.cpu.sp.into());
                 self.cpu.$setter(value);
                 self.cpu.sp += 1;
             }};
@@ -166,7 +164,7 @@ impl Nes {
         macro_rules! set_adc {
             ( $getter:ident ) => {{
                 let addr = self.$getter();
-                let value = wrap_add!(self.cpu.get_c() as u8, self.ram.peek_at(addr));
+                let value = wrap_add!(self.cpu.get_c() as u8, self.mem.peek_at(addr));
                 self.cpu.adc_a(value);
             }};
         }
@@ -175,7 +173,7 @@ impl Nes {
         macro_rules! set_sbc {
             ( $getter:ident ) => {{
                 let addr = self.$getter();
-                let value = wrap_add!(1, (-(self.cpu.get_c() as i8)) as u8, self.ram.peek_at(addr));
+                let value = wrap_add!(1, (-(self.cpu.get_c() as i8)) as u8, self.mem.peek_at(addr));
                 self.cpu.sbc_a(value as u8);
             }};
         }
@@ -184,9 +182,9 @@ impl Nes {
         macro_rules! asl {
             ( $addr:ident ) => {{
                 let addr = self.$addr();
-                let mut value = self.ram.peek_at(addr);
+                let mut value = self.mem.peek_at(addr);
                 self.cpu.p.znc_left_shift(value);
-                self.ram.put_at(addr, value << 1);
+                self.mem.put_at(addr, value << 1);
             }}
         }
 
@@ -194,9 +192,9 @@ impl Nes {
         macro_rules! lsr {
             ( $addr:ident ) => {{
                 let addr = self.$addr();
-                let mut value = self.ram.peek_at(addr);
+                let mut value = self.mem.peek_at(addr);
                 self.cpu.p.znc_right_shift(value);
-                self.ram.put_at(addr, value >> 1);
+                self.mem.put_at(addr, value >> 1);
             }}
         }
 
@@ -204,10 +202,10 @@ impl Nes {
         macro_rules! rol {
             ( $addr:ident ) => {{
                 let addr = self.$addr();
-                let mut value = self.ram.peek_at(addr);
+                let mut value = self.mem.peek_at(addr);
                 self.cpu.p.znc_left_shift(value);
                 let carry = self.cpu.p.bits() & Flags::Carry.bits();
-                self.ram.put_at(addr, (value << 1) | carry);
+                self.mem.put_at(addr, (value << 1) | carry);
             }}
         }
 
@@ -215,10 +213,10 @@ impl Nes {
         macro_rules! ror {
             ( $addr:ident ) => {{
                 let addr = self.$addr();
-                let mut value = self.ram.peek_at(addr);
+                let mut value = self.mem.peek_at(addr);
                 self.cpu.p.znc_left_shift(value);
                 let carry = (self.cpu.p.bits() & Flags::Carry.bits()) << 7;
-                self.ram.put_at(addr, (value >> 1) | carry);
+                self.mem.put_at(addr, (value >> 1) | carry);
             }}
         }
 
@@ -226,9 +224,9 @@ impl Nes {
         macro_rules! inc_mem {
             ( $addr:ident, $step:expr ) => {{
                 let addr = self.$addr();
-                let value = wrap_add!(self.ram.peek_at(addr), $step as u8);
+                let value = wrap_add!(self.mem.peek_at(addr), $step as u8);
                 self.cpu.p.zn(value);
-                self.ram.put_at(addr, value);
+                self.mem.put_at(addr, value);
             }}
         }
 
@@ -450,14 +448,14 @@ impl Nes {
                 let pc = wrap_add!(self.cpu.pc, 1);
                 self.cpu.pc = self.fetch_16();
 
-                self.ram.put_at_16(self.cpu.sp as u16, pc);
+                self.mem.put_at_16(self.cpu.sp as u16, pc);
                 self.cpu.sp = wrap_add!(self.cpu.sp, -2i8 as u8);
             }
 
             // Return
             opc::Rts => {
                 self.cpu.sp = wrap_add!(self.cpu.sp, 2u8);
-                self.cpu.pc = wrap_add!(self.ram.peek_at_16(self.cpu.sp as u16), 1);
+                self.cpu.pc = wrap_add!(self.mem.peek_at_16(self.cpu.sp as u16), 1);
             }
 
             // Not implemented
