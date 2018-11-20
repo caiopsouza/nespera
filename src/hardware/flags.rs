@@ -1,16 +1,17 @@
 use std::convert::From;
+use std::num::Wrapping;
 
 // Flags for the P register
 bitflags! {
     pub struct Flags: u8 {
-        const Carry =            0b00000001;
-        const Zero =             0b00000010;
-        const InterruptDisable = 0b00000100;
-        const DecimalMode =      0b00001000;
-        const BreakCommand =     0b00010000;
-        const Unused =           0b00100000;
-        const Overflow =         0b01000000;
-        const Negative =         0b10000000;
+        const Carry =            0b00000001; // 0
+        const Zero =             0b00000010; // 1
+        const InterruptDisable = 0b00000100; // 2
+        const DecimalMode =      0b00001000; // 3
+        const BreakCommand =     0b00010000; // 4
+        const Unused =           0b00100000; // 5
+        const Overflow =         0b01000000; // 6
+        const Negative =         0b10000000; // 7
     }
 }
 
@@ -20,9 +21,7 @@ impl Flags {
         self.bits = (self.bits & !flags.bits) | (value & flags.bits);
     }
 
-    pub fn change_zero(&mut self, value: u8) {
-        self.set(Flags::Zero, value == 0);
-    }
+    pub fn change_zero(&mut self, value: u8) { self.set(Flags::Zero, value == 0); }
 
     pub fn change_negative(&mut self, value: u8) {
         self.set(Self::Negative, (value & 0b10000000) != 0);
@@ -37,25 +36,26 @@ impl Flags {
     pub fn change_cmp(&mut self, value: u8, other: u8) {
         self.set(Self::Zero, value == other);
         self.set(Self::Carry, value >= other);
-        self.set(Self::Negative, (value as i8) < (other as i8));
+
+        // Negative has the same bit as the 7th of the difference
+        let diff = Wrapping(value) - Wrapping(other);
+        self.set(Self::Negative, (diff.0 & 0b10000000) != 0);
     }
 
     // Set the Zero, Negative and Carry Flag based on the left shift of the value passed
     pub fn change_left_shift(&mut self, original_value: u8) {
-        self.set(Flags::Carry, (original_value & 0b1000000) != 0);
-        self.change_zero_and_negative(original_value << 1);
+        self.set(Flags::Carry, (original_value & 0b10000000) != 0);
     }
 
     // Set the Zero, Negative and Carry Flag based on the right shift of the value passed
     pub fn change_right_shift(&mut self, original_value: u8) {
         self.set(Flags::Carry, (original_value & 0b0000001) != 0);
-        self.change_zero_and_negative(original_value >> 1);
     }
 
     // Set the Zero, Negative and Carry Flag based on the right rotation of the value passed
     pub fn change_right_rotate(&mut self, original_value: u8) {
         let carry = (self.bits & Self::Carry.bits) << 7;
-        self.set(Flags::Carry, (original_value & 0b0000001) != 0);
+        self.set(Flags::Carry, (original_value & 0b00000001) != 0);
         self.change_zero_and_negative((original_value >> 1) | carry);
     }
 }

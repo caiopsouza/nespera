@@ -48,21 +48,21 @@ fn txs() {
 fn pha() {
     run!(opc: [opc::Pha];
         reg: [sp => 177, a => 157];
-        res: ["sp" => 176, 177 => 157]);
+        res: ["sp" => 176, 177 + 0x100 => 157]);
 }
 
 #[test]
 fn php() {
     run!(opc: [opc::Php];
         reg: [sp => 177, p => 157];
-        res: ["sp" => 176, 177 => 189]);
+        res: ["sp" => 176, 177 + 0x100  => 189]);
 }
 
 #[test]
 fn pla() {
     run!(opc: [opc::Pla];
         reg: [sp => 176];
-        ram: [177 => 246];
+        ram: [177 + 0x100 => 246];
         res: ["a" => 246, "sp" => 177, "z" => false, "n" => true]);
 }
 
@@ -70,7 +70,7 @@ fn pla() {
 fn plp() {
     run!(opc: [opc::Plp];
         reg: [sp => 176];
-        ram: [177 => 246];
+        ram: [177 + 0x100 => 246];
         res: [
             "p" => 246, "sp" => 177,
             "n" => true, "v" => true, "u" => true, "b" => false,

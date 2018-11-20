@@ -249,6 +249,192 @@ pub mod Jmp {
 
 pub const Jsr: u8 = 0x20;
 pub const Rts: u8 = 0x60;
+pub const Rti: u8 = 0x40;
 
 // No operation
 pub const Nop: u8 = 0xea;
+
+pub fn name(opcode: u8) -> String {
+    format!("{:02x}:{}", opcode, match opcode {
+        Nop => "Nop    ",
+
+        Lda::Immediate => "Lda:imm",
+        Lda::ZeroPage => "Lda:zpg",
+        Lda::ZeroPageX => "Lda:zpx",
+        Lda::Absolute => "Lda:abs",
+        Lda::AbsoluteX => "Lda:abx",
+        Lda::AbsoluteY => "Lda:aby",
+        Lda::IndirectX => "Lda:idx",
+        Lda::IndirectY => "Lda:idy",
+
+        Ldx::Immediate => "Ldx:imm",
+        Ldx::ZeroPage => "Ldx:zpg",
+        Ldx::ZeroPageY => "Ldx:zpy",
+        Ldx::Absolute => "Ldx:abs",
+        Ldx::AbsoluteY => "Ldx:aby",
+
+        Ldy::Immediate => "Ldy:imm",
+        Ldy::ZeroPage => "Ldy:zpg",
+        Ldy::ZeroPageX => "Ldy:zpx",
+        Ldy::Absolute => "Ldy:abs",
+        Ldy::AbsoluteX => "Ldy:abx",
+
+        Sta::ZeroPage => "Sta:zpg",
+        Sta::ZeroPageX => "Sta:zpx",
+        Sta::Absolute => "Sta:abs",
+        Sta::AbsoluteX => "Sta:abx",
+        Sta::AbsoluteY => "Sta:aby",
+        Sta::IndirectX => "Sta:idx",
+        Sta::IndirectY => "Sta:idy",
+
+        Stx::ZeroPage => "Stx:zpg",
+        Stx::ZeroPageY => "Stx:zpx",
+        Stx::Absolute => "Stx:abs",
+
+        Sty::ZeroPage => "Sty:zpg",
+        Sty::ZeroPageX => "Sty:zpx",
+        Sty::Absolute => "Sty:abs",
+
+        Tax => "Tax    ",
+        Tay => "Tay    ",
+        Txa => "Txa    ",
+        Tya => "Tya    ",
+        Tsx => "Tsx    ",
+        Txs => "Txs    ",
+
+        Pha => "Pha    ",
+        Php => "Php    ",
+        Pla => "Pla    ",
+        Plp => "Plp    ",
+
+        And::Immediate => "And:imm",
+        And::ZeroPage => "And:zpg",
+        And::ZeroPageX => "And:zpx",
+        And::Absolute => "And:abs",
+        And::AbsoluteX => "And:abx",
+        And::AbsoluteY => "And:aby",
+        And::IndirectX => "And:idx",
+        And::IndirectY => "And:idy",
+
+        Ora::Immediate => "Ora:imm",
+        Ora::ZeroPage => "Ora:zpg",
+        Ora::ZeroPageX => "Ora:zpx",
+        Ora::Absolute => "Ora:abs",
+        Ora::AbsoluteX => "Ora:abx",
+        Ora::AbsoluteY => "Ora:aby",
+        Ora::IndirectX => "Ora:idx",
+        Ora::IndirectY => "Ora:idy",
+
+        Eor::Immediate => "Eor:imm",
+        Eor::ZeroPage => "Eor:zpg",
+        Eor::ZeroPageX => "Eor:zpx",
+        Eor::Absolute => "Eor:abs",
+        Eor::AbsoluteX => "Eor:abx",
+        Eor::AbsoluteY => "Eor:aby",
+        Eor::IndirectX => "Eor:idx",
+        Eor::IndirectY => "Eor:idy",
+
+        Bit::ZeroPage => "Bit:zpg",
+        Bit::Absolute => "Bit:abs",
+
+        Adc::Immediate => "Adc:imm",
+        Adc::ZeroPage => "Adc:zpg",
+        Adc::ZeroPageX => "Adc:zpx",
+        Adc::Absolute => "Adc:abs",
+        Adc::AbsoluteX => "Adc:abx",
+        Adc::AbsoluteY => "Adc:aby",
+        Adc::IndirectX => "Adc:idx",
+        Adc::IndirectY => "Adc:idy",
+
+        Sbc::Immediate => "Sbc:imm",
+        Sbc::ZeroPage => "Sbc:zpg",
+        Sbc::ZeroPageX => "Sbc:zpx",
+        Sbc::Absolute => "Sbc:abs",
+        Sbc::AbsoluteX => "Sbc:abx",
+        Sbc::AbsoluteY => "Sbc:aby",
+        Sbc::IndirectX => "Sbc:idx",
+        Sbc::IndirectY => "Sbc:idy",
+
+        Inc::ZeroPage => "Inc:zpg",
+        Inc::ZeroPageX => "Inc:zpx",
+        Inc::Absolute => "Inc:abs",
+        Inc::AbsoluteX => "Inc:abx",
+
+        Dec::ZeroPage => "Dec:zpg",
+        Dec::ZeroPageX => "Dec:zpx",
+        Dec::Absolute => "Dec:abs",
+        Dec::AbsoluteX => "Dec:abx",
+
+        Inx => "Inx    ",
+        Dex => "Dex    ",
+        Iny => "Iny    ",
+        Dey => "Dey    ",
+
+        Asl::Accumulator => "Asl:acc",
+        Asl::ZeroPage => "Asl:zpg",
+        Asl::ZeroPageX => "Asl:zpx",
+        Asl::Absolute => "Asl:abs",
+        Asl::AbsoluteX => "Asl:abx",
+
+        Lsr::Accumulator => "Lsr:acc",
+        Lsr::ZeroPage => "Lsr:zpg",
+        Lsr::ZeroPageX => "Lsr:zpx",
+        Lsr::Absolute => "Lsr:abs",
+        Lsr::AbsoluteX => "Lsr:abx",
+
+        Rol::Accumulator => "Rol:acc",
+        Rol::ZeroPage => "Rol:zpg",
+        Rol::ZeroPageX => "Rol:zpx",
+        Rol::Absolute => "Rol:abs",
+        Rol::AbsoluteX => "Rol:abx",
+
+        Ror::Accumulator => "Ror:acc",
+        Ror::ZeroPage => "Ror:zpg",
+        Ror::ZeroPageX => "Ror:zpx",
+        Ror::Absolute => "Ror:abs",
+        Ror::AbsoluteX => "Ror:abx",
+
+        Cmp::Immediate => "Cmp:imm",
+        Cmp::ZeroPage => "Cmp:zpg",
+        Cmp::ZeroPageX => "Cmp:zpx",
+        Cmp::Absolute => "Cmp:abs",
+        Cmp::AbsoluteX => "Cmp:abx",
+        Cmp::AbsoluteY => "Cmp:aby",
+        Cmp::IndirectX => "Cmp:idx",
+        Cmp::IndirectY => "Cmp:idy",
+
+        Cpx::Immediate => "Cpx:imm",
+        Cpx::ZeroPage => "Cpx:zpg",
+        Cpx::Absolute => "Cpx:abs",
+
+        Cpy::Immediate => "Cpy:imm",
+        Cpy::ZeroPage => "Cpy:zpg",
+        Cpy::Absolute => "Cpy:abs",
+
+        Clc => "Clc    ",
+        Cld => "Cld    ",
+        Cli => "Cli    ",
+        Clv => "Clv    ",
+        Sec => "Sec    ",
+        Sed => "Sed    ",
+        Sei => "Sei    ",
+
+        Bcs => "Bcs    ",
+        Bcc => "Bcc    ",
+        Beq => "Beq    ",
+        Bne => "Bne    ",
+        Bmi => "Bmi    ",
+        Bpl => "Bpl    ",
+        Bvs => "Bvs    ",
+        Bvc => "Bvc    ",
+
+        Jmp::Absolute => "Jmp:abs",
+        Jmp::Indirect => "Jmp:ind",
+
+        Jsr => "Jsr    ",
+        Rts => "Rts    ",
+        Rti => "Rti    ",
+
+        _ => "___:___"
+    })
+}

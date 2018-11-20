@@ -7,6 +7,9 @@ use std::num::Wrapping;
 use std::fmt;
 use std::ops::*;
 
+// Position at the stack of the stack
+const STACK_START: u16 = 0x100;
+
 // Adds two number wrapping the result
 macro_rules! wrap_add {
     ( $first:expr $( ,$rest:expr )* ) => {{
@@ -92,27 +95,44 @@ impl Nes {
 
     fn indirect_x(&mut self) -> u16 {
         let addr = wrap_add!(self.fetch(), self.cpu.x) as u16;
-        self.mem.peek_at_16(addr)
+        self.mem.peek_indirect(addr)
     }
 
     fn indirect_y(&mut self) -> u16 {
         let addr = self.fetch();
-        let addr = self.mem.peek_at_16(addr.into());
+        let addr = self.mem.peek_indirect(addr.into());
         wrap_add!(addr, self.cpu.y as u16)
     }
 
     // Pushes a value onto the stack
     fn push(&mut self, value: u8) {
         let addr = self.cpu.sp;
-        self.mem.put_at(addr.into(), value);
-        self.cpu.sp -= 1;
+        self.mem.put_at(addr as u16 + STACK_START, value);
+        self.cpu.sp = wrap_add!(self.cpu.sp, -1i8 as u8);
+    }
+
+    fn push_16(&mut self, value: u16) {
+        self.push((value >> 8) as u8);
+        self.push(value as u8);
     }
 
     // Pull a value from the stack
     fn pull(&mut self) -> u8 {
-        self.cpu.sp += 1;
-        let value = self.mem.peek_at(self.cpu.sp.into());
+        self.cpu.sp = wrap_add!(self.cpu.sp, 1);
+        let value = self.mem.peek_at(self.cpu.sp as u16 + STACK_START);
         value
+    }
+
+    fn pull_16(&mut self) -> u16 {
+        let lsb = self.pull() as u16;
+        lsb + ((self.pull() as u16) << 8)
+    }
+
+    // Flags BreakCommand and Unused are ignored when pulling
+    fn pull_flags(&mut self) -> Flags {
+        let mut res = Flags::from(self.pull());
+        res.copy(Flags::BreakCommand | Flags::Unused, self.cpu.get_p());
+        res
     }
 
     // Bit test
@@ -120,22 +140,6 @@ impl Nes {
         let value = self.mem.peek_at(addr);
         self.cpu.p.change_zero(self.cpu.a & value);
         self.cpu.p.copy(Flags::Negative | Flags::Overflow, value);
-    }
-
-    // Addition
-    fn addition(&mut self, addr: u16) {
-        let value = self.mem.peek_at(addr);
-        self.cpu.adc_a(value);
-    }
-
-    // Subtraction
-    fn subtraction(&mut self, addr: u16) {
-        let value = self.mem.peek_at(addr);
-        // Since you should subtract (1 - carry) inverting the value
-        // has the same effect as negating after the carry is added
-        self.cpu.adc_a(!value);
-        // Carry result is opposite to adding
-        self.cpu.p.toggle(Flags::Carry);
     }
 
     // Executes one step of the CPU
@@ -173,13 +177,19 @@ impl Nes {
         macro_rules! cpx { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.cmp_x) }; }
         macro_rules! cpy { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.cmp_y) }; }
 
+        // Arithmetic
+        macro_rules! adc { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.adc_a) }; }
+        macro_rules! sbc { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.sbc_a) }; }
+
         // Shift left
         macro_rules! asl {
             ( $addr:ident ) => {{
                 let addr = self.$addr();
                 let mut value = self.mem.peek_at(addr);
                 self.cpu.p.change_left_shift(value);
-                self.mem.put_at(addr, value << 1);
+                let res = value << 1;
+                self.mem.put_at(addr, res);
+                self.cpu.p.change_zero_and_negative(res);
             }}
         }
 
@@ -189,7 +199,9 @@ impl Nes {
                 let addr = self.$addr();
                 let mut value = self.mem.peek_at(addr);
                 self.cpu.p.change_right_shift(value);
-                self.mem.put_at(addr, value >> 1);
+                let res = value >> 1;
+                self.mem.put_at(addr, res);
+                self.cpu.p.change_zero_and_negative(res);
             }}
         }
 
@@ -200,7 +212,9 @@ impl Nes {
                 let mut value = self.mem.peek_at(addr);
                 self.cpu.p.change_left_shift(value);
                 let carry = self.cpu.p.bits() & Flags::Carry.bits();
-                self.mem.put_at(addr, (value << 1) | carry);
+                let res = (value << 1) | carry;
+                self.mem.put_at(addr, res);
+                self.cpu.p.change_zero_and_negative(res);
             }}
         }
 
@@ -211,7 +225,9 @@ impl Nes {
                 let mut value = self.mem.peek_at(addr);
                 self.cpu.p.change_left_shift(value);
                 let carry = (self.cpu.p.bits() & Flags::Carry.bits()) << 7;
-                self.mem.put_at(addr, (value >> 1) | carry);
+                let res = (value >> 1) | carry;
+                self.mem.put_at(addr, res);
+                self.cpu.p.change_zero_and_negative(res);
             }}
         }
 
@@ -291,13 +307,9 @@ impl Nes {
 
             // Stack
             opc::Pha => pipe!(self.cpu.get_a() => self.push),
-            opc::Php => pipe![self.cpu.get_p() | Flags::BreakCommand.bits() | Flags::Unused.bits() => self.push],
+            opc::Php => pipe!(self.cpu.get_p() | Flags::BreakCommand.bits() | Flags::Unused.bits() => self.push),
             opc::Pla => pipe!(self.pull() => self.cpu.set_a),
-            opc::Plp => {
-                let mut res = Flags::from(self.pull());
-                res.copy(Flags::BreakCommand | Flags::Unused, self.cpu.get_p());
-                self.cpu.set_p(res.bits());
-            }
+            opc::Plp => self.cpu.p = self.pull_flags(),
 
             // And
             opc::And::Immediate => and!(immediate),
@@ -334,24 +346,24 @@ impl Nes {
             opc::Bit::Absolute => pipe!(self.absolute() => self.bit_test),
 
             // Addition
-            opc::Adc::Immediate => pipe!(self.immediate() => self.addition),
-            opc::Adc::ZeroPage => pipe!(self.zero_page() => self.addition),
-            opc::Adc::ZeroPageX => pipe!(self.zero_page_x() => self.addition),
-            opc::Adc::Absolute => pipe!(self.absolute() => self.addition),
-            opc::Adc::AbsoluteX => pipe!(self.absolute_x() => self.addition),
-            opc::Adc::AbsoluteY => pipe!(self.absolute_y() => self.addition),
-            opc::Adc::IndirectX => pipe!(self.indirect_x() => self.addition),
-            opc::Adc::IndirectY => pipe!(self.indirect_y() => self.addition),
+            opc::Adc::Immediate => adc!(immediate),
+            opc::Adc::ZeroPage => adc!(zero_page),
+            opc::Adc::ZeroPageX => adc!(zero_page_x),
+            opc::Adc::Absolute => adc!(absolute),
+            opc::Adc::AbsoluteX => adc!(absolute_x ),
+            opc::Adc::AbsoluteY => adc!(absolute_y ),
+            opc::Adc::IndirectX => adc!(indirect_x ),
+            opc::Adc::IndirectY => adc!(indirect_y ),
 
             // Subtraction
-            opc::Sbc::Immediate => pipe!(self.immediate() => self.subtraction),
-            opc::Sbc::ZeroPage => pipe!(self.zero_page() => self.subtraction),
-            opc::Sbc::ZeroPageX => pipe!(self.zero_page_x() => self.subtraction),
-            opc::Sbc::Absolute => pipe!(self.absolute() => self.subtraction),
-            opc::Sbc::AbsoluteX => pipe!(self.absolute_x() => self.subtraction),
-            opc::Sbc::AbsoluteY => pipe!(self.absolute_y() => self.subtraction),
-            opc::Sbc::IndirectX => pipe!(self.indirect_x() => self.subtraction),
-            opc::Sbc::IndirectY => pipe!(self.indirect_y() => self.subtraction),
+            opc::Sbc::Immediate => sbc!(immediate),
+            opc::Sbc::ZeroPage => sbc!(zero_page),
+            opc::Sbc::ZeroPageX => sbc!(zero_page_x),
+            opc::Sbc::Absolute => sbc!(absolute),
+            opc::Sbc::AbsoluteX => sbc!(absolute_x),
+            opc::Sbc::AbsoluteY => sbc!(absolute_y),
+            opc::Sbc::IndirectX => sbc!(indirect_x),
+            opc::Sbc::IndirectY => sbc!(indirect_y),
 
             // Increment in memory
             opc::Inc::ZeroPage => inc_mem!(zero_page, 1i8),
@@ -442,19 +454,21 @@ impl Nes {
             opc::Jmp::Absolute => pipe!(self.absolute() => self.cpu.set_pc),
             opc::Jmp::Indirect => pipe!(self.indirect() => self.cpu.set_pc),
 
-            // Call
+            // Call to subroutine
             opc::Jsr => {
-                let pc = wrap_add!(self.cpu.pc, 1);
-                self.cpu.pc = self.fetch_16();
-
-                self.mem.put_at_16(self.cpu.sp as u16, pc);
-                self.cpu.sp = wrap_add!(self.cpu.sp, -2i8 as u8);
+                let addr = self.absolute();
+                let pc = wrap_add!(self.cpu.pc, -1i8 as u16);
+                self.push_16(pc);
+                self.cpu.pc = addr;
             }
 
-            // Return
-            opc::Rts => {
-                self.cpu.sp = wrap_add!(self.cpu.sp, 2u8);
-                self.cpu.pc = wrap_add!(self.mem.peek_at_16(self.cpu.sp as u16), 1);
+            // Return from subroutine
+            opc::Rts => self.cpu.pc = wrap_add!(self.pull_16(), 1),
+
+            // Return from interrupt
+            opc::Rti => {
+                self.cpu.p = self.pull_flags();
+                self.cpu.pc = self.pull_16();
             }
 
             // Not implemented

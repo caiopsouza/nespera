@@ -21,7 +21,7 @@ impl fmt::Debug for Cpu {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(formatter,
                "a: {:02x}, x: {:02x}, y: {:02x}, pc: {:04x}, sp: {:02x}, p: {:02x} {}{}{}{}{}{}{}{}",
-               self.a, self.x, self.y, self.pc - 0xc000 + 0x10, self.sp, self.p,
+               self.a, self.x, self.y, self.pc, self.sp, self.p,
                if self.get_n() { 'n' } else { '_' },
                if self.get_v() { 'v' } else { '_' },
                if self.get_u() { 'u' } else { '_' },
@@ -103,7 +103,7 @@ impl Cpu {
 
     pub fn set_sp(&mut self, value: u8) { self.sp = value; }
 
-    // Sums a value into A
+    // Adds a value into A
     pub fn adc_a(&mut self, value: u8) {
         let res = self.a as u16 + value as u16 + self.get_c() as u16;
 
@@ -119,6 +119,14 @@ impl Cpu {
         self.a = res as u8;
     }
 
+    // Subtracts a value into A
+    pub fn sbc_a(&mut self, value: u8) {
+        // Since you should subtract (1 - carry) inverting the value
+        // has the same effect as a two's complement after the carry is added
+        // Carry is inverted.
+        self.adc_a(!value);
+    }
+
     // Comparisons
     pub fn cmp_a(&mut self, value: u8) { self.p.change_cmp(self.a, value); }
     pub fn cmp_x(&mut self, value: u8) { self.p.change_cmp(self.x, value); }
@@ -127,25 +135,34 @@ impl Cpu {
     // Shifts A left
     pub fn shift_a_left(&mut self) {
         self.p.change_left_shift(self.a);
-        self.a <<= 1;
+        let a = self.a << 1;
+        self.set_a(a);
     }
 
     // Shifts A right
     pub fn shift_a_right(&mut self) {
         self.p.change_right_shift(self.a);
-        self.a >>= 1;
+        let a = self.a >> 1;
+        self.set_a(a);
     }
 
     // Rotates A left
     pub fn rotate_a_left(&mut self) {
+        let p = self.p;
+
+        // Same as left shift
         self.p.change_left_shift(self.a);
-        self.a = (self.a << 1) | (self.p.bits() & Flags::Carry.bits());
+
+        let a = (self.a << 1) | (p.contains(Flags::Carry) as u8);
+        self.set_a(a);
     }
 
     // Rotates A right
     pub fn rotate_a_right(&mut self) {
+        let p = self.p;
         self.p.change_right_rotate(self.a);
-        self.a = (self.a >> 1) | ((self.p.bits() & Flags::Carry.bits()) << 7);
+        let a = (self.a >> 1) | ((p.contains(Flags::Carry) as u8) << 7);
+        self.set_a(a);
     }
 
     // Flag operations

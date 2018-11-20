@@ -49,6 +49,7 @@ mod flags {
         fn negative_overflow() { test(0x7f, 0x7f, false, false, true, true); }
     }
 
+    // Carry is inverted for subtraction
     #[cfg(test)]
     mod sbc {
         use super::*;
@@ -58,7 +59,7 @@ mod flags {
             let res = Wrapping(a) - Wrapping(param);
             run!(opc: [opc::Sec, opc::Sbc::Immediate, param];
                 reg: [a => a];
-                res: ["a" => res.0, "c" => carry, "z" => zero, "n" => negative, "v" => overflow]);
+                res: ["a" => res.0, "c" => !carry, "z" => zero, "n" => negative, "v" => overflow]);
         }
 
         #[test]
@@ -139,7 +140,7 @@ mod sbc {
     fn immediate() {
         run!(opc: [opc::Sbc::Immediate, 0x7f];
             reg: [a => 0xff];
-            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => false, "v" => true]);
+            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => true, "v" => true]);
     }
 
     #[test]
@@ -147,7 +148,7 @@ mod sbc {
         run!(opc: [opc::Sbc::ZeroPage, 0x0e];
             reg: [a => 0xff];
             ram: [0x0e => 0x7f];
-            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => false, "v" => true]);
+            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => true, "v" => true]);
     }
 
     #[test]
@@ -175,7 +176,7 @@ mod sbc {
                 0x099 => 0x78, 0x09a => 0x01, 0x0178 => 0x03,
                 0x074 => 0x47, 0x075 => 0x03, 0x034a => 0xfe
             ];
-            res: ["a" => 0xa6, "n" => true, "z" => false, "c" => false, "v" => false]);
+            res: ["a" => 0xab, "n" => true, "z" => false, "c" => true, "v" => false]);
     }
 }
 

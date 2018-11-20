@@ -3,7 +3,7 @@ use std::fmt;
 
 use pretty_hex::*;
 
-// RAM Size
+// Memory capacity
 const RAM_CAPACITY: usize = 0x0800;
 const ROM_CAPACITY: usize = 0x4000;
 
@@ -40,7 +40,7 @@ impl Memory {
         unsafe {
             match addr {
                 0x0000...0x1fff => self.ram.get_unchecked(addr as usize % RAM_CAPACITY),
-                0x8000...0xFFFF => self.rom.get_unchecked(addr as usize % ROM_CAPACITY),
+                0x8000...0xFFFF => self.rom.get_unchecked((addr - 0x8000) as usize % ROM_CAPACITY),
                 _ => panic!("Mapper not implemented for address 0x{:x}", addr)
             }
         }
@@ -51,7 +51,7 @@ impl Memory {
         unsafe {
             match addr {
                 0x0000...0x1fff => self.ram.get_unchecked_mut(addr as usize % RAM_CAPACITY),
-                0x8000...0xFFFF => self.rom.get_unchecked_mut(addr as usize % ROM_CAPACITY),
+                0x8000...0xFFFF => self.rom.get_unchecked_mut((addr - 0x8000) as usize % ROM_CAPACITY),
                 _ => panic!("Mapper not implemented for address 0x{:x}", addr)
             }
         }
@@ -67,10 +67,21 @@ impl Memory {
         msb + lsb
     }
 
+    // Indirect memory won't respect page cross boundary. They always read on the same page.
+    pub fn peek_indirect(&self, addr: u16) -> u16 {
+        let mut next_addr = (Wrapping(addr) + Wrapping(1)).0;
+
+        if (addr & 0xff) == 0xff { next_addr -= 0x100; }
+
+        let lsb = self.peek_at(addr) as u16;
+        let msb = (self.peek_at(next_addr) as u16) << 8;
+        msb + lsb
+    }
+
     // Write the value to RAM pointed by the address
     pub fn put_at(&mut self, addr: u16, value: u8) { *self.map_as_mut(addr) = value; }
 
-    // Write the value to RAM pointed by the address
+    // Write the value to RAM pointed by the least significant byte of an address
     pub fn put_at_16(&mut self, addr: u16, value: u16) {
         self.put_at(addr, value as u8);
         self.put_at((Wrapping(addr) + Wrapping(1)).0, (value >> 8) as u8);
