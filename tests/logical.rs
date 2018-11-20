@@ -169,8 +169,8 @@ mod bit {
     fn zero() {
         run!(opc: [opc::Bit::ZeroPage, 0x098];
             reg: [a => 0b00000011];
-            ram: [0x098 => 0b10111100];
-            res: ["n" => false, "z" => true, "v" => false]);
+            ram: [0x098 => 0b11111100];
+            res: ["n" => true, "z" => true, "v" => true]);
     }
 
     #[test]

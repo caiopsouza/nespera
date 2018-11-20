@@ -1,12 +1,13 @@
 use hardware::flags::Flags;
 
 use std::num::Wrapping;
+use std::fmt;
 
 // Power up state of the CPU
 const PC_POWER_UP_STATE: u16 = 0;
 const SP_POWER_UP_STATE: u8 = 0xfd;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub struct Cpu {
     pub a: u8 /* Accumulator*/,
     pub x: u8 /* Index X*/,
@@ -14,6 +15,22 @@ pub struct Cpu {
     pub p: Flags /* Flags*/,
     pub pc: u16 /* Program counter*/,
     pub sp: u8 /* Stack pointer*/,
+}
+
+impl fmt::Debug for Cpu {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter,
+               "a: {:02x}, x: {:02x}, y: {:02x}, pc: {:04x}, sp: {:02x}, p: {:02x} {}{}{}{}{}{}{}{}",
+               self.a, self.x, self.y, self.pc - 0xc000 + 0x10, self.sp, self.p,
+               if self.get_n() { 'n' } else { '_' },
+               if self.get_v() { 'v' } else { '_' },
+               if self.get_u() { 'u' } else { '_' },
+               if self.get_b() { 'b' } else { '_' },
+               if self.get_d() { 'd' } else { '_' },
+               if self.get_i() { 'i' } else { '_' },
+               if self.get_z() { 'z' } else { '_' },
+               if self.get_c() { 'c' } else { '_' })
+    }
 }
 
 impl Cpu {
@@ -25,7 +42,18 @@ impl Cpu {
             y: 0,
             pc: PC_POWER_UP_STATE,
             sp: SP_POWER_UP_STATE,
-            p: Flags::InterruptDisable | Flags::Unused | Flags::BreakCommand,
+            p: Flags::InterruptDisable | Flags::Unused,
+        }
+    }
+
+    pub fn new_from_pc(pc: u16) -> Self {
+        Self {
+            a: 0,
+            x: 0,
+            y: 0,
+            pc,
+            sp: SP_POWER_UP_STATE,
+            p: Flags::InterruptDisable | Flags::Unused,
         }
     }
 
@@ -56,17 +84,17 @@ impl Cpu {
     // Set registers
     pub fn set_a(&mut self, value: u8) {
         self.a = value;
-        self.p.zn(value);
+        self.p.change_zero_and_negative(value);
     }
 
     pub fn set_x(&mut self, value: u8) {
         self.x = value;
-        self.p.zn(value);
+        self.p.change_zero_and_negative(value);
     }
 
     pub fn set_y(&mut self, value: u8) {
         self.y = value;
-        self.p.zn(value);
+        self.p.change_zero_and_negative(value);
     }
 
     pub fn set_p(&mut self, value: u8) { self.p = value.into(); }
@@ -77,42 +105,46 @@ impl Cpu {
 
     // Sums a value into A
     pub fn adc_a(&mut self, value: u8) {
-        self.p.zncv_adc(self.a, value);
-        self.a = (Wrapping(self.a) + Wrapping(value)).0;
-    }
+        let res = self.a as u16 + value as u16 + self.get_c() as u16;
 
-    // Sums a value into A
-    pub fn sbc_a(&mut self, value: u8) {
-        self.p.zncv_sbc(self.a, value);
-        self.a = (Wrapping(self.a) - Wrapping(value)).0;
+        self.p.change_zero_and_negative(res as u8);
+
+        // When adding, carry happens if bit 8 is set
+        self.p.set(Flags::Carry, (res & 0x0100u16) != 0);
+
+        // Overflow happens when the sign of the addends is the same and differs from the sign of the sum
+        self.p.set(Flags::Overflow, (!(self.a ^ value) & (self.a ^ res as u8) & 0x80) != 0);
+
+        // Save the result
+        self.a = res as u8;
     }
 
     // Comparisons
-    pub fn cmp_a(&mut self, value: u8) { self.p.znc_cmp(self.a, value); }
-    pub fn cmp_x(&mut self, value: u8) { self.p.znc_cmp(self.x, value); }
-    pub fn cmp_y(&mut self, value: u8) { self.p.znc_cmp(self.y, value); }
+    pub fn cmp_a(&mut self, value: u8) { self.p.change_cmp(self.a, value); }
+    pub fn cmp_x(&mut self, value: u8) { self.p.change_cmp(self.x, value); }
+    pub fn cmp_y(&mut self, value: u8) { self.p.change_cmp(self.y, value); }
 
     // Shifts A left
     pub fn shift_a_left(&mut self) {
-        self.p.znc_left_shift(self.a);
+        self.p.change_left_shift(self.a);
         self.a <<= 1;
     }
 
     // Shifts A right
     pub fn shift_a_right(&mut self) {
-        self.p.znc_right_shift(self.a);
+        self.p.change_right_shift(self.a);
         self.a >>= 1;
     }
 
     // Rotates A left
     pub fn rotate_a_left(&mut self) {
-        self.p.znc_left_shift(self.a);
+        self.p.change_left_shift(self.a);
         self.a = (self.a << 1) | (self.p.bits() & Flags::Carry.bits());
     }
 
     // Rotates A right
     pub fn rotate_a_right(&mut self) {
-        self.p.znc_right_rotate(self.a);
+        self.p.change_right_rotate(self.a);
         self.a = (self.a >> 1) | ((self.p.bits() & Flags::Carry.bits()) << 7);
     }
 

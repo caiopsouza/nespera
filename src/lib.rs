@@ -4,3 +4,4 @@ extern crate bitflags;
 extern crate pretty_hex;
 
 pub mod hardware;
+pub mod loader;

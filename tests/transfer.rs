@@ -55,24 +55,24 @@ fn pha() {
 fn php() {
     run!(opc: [opc::Php];
         reg: [sp => 177, p => 157];
-        res: ["sp" => 176, 177 => 157]);
+        res: ["sp" => 176, 177 => 189]);
 }
 
 #[test]
 fn pla() {
     run!(opc: [opc::Pla];
-        reg: [sp => 177];
+        reg: [sp => 176];
         ram: [177 => 246];
-        res: ["a" => 246, "sp" => 178, "z" => false, "n" => true]);
+        res: ["a" => 246, "sp" => 177, "z" => false, "n" => true]);
 }
 
 #[test]
 fn plp() {
     run!(opc: [opc::Plp];
-        reg: [sp => 177];
+        reg: [sp => 176];
         ram: [177 => 246];
         res: [
-            "p" => 246, "sp" => 178,
-            "n" => true, "v" => true, "u" => true, "b" => true,
+            "p" => 246, "sp" => 177,
+            "n" => true, "v" => true, "u" => true, "b" => false,
             "d" => false, "i" => true, "z" => true, "c" => false]);
 }

@@ -2,30 +2,111 @@ extern crate nespera;
 
 mod cpu;
 
+use std::num::Wrapping;
 use cpu::{lsb, msb};
+
+// Based on https://stackoverflow.com/a/8982549
+#[cfg(test)]
+mod flags {
+    use super::*;
+
+    #[cfg(test)]
+    mod adc {
+        use super::*;
+
+        fn test(a: u8, param: u8, carry: bool, zero: bool, negative: bool, overflow: bool) {
+            let res = Wrapping(a) + Wrapping(param);
+            run!(opc: [opc::Adc::Immediate, param];
+                reg: [a => a];
+                res: ["a" => res.0, "c" => carry, "z" => zero, "n" => negative, "v" => overflow]);
+        }
+
+        #[test]
+        fn empty() { test(0x7f, 0x00, false, false, false, false); }
+
+        #[test]
+        fn carry() { test(0xff, 0x7f, true, false, false, false); }
+
+        #[test]
+        fn zero() { test(0x00, 0x00, false, true, false, false); }
+
+        #[test]
+        fn zero_carry() { test(0xff, 0x01, true, true, false, false); }
+
+        #[test]
+        fn negative() { test(0xff, 0x00, false, false, true, false); }
+
+        #[test]
+        fn negative_carry() { test(0xff, 0xff, true, false, true, false); }
+
+        #[test]
+        fn carry_overflow() { test(0xff, 0x80, true, false, false, true); }
+
+        #[test]
+        fn zero_carry_overflow() { test(0x80, 0x80, true, true, false, true); }
+
+        #[test]
+        fn negative_overflow() { test(0x7f, 0x7f, false, false, true, true); }
+    }
+
+    #[cfg(test)]
+    mod sbc {
+        use super::*;
+        use std::num::Wrapping;
+
+        fn test(a: u8, param: u8, carry: bool, zero: bool, negative: bool, overflow: bool) {
+            let res = Wrapping(a) - Wrapping(param);
+            run!(opc: [opc::Sec, opc::Sbc::Immediate, param];
+                reg: [a => a];
+                res: ["a" => res.0, "c" => carry, "z" => zero, "n" => negative, "v" => overflow]);
+        }
+
+        #[test]
+        fn empty() { test(0xff, 0xfe, false, false, false, false); }
+
+        #[test]
+        fn flags_c() { test(0x7e, 0xff, true, false, false, false); }
+
+        #[test]
+        fn flags_z() { test(0xff, 0xff, false, true, false, false); }
+
+        #[test]
+        fn flags_n() { test(0xff, 0x7f, false, false, true, false); }
+
+        #[test]
+        fn flags_nc() { test(0xfe, 0xff, true, false, true, false); }
+
+        #[test]
+        fn flags_v() { test(0xfe, 0x7f, false, false, false, true); }
+
+        #[test]
+        fn flags_ncv() { test(0x7f, 0xff, true, false, true, true); }
+    }
+}
 
 mod adc {
     use super::*;
 
     #[test]
     fn immediate() {
-        run!(opc: [opc::Adc::Immediate, 0xff];
-            reg: [a => 0x80];
-            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => true, "v" => true]);
+        run!(opc: [opc::Sec, opc::Adc::Immediate, 0xfd];
+            reg: [a => 0x7f];
+            res: ["a" => 0x7d, "n" => false, "z" => false, "c" => true, "v" => false]);
     }
 
     #[test]
     fn zero_page() {
-        run!(opc: [opc::Adc::ZeroPage, 0x0e];
-            reg: [a => 0x80];
+        run!(opc: [opc::Sec, opc::Adc::ZeroPage, 0x0e];
+            reg: [a => 0x7f];
             ram: [0x0e => 0xff];
-            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => true, "v" => true]);
+            res: ["a" => 0x7f, "n" => false, "z" => false, "c" => true, "v" => false]);
     }
 
     #[test]
     fn multiple_opcode() {
         run!(opc: [
-                opc::Adc::Immediate, 0x08,
+                opc::Sec,
+                opc::Adc::Immediate, 0x07,
                 opc::Adc::ZeroPage, 0x78,
                 opc::Adc::ZeroPage, 0x5a,
                 opc::Adc::ZeroPageX, 0x31,

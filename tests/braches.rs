@@ -54,13 +54,13 @@ fn bpl_jump() { test_jump(opc::Bpl, !flags::Flags::Negative); }
 fn bpl_dont_jump() { test_dont_jump(opc::Bpl, flags::Flags::Negative); }
 
 #[test]
-fn bvc_jump() { test_jump(opc::Bvc, flags::Flags::Overflow); }
+fn bvc_jump() { test_jump(opc::Bvc, !flags::Flags::Overflow); }
 
 #[test]
-fn bvc_dont_jump() { test_dont_jump(opc::Bvc, !flags::Flags::Overflow); }
+fn bvc_dont_jump() { test_dont_jump(opc::Bvc, flags::Flags::Overflow); }
 
 #[test]
-fn bvs_jump() { test_jump(opc::Bvs, !flags::Flags::Overflow); }
+fn bvs_jump() { test_jump(opc::Bvs, flags::Flags::Overflow); }
 
 #[test]
-fn bvs_dont_jump() { test_dont_jump(opc::Bvs, flags::Flags::Overflow); }
+fn bvs_dont_jump() { test_dont_jump(opc::Bvs, !flags::Flags::Overflow); }

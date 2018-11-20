@@ -25,27 +25,23 @@ pub struct Nes {
 
 impl fmt::Debug for Nes {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter,
-               "Nespera | a: 0x{:x}, x: 0x{:x}, y: 0x{:x}, pc: 0x{:x}, sp: 0x{:x}, flags: {}{}{}{}{}{}{}{}\n",
-               self.cpu.a, self.cpu.x, self.cpu.y, self.cpu.pc, self.cpu.sp,
-               if self.cpu.get_c() { 'c' } else { '_' },
-               if self.cpu.get_z() { 'z' } else { '_' },
-               if self.cpu.get_i() { 'i' } else { '_' },
-               if self.cpu.get_d() { 'd' } else { '_' },
-               if self.cpu.get_b() { 'b' } else { '_' },
-               '_' /* Unused*/,
-               if self.cpu.get_v() { 'v' } else { '_' },
-               if self.cpu.get_n() { 'n' } else { '_' })?;
-        write!(formatter, "{:?}", &self.mem)
+        write!(formatter, "Nespera | {:?}\n{:?}", &self.cpu, &self.mem)
     }
 }
 
 impl Nes {
-    // Constructor
+    // Constructors
     pub fn new() -> Self {
         Self {
             cpu: Cpu::new(),
             mem: Memory::new(),
+        }
+    }
+
+    pub fn new_from_rom(rom: &[u8]) -> Self {
+        Self {
+            cpu: Cpu::new_from_pc(0xc000),
+            mem: Memory::new_from_rom(rom),
         }
     }
 
@@ -105,6 +101,43 @@ impl Nes {
         wrap_add!(addr, self.cpu.y as u16)
     }
 
+    // Pushes a value onto the stack
+    fn push(&mut self, value: u8) {
+        let addr = self.cpu.sp;
+        self.mem.put_at(addr.into(), value);
+        self.cpu.sp -= 1;
+    }
+
+    // Pull a value from the stack
+    fn pull(&mut self) -> u8 {
+        self.cpu.sp += 1;
+        let value = self.mem.peek_at(self.cpu.sp.into());
+        value
+    }
+
+    // Bit test
+    fn bit_test(&mut self, addr: u16) {
+        let value = self.mem.peek_at(addr);
+        self.cpu.p.change_zero(self.cpu.a & value);
+        self.cpu.p.copy(Flags::Negative | Flags::Overflow, value);
+    }
+
+    // Addition
+    fn addition(&mut self, addr: u16) {
+        let value = self.mem.peek_at(addr);
+        self.cpu.adc_a(value);
+    }
+
+    // Subtraction
+    fn subtraction(&mut self, addr: u16) {
+        let value = self.mem.peek_at(addr);
+        // Since you should subtract (1 - carry) inverting the value
+        // has the same effect as negating after the carry is added
+        self.cpu.adc_a(!value);
+        // Carry result is opposite to adding
+        self.cpu.p.toggle(Flags::Carry);
+    }
+
     // Executes one step of the CPU
     pub fn step(&mut self) {
         // Pipe
@@ -134,56 +167,18 @@ impl Nes {
         macro_rules! and { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.a.bitand => self.cpu.set_a) }; }
         macro_rules! ora { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.a.bitor => self.cpu.set_a) }; }
         macro_rules! eor { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.a.bitxor => self.cpu.set_a) }; }
-        macro_rules! bit { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.a.bitand => self.cpu.p.znv_bit_test) }; }
 
         // Compares
         macro_rules! cmp { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.cmp_a) }; }
         macro_rules! cpx { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.cmp_x) }; }
         macro_rules! cpy { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.cmp_y) }; }
 
-        // Push a value
-        macro_rules! push_reg {
-            ( $getter:ident ) => {{
-                let addr = self.cpu.sp;
-                let value = self.cpu.$getter();
-                self.mem.put_at(addr.into(), value);
-                self.cpu.sp -= 1;
-            }};
-        }
-
-        // Pull a value referenced through it's address
-        macro_rules! pull_reg {
-            ( $setter:ident ) => {{
-                let value = self.mem.peek_at(self.cpu.sp.into());
-                self.cpu.$setter(value);
-                self.cpu.sp += 1;
-            }};
-        }
-
-        // Addition on a value through it's address
-        macro_rules! set_adc {
-            ( $getter:ident ) => {{
-                let addr = self.$getter();
-                let value = wrap_add!(self.cpu.get_c() as u8, self.mem.peek_at(addr));
-                self.cpu.adc_a(value);
-            }};
-        }
-
-        // Subtraction on a value through it's address
-        macro_rules! set_sbc {
-            ( $getter:ident ) => {{
-                let addr = self.$getter();
-                let value = wrap_add!(1, (-(self.cpu.get_c() as i8)) as u8, self.mem.peek_at(addr));
-                self.cpu.sbc_a(value as u8);
-            }};
-        }
-
         // Shift left
         macro_rules! asl {
             ( $addr:ident ) => {{
                 let addr = self.$addr();
                 let mut value = self.mem.peek_at(addr);
-                self.cpu.p.znc_left_shift(value);
+                self.cpu.p.change_left_shift(value);
                 self.mem.put_at(addr, value << 1);
             }}
         }
@@ -193,7 +188,7 @@ impl Nes {
             ( $addr:ident ) => {{
                 let addr = self.$addr();
                 let mut value = self.mem.peek_at(addr);
-                self.cpu.p.znc_right_shift(value);
+                self.cpu.p.change_right_shift(value);
                 self.mem.put_at(addr, value >> 1);
             }}
         }
@@ -203,7 +198,7 @@ impl Nes {
             ( $addr:ident ) => {{
                 let addr = self.$addr();
                 let mut value = self.mem.peek_at(addr);
-                self.cpu.p.znc_left_shift(value);
+                self.cpu.p.change_left_shift(value);
                 let carry = self.cpu.p.bits() & Flags::Carry.bits();
                 self.mem.put_at(addr, (value << 1) | carry);
             }}
@@ -214,7 +209,7 @@ impl Nes {
             ( $addr:ident ) => {{
                 let addr = self.$addr();
                 let mut value = self.mem.peek_at(addr);
-                self.cpu.p.znc_left_shift(value);
+                self.cpu.p.change_left_shift(value);
                 let carry = (self.cpu.p.bits() & Flags::Carry.bits()) << 7;
                 self.mem.put_at(addr, (value >> 1) | carry);
             }}
@@ -225,7 +220,7 @@ impl Nes {
             ( $addr:ident, $step:expr ) => {{
                 let addr = self.$addr();
                 let value = wrap_add!(self.mem.peek_at(addr), $step as u8);
-                self.cpu.p.zn(value);
+                self.cpu.p.change_zero_and_negative(value);
                 self.mem.put_at(addr, value);
             }}
         }
@@ -295,10 +290,14 @@ impl Nes {
             opc::Txs => pipe!(self.cpu.get_x() => self.cpu.set_sp),
 
             // Stack
-            opc::Pha => push_reg!(get_a),
-            opc::Php => push_reg!(get_p),
-            opc::Pla => pull_reg!(set_a),
-            opc::Plp => pull_reg!(set_p),
+            opc::Pha => pipe!(self.cpu.get_a() => self.push),
+            opc::Php => pipe![self.cpu.get_p() | Flags::BreakCommand.bits() | Flags::Unused.bits() => self.push],
+            opc::Pla => pipe!(self.pull() => self.cpu.set_a),
+            opc::Plp => {
+                let mut res = Flags::from(self.pull());
+                res.copy(Flags::BreakCommand | Flags::Unused, self.cpu.get_p());
+                self.cpu.set_p(res.bits());
+            }
 
             // And
             opc::And::Immediate => and!(immediate),
@@ -331,28 +330,28 @@ impl Nes {
             opc::Eor::IndirectY => eor!(indirect_y),
 
             // Bit test
-            opc::Bit::ZeroPage => bit!(zero_page),
-            opc::Bit::Absolute => bit!(absolute),
+            opc::Bit::ZeroPage => pipe!(self.zero_page() => self.bit_test),
+            opc::Bit::Absolute => pipe!(self.absolute() => self.bit_test),
 
             // Addition
-            opc::Adc::Immediate => set_adc!(immediate),
-            opc::Adc::ZeroPage => set_adc!(zero_page),
-            opc::Adc::ZeroPageX => set_adc!(zero_page_x),
-            opc::Adc::Absolute => set_adc!(absolute),
-            opc::Adc::AbsoluteX => set_adc!(absolute_x),
-            opc::Adc::AbsoluteY => set_adc!(absolute_y),
-            opc::Adc::IndirectX => set_adc!(indirect_x),
-            opc::Adc::IndirectY => set_adc!(indirect_y),
+            opc::Adc::Immediate => pipe!(self.immediate() => self.addition),
+            opc::Adc::ZeroPage => pipe!(self.zero_page() => self.addition),
+            opc::Adc::ZeroPageX => pipe!(self.zero_page_x() => self.addition),
+            opc::Adc::Absolute => pipe!(self.absolute() => self.addition),
+            opc::Adc::AbsoluteX => pipe!(self.absolute_x() => self.addition),
+            opc::Adc::AbsoluteY => pipe!(self.absolute_y() => self.addition),
+            opc::Adc::IndirectX => pipe!(self.indirect_x() => self.addition),
+            opc::Adc::IndirectY => pipe!(self.indirect_y() => self.addition),
 
             // Subtraction
-            opc::Sbc::Immediate => set_sbc!(immediate),
-            opc::Sbc::ZeroPage => set_sbc!(zero_page),
-            opc::Sbc::ZeroPageX => set_sbc!(zero_page_x),
-            opc::Sbc::Absolute => set_sbc!(absolute),
-            opc::Sbc::AbsoluteX => set_sbc!(absolute_x),
-            opc::Sbc::AbsoluteY => set_sbc!(absolute_y),
-            opc::Sbc::IndirectX => set_sbc!(indirect_x),
-            opc::Sbc::IndirectY => set_sbc!(indirect_y),
+            opc::Sbc::Immediate => pipe!(self.immediate() => self.subtraction),
+            opc::Sbc::ZeroPage => pipe!(self.zero_page() => self.subtraction),
+            opc::Sbc::ZeroPageX => pipe!(self.zero_page_x() => self.subtraction),
+            opc::Sbc::Absolute => pipe!(self.absolute() => self.subtraction),
+            opc::Sbc::AbsoluteX => pipe!(self.absolute_x() => self.subtraction),
+            opc::Sbc::AbsoluteY => pipe!(self.absolute_y() => self.subtraction),
+            opc::Sbc::IndirectX => pipe!(self.indirect_x() => self.subtraction),
+            opc::Sbc::IndirectY => pipe!(self.indirect_y() => self.subtraction),
 
             // Increment in memory
             opc::Inc::ZeroPage => inc_mem!(zero_page, 1i8),
@@ -436,8 +435,8 @@ impl Nes {
             opc::Bne => branch!(!self.cpu.p.contains(Flags::Zero)),
             opc::Bmi => branch!(self.cpu.p.contains(Flags::Negative)),
             opc::Bpl => branch!(!self.cpu.p.contains(Flags::Negative)),
-            opc::Bvc => branch!(self.cpu.p.contains(Flags::Overflow)),
-            opc::Bvs => branch!(!self.cpu.p.contains(Flags::Overflow)),
+            opc::Bvs => branch!(self.cpu.p.contains(Flags::Overflow)),
+            opc::Bvc => branch!(!self.cpu.p.contains(Flags::Overflow)),
 
             // Jump
             opc::Jmp::Absolute => pipe!(self.absolute() => self.cpu.set_pc),
