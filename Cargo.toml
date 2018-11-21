@@ -4,3 +4,4 @@ version = "0.1.0"
 authors = ["Caio Souza <caiophilipevs@gmail.com>"]
 
 [dependencies]
+pretty-hex = "0.1.0"

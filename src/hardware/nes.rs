@@ -76,9 +76,9 @@ impl<TBus: Bus> Nes<TBus> {
 
 #[cfg(test)]
 mod opcodes {
-    type Nes = super::Nes<bus::seq::Bus>;
-
     use hardware::bus;
+
+    type Nes = super::Nes<bus::seq::Bus>;
 
     fn test(bus: Vec<u8>, checker: fn(Nes) -> Nes) {
         let bus = bus::seq::Bus::new(bus);
