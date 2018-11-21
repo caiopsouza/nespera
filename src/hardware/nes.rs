@@ -88,9 +88,8 @@ impl Nes {
     }
 
     fn indirect(&mut self) -> u16 {
-        let mut addr = self.fetch_16();
-        addr = self.mem.peek_at_16(addr);
-        self.mem.peek_at_16(addr)
+        let addr = self.fetch_16();
+        self.mem.peek_indirect(addr)
     }
 
     fn indirect_x(&mut self) -> u16 {
@@ -142,6 +141,44 @@ impl Nes {
         self.cpu.p.copy(Flags::Negative | Flags::Overflow, value);
     }
 
+    // Shift left
+    fn left_shift(&mut self, addr: u16) {
+        let value = self.mem.peek_at(addr);
+        let res = value << 1;
+        self.cpu.p.change_left_shift(value);
+        self.mem.put_at(addr, res);
+        self.cpu.p.change_zero_and_negative(res);
+    }
+
+    // Shift Right
+    fn right_shift(&mut self, addr: u16) {
+        let value = self.mem.peek_at(addr);
+        self.cpu.p.change_right_shift(value);
+        let res = value >> 1;
+        self.mem.put_at(addr, res);
+        self.cpu.p.change_zero_and_negative(res);
+    }
+
+    // Rotate Left
+    fn left_rotate(&mut self, addr: u16) {
+        let value = self.mem.peek_at(addr);
+        self.cpu.p.change_left_shift(value);
+        let carry = self.cpu.p.bits() & Flags::Carry.bits();
+        let res = (value << 1) | carry;
+        self.mem.put_at(addr, res);
+        self.cpu.p.change_zero_and_negative(res);
+    }
+
+    // Rotate right
+    fn right_rotate(&mut self, addr: u16) {
+        let value = self.mem.peek_at(addr);
+        let p = self.cpu.p;
+        self.cpu.p.change_right_rotate(value);
+        let value = (value >> 1) | ((p.contains(Flags::Carry) as u8) << 7);
+        self.mem.put_at(addr, value);
+        self.cpu.p.change_zero_and_negative(value);
+    }
+
     // Executes one step of the CPU
     pub fn step(&mut self) {
         // Pipe
@@ -181,56 +218,6 @@ impl Nes {
         macro_rules! adc { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.adc_a) }; }
         macro_rules! sbc { ( $addr:ident ) => { pipe!(self.$addr() => self.mem.peek_at => self.cpu.sbc_a) }; }
 
-        // Shift left
-        macro_rules! asl {
-            ( $addr:ident ) => {{
-                let addr = self.$addr();
-                let mut value = self.mem.peek_at(addr);
-                self.cpu.p.change_left_shift(value);
-                let res = value << 1;
-                self.mem.put_at(addr, res);
-                self.cpu.p.change_zero_and_negative(res);
-            }}
-        }
-
-        // Shift Right
-        macro_rules! lsr {
-            ( $addr:ident ) => {{
-                let addr = self.$addr();
-                let mut value = self.mem.peek_at(addr);
-                self.cpu.p.change_right_shift(value);
-                let res = value >> 1;
-                self.mem.put_at(addr, res);
-                self.cpu.p.change_zero_and_negative(res);
-            }}
-        }
-
-        // Rotates left
-        macro_rules! rol {
-            ( $addr:ident ) => {{
-                let addr = self.$addr();
-                let mut value = self.mem.peek_at(addr);
-                self.cpu.p.change_left_shift(value);
-                let carry = self.cpu.p.bits() & Flags::Carry.bits();
-                let res = (value << 1) | carry;
-                self.mem.put_at(addr, res);
-                self.cpu.p.change_zero_and_negative(res);
-            }}
-        }
-
-        // Rotates right
-        macro_rules! ror {
-            ( $addr:ident ) => {{
-                let addr = self.$addr();
-                let mut value = self.mem.peek_at(addr);
-                self.cpu.p.change_left_shift(value);
-                let carry = (self.cpu.p.bits() & Flags::Carry.bits()) << 7;
-                let res = (value >> 1) | carry;
-                self.mem.put_at(addr, res);
-                self.cpu.p.change_zero_and_negative(res);
-            }}
-        }
-
         // Increment a register
         macro_rules! inc_mem {
             ( $addr:ident, $step:expr ) => {{
@@ -252,7 +239,24 @@ impl Nes {
         let opcode = self.fetch();
         match opcode {
             // No operation
-            opc::Nop => {}
+            opc::Nop::Implicit0 | opc::Nop::Implicit1 | opc::Nop::Implicit2 | opc::Nop::Implicit3 |
+            opc::Nop::Implicit4 | opc::Nop::Implicit5 | opc::Nop::Implicit6 => {}
+
+            opc::Nop::Immediate => { self.immediate(); }
+
+            opc::Nop::ZeroPage0 | opc::Nop::ZeroPage1 | opc::Nop::ZeroPage2 => { self.zero_page(); }
+
+            opc::Nop::Absolute => { self.absolute(); }
+
+            opc::Nop::AbsoluteX0 | opc::Nop::AbsoluteX1 | opc::Nop::AbsoluteX2 |
+            opc::Nop::AbsoluteX3 | opc::Nop::AbsoluteX4 | opc::Nop::AbsoluteX5 => {
+                self.absolute_x();
+            }
+
+            opc::Nop::IndirectX0 | opc::Nop::IndirectX1 | opc::Nop::IndirectX2 |
+            opc::Nop::IndirectX3 | opc::Nop::IndirectX4 | opc::Nop::IndirectX5 => {
+                self.indirect_x();
+            }
 
             // Load into A
             opc::Lda::Immediate => lda!(immediate),
@@ -384,32 +388,32 @@ impl Nes {
             opc::Dey => pipe!(wrap_add!(self.cpu.get_y(), -1i8 as u8) => self.cpu.set_y),
 
             // Shifts Left
-            opc::Asl::Accumulator => self.cpu.shift_a_left(),
-            opc::Asl::ZeroPage => asl!(zero_page),
-            opc::Asl::ZeroPageX => asl!(zero_page_x),
-            opc::Asl::Absolute => asl!(absolute),
-            opc::Asl::AbsoluteX => asl!(absolute_x),
+            opc::Asl::Accumulator => self.cpu.left_shift_a(),
+            opc::Asl::ZeroPage => pipe!(self.zero_page() => self.left_shift),
+            opc::Asl::ZeroPageX => pipe!(self.zero_page_x() => self.left_shift),
+            opc::Asl::Absolute => pipe!(self.absolute() => self.left_shift),
+            opc::Asl::AbsoluteX => pipe!(self.absolute_x() => self.left_shift),
 
             // Shifts Right
-            opc::Lsr::Accumulator => self.cpu.shift_a_right(),
-            opc::Lsr::ZeroPage => lsr!(zero_page),
-            opc::Lsr::ZeroPageX => lsr!(zero_page_x),
-            opc::Lsr::Absolute => lsr!(absolute),
-            opc::Lsr::AbsoluteX => lsr!(absolute_x),
+            opc::Lsr::Accumulator => self.cpu.right_shift_a(),
+            opc::Lsr::ZeroPage => pipe!(self.zero_page() => self.right_shift),
+            opc::Lsr::ZeroPageX => pipe!(self.zero_page_x() => self.right_shift),
+            opc::Lsr::Absolute => pipe!(self.absolute() => self.right_shift),
+            opc::Lsr::AbsoluteX => pipe!(self.absolute_x() => self.right_shift),
 
             // Rotates Left
-            opc::Rol::Accumulator => self.cpu.rotate_a_left(),
-            opc::Rol::ZeroPage => rol!(zero_page),
-            opc::Rol::ZeroPageX => rol!(zero_page_x),
-            opc::Rol::Absolute => rol!(absolute),
-            opc::Rol::AbsoluteX => rol!(absolute_x),
+            opc::Rol::Accumulator => self.cpu.left_rotate_a(),
+            opc::Rol::ZeroPage => pipe!(self.zero_page() => self.left_rotate),
+            opc::Rol::ZeroPageX => pipe!(self.zero_page_x() => self.left_rotate),
+            opc::Rol::Absolute => pipe!(self.absolute() => self.left_rotate),
+            opc::Rol::AbsoluteX => pipe!(self.absolute_x() => self.left_rotate),
 
             // Rotates Right
             opc::Ror::Accumulator => self.cpu.rotate_a_right(),
-            opc::Ror::ZeroPage => ror!(zero_page),
-            opc::Ror::ZeroPageX => ror!(zero_page_x),
-            opc::Ror::Absolute => ror!(absolute),
-            opc::Ror::AbsoluteX => ror!(absolute_x),
+            opc::Ror::ZeroPage => pipe!(self.zero_page() => self.right_rotate),
+            opc::Ror::ZeroPageX => pipe!(self.zero_page_x() => self.right_rotate),
+            opc::Ror::Absolute => pipe!(self.absolute() => self.right_rotate),
+            opc::Ror::AbsoluteX => pipe!(self.absolute_x() => self.right_rotate),
 
             // Compare A
             opc::Cmp::Immediate => cmp!(immediate),
@@ -472,7 +476,7 @@ impl Nes {
             }
 
             // Not implemented
-            _ => panic!("Opcode not implemented: 0x{:02x?}", opcode)
+            _ => panic!("Opcode not implemented: 0x{:02x?}\n{:?}", opcode, self)
         }
     }
 }

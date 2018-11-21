@@ -41,7 +41,7 @@ impl Memory {
             match addr {
                 0x0000...0x1fff => self.ram.get_unchecked(addr as usize % RAM_CAPACITY),
                 0x8000...0xFFFF => self.rom.get_unchecked((addr - 0x8000) as usize % ROM_CAPACITY),
-                _ => panic!("Mapper not implemented for address 0x{:x}", addr)
+                _ => panic!("Mapper not implemented for address 0x{:x}\n{:?}", addr, self)
             }
         }
     }
@@ -52,13 +52,14 @@ impl Memory {
             match addr {
                 0x0000...0x1fff => self.ram.get_unchecked_mut(addr as usize % RAM_CAPACITY),
                 0x8000...0xFFFF => self.rom.get_unchecked_mut((addr - 0x8000) as usize % ROM_CAPACITY),
-                _ => panic!("Mapper not implemented for address 0x{:x}", addr)
+                _ => panic!("Mapper not implemented for address 0x{:x}\n{:?}", addr, self)
             }
         }
     }
 
     // Read the value in RAM pointed by an address
     pub fn peek_at(&self, addr: u16) -> u8 { *self.map(addr) }
+    pub fn peek_at_ref(&mut self, addr: u16) -> &mut u8 { self.map_as_mut(addr) }
 
     // Read the value in RAM pointed by the least significant byte of an address
     pub fn peek_at_16(&self, addr: u16) -> u16 {
@@ -90,8 +91,8 @@ impl Memory {
 
 impl fmt::Debug for Memory {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(formatter, "RAM: {:?}", (&self.ram[..]).hex_dump())?;
-        write!(formatter, "ROM: {:?}", (&self.rom[..]).hex_dump())
+        writeln!(formatter, "RAM: {:?}", (&self.ram[..]).hex_dump())/*?;
+        write!(formatter, "ROM: {:?}", (&self.rom[..]).hex_dump())*/
     }
 }
 

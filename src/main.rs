@@ -12,7 +12,6 @@ fn main() {
     for (line, text) in log.split("\r\n").enumerate() {
         let res = format!("pc: {:04x}, a: {:02x}, x: {:02x}, y: {:02x}, p: {:02x}, sp: {:02x}",
                           nes.cpu.pc, nes.cpu.a, nes.cpu.x, nes.cpu.y, nes.cpu.p, nes.cpu.sp);
-        //assert_eq!(res, text);
         assert_eq!(res, text, "\n{:?}", nes);
         eprintln!("{:04} | {}, {:02x}, {:02x} | {:?}", line,
                   opc::name(nes.mem.peek_at(nes.cpu.pc)),

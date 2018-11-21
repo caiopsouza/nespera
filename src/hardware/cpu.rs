@@ -133,21 +133,21 @@ impl Cpu {
     pub fn cmp_y(&mut self, value: u8) { self.p.change_cmp(self.y, value); }
 
     // Shifts A left
-    pub fn shift_a_left(&mut self) {
+    pub fn left_shift_a(&mut self) {
         self.p.change_left_shift(self.a);
         let a = self.a << 1;
         self.set_a(a);
     }
 
     // Shifts A right
-    pub fn shift_a_right(&mut self) {
+    pub fn right_shift_a(&mut self) {
         self.p.change_right_shift(self.a);
         let a = self.a >> 1;
         self.set_a(a);
     }
 
     // Rotates A left
-    pub fn rotate_a_left(&mut self) {
+    pub fn left_rotate_a(&mut self) {
         let p = self.p;
 
         // Same as left shift

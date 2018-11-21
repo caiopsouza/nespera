@@ -252,11 +252,69 @@ pub const Rts: u8 = 0x60;
 pub const Rti: u8 = 0x40;
 
 // No operation
-pub const Nop: u8 = 0xea;
+pub mod Nop {
+    pub const Implicit0: u8 = 0xea;
+    pub const Implicit1: u8 = 0x1a;
+    pub const Implicit2: u8 = 0x3a;
+    pub const Implicit3: u8 = 0x5a;
+    pub const Implicit4: u8 = 0x7a;
+    pub const Implicit5: u8 = 0xda;
+    pub const Implicit6: u8 = 0xfa;
+
+    pub const Immediate: u8 = 0x80;
+
+    pub const ZeroPage0: u8 = 0x04;
+    pub const ZeroPage1: u8 = 0x44;
+    pub const ZeroPage2: u8 = 0x64;
+
+    pub const Absolute: u8 = 0x0c;
+
+    pub const AbsoluteX0: u8 = 0x1c;
+    pub const AbsoluteX1: u8 = 0x3c;
+    pub const AbsoluteX2: u8 = 0x5c;
+    pub const AbsoluteX3: u8 = 0x7c;
+    pub const AbsoluteX4: u8 = 0xdc;
+    pub const AbsoluteX5: u8 = 0xfc;
+
+    pub const IndirectX0: u8 = 0x14;
+    pub const IndirectX1: u8 = 0x34;
+    pub const IndirectX2: u8 = 0x54;
+    pub const IndirectX3: u8 = 0x74;
+    pub const IndirectX4: u8 = 0xD4;
+    pub const IndirectX5: u8 = 0xF4;
+}
 
 pub fn name(opcode: u8) -> String {
     format!("{:02x}:{}", opcode, match opcode {
-        Nop => "Nop    ",
+        Nop::Implicit0 => "Nop:__0",
+        Nop::Implicit1 => "Nop:__1",
+        Nop::Implicit2 => "Nop:__2",
+        Nop::Implicit3 => "Nop:__3",
+        Nop::Implicit4 => "Nop:__4",
+        Nop::Implicit5 => "Nop:__5",
+        Nop::Implicit6 => "Nop:__6",
+
+        Nop::Immediate => "Nop:imm",
+
+        Nop::ZeroPage0 => "Nop:zp0",
+        Nop::ZeroPage1 => "Nop:zp1",
+        Nop::ZeroPage2 => "Nop:zp2",
+
+        Nop::Absolute => "Nop:abs",
+
+        Nop::AbsoluteX0 => "Nop:ax0",
+        Nop::AbsoluteX1 => "Nop:ax1",
+        Nop::AbsoluteX2 => "Nop:ax2",
+        Nop::AbsoluteX3 => "Nop:ax3",
+        Nop::AbsoluteX4 => "Nop:ax4",
+        Nop::AbsoluteX5 => "Nop:ax5",
+
+        Nop::IndirectX0 => "Nop:id0",
+        Nop::IndirectX1 => "Nop:id1",
+        Nop::IndirectX2 => "Nop:id2",
+        Nop::IndirectX3 => "Nop:id3",
+        Nop::IndirectX4 => "Nop:id4",
+        Nop::IndirectX5 => "Nop:id5",
 
         Lda::Immediate => "Lda:imm",
         Lda::ZeroPage => "Lda:zpg",
