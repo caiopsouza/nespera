@@ -4,6 +4,8 @@ use hardware::bus::Bus;
 use hardware::cpu::Cpu;
 use hardware::flags;
 use hardware::opc;
+use hardware::opc::mode;
+use hardware::opc::Opcode;
 
 #[derive(Debug, PartialOrd, PartialEq, Clone)]
 pub struct Nes<TBus: Bus> {
@@ -44,20 +46,19 @@ impl<TBus: Bus> Nes<TBus> {
                 self.cpu.inc_pc();
                 cycle!();
 
-                match opc::OPCODES[opcode as usize] {
+                match &opc::OPCODES[opcode as usize] {
                     // STP crashes the CPU. I'll just return for now.
-                    opc::STP => { return; }
+                    Opcode::Stp => { return; }
 
                     // Does nothing
-                    opc::NOP => { cycle!(); }
-                    opc::NOP_IMM => {
-                        cycle!();
-                        cycle!();
+                    Opcode::Nop(mode) => {
+                        match mode {
+                            mode::Nop::Implicit => { cycle!(); }
+                        }
                     }
 
-                    // Opcodes not implemented
-                    opc::NONE => panic!("Opcode not set: {:#X}", opcode),
-                    opc::Opcode { .. } => panic!("Opcode not implemented: {:#X}", opcode)
+                    // Not implemented
+                    Opcode::None => panic!("Opcode not implemented: {:#X}", opcode)
                 }
             }
         }
