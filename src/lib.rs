@@ -1,7 +1,4 @@
-#[macro_use]
-extern crate bitflags;
-
-extern crate pretty_hex;
+#![feature(generators, generator_trait)]
+#![feature(nll)]
 
 pub mod hardware;
-pub mod loader;

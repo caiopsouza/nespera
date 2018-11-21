@@ -1,5 +1,5 @@
-pub mod nes;
+pub mod bus;
 pub mod cpu;
-pub mod mem;
-pub mod opc;
 pub mod flags;
+pub mod nes;
+pub mod opc;

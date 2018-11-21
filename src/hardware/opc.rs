@@ -1,498 +1,349 @@
-#![allow(non_snake_case)]
-#![allow(non_upper_case_globals)]
+// Addressing mode.
+// Different modes of fetching data from memory.
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum AddrMode {
+    // Address mode is implied by the instruction
+    Implicit,
 
-// Load from A
-pub mod Lda {
-    pub const Immediate: u8 = 0xa9;
-    pub const ZeroPage: u8 = 0xa5;
-    pub const ZeroPageX: u8 = 0xb5;
-    pub const Absolute: u8 = 0xad;
-    pub const AbsoluteX: u8 = 0xbd;
-    pub const AbsoluteY: u8 = 0xb9;
-    pub const IndirectX: u8 = 0xa1;
-    pub const IndirectY: u8 = 0xb1;
+    // Operates on the accumulator
+    Accumulator,
+
+    // Uses the next byte in memory
+    Immediate,
+
+    // Reads from mem as specified by the immediate address
+    ZeroPage,
+
+    // Similar to ZeroPage but adds Z
+    ZeroPageX,
+
+    // Similar to ZeroPage but adds Y
+    ZeroPageY,
+
+    // Next byte is used as offset
+    Relative,
+
+    // Next two bytes are used as absolute value
+    Absolute,
+
+    // Similar to Absolute but adds X
+    AbsoluteX,
+
+    // Similar to Absolute but adds Y
+    AbsoluteY,
+
+    // Indirect mode has the address of memory
+    Indirect,
+
+    // Similar to Indirect, but adds X to fetch the value
+    IndirectX,
+
+    // Similar to Indirect, but adds Y after fetching the value
+    IndirectY,
 }
 
-// Load from X
-pub mod Ldx {
-    pub const Immediate: u8 = 0xa2;
-    pub const ZeroPage: u8 = 0xa6;
-    pub const ZeroPageY: u8 = 0xb6;
-    pub const Absolute: u8 = 0xae;
-    pub const AbsoluteY: u8 = 0xbe;
+// Operations to execute
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum Operation {
+    // Not implemented option
+    None,
+
+    // No-op. Does nothing (usually)
+    Nop,
+
+    // Kill the processor
+    Stop,
+
+    // Logical Or
+    Or,
 }
 
-// Load from Y
-pub mod Ldy {
-    pub const Immediate: u8 = 0xa0;
-    pub const ZeroPage: u8 = 0xa4;
-    pub const ZeroPageX: u8 = 0xb4;
-    pub const Absolute: u8 = 0xac;
-    pub const AbsoluteX: u8 = 0xbc;
+// Opcode
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub struct Opcode {
+    name: &'static str,
+    oper: Operation,
+    mode: AddrMode,
 }
 
-// Store in A
-pub mod Sta {
-    pub const ZeroPage: u8 = 0x85;
-    pub const ZeroPageX: u8 = 0x95;
-    pub const Absolute: u8 = 0x8d;
-    pub const AbsoluteX: u8 = 0x9d;
-    pub const AbsoluteY: u8 = 0x99;
-    pub const IndirectX: u8 = 0x81;
-    pub const IndirectY: u8 = 0x91;
-}
-
-// Store in X
-pub mod Stx {
-    pub const ZeroPage: u8 = 0x86;
-    pub const ZeroPageY: u8 = 0x96;
-    pub const Absolute: u8 = 0x8e;
-}
-
-// Store in X
-pub mod Sty {
-    pub const ZeroPage: u8 = 0x84;
-    pub const ZeroPageX: u8 = 0x94;
-    pub const Absolute: u8 = 0x8c;
-}
-
-// Transfer between registers
-pub const Tax: u8 = 0xaa;
-pub const Tay: u8 = 0xa8;
-pub const Txa: u8 = 0x8a;
-pub const Tya: u8 = 0x98;
-pub const Tsx: u8 = 0xba;
-pub const Txs: u8 = 0x9a;
-
-// Stack operations
-pub const Pha: u8 = 0x48;
-pub const Php: u8 = 0x08;
-pub const Pla: u8 = 0x68;
-pub const Plp: u8 = 0x28;
-
-// Bitwise And
-pub mod And {
-    pub const Immediate: u8 = 0x29;
-    pub const ZeroPage: u8 = 0x25;
-    pub const ZeroPageX: u8 = 0x35;
-    pub const Absolute: u8 = 0x2d;
-    pub const AbsoluteX: u8 = 0x3d;
-    pub const AbsoluteY: u8 = 0x39;
-    pub const IndirectX: u8 = 0x21;
-    pub const IndirectY: u8 = 0x31;
-}
-
-// Bitwise Or
-pub mod Ora {
-    pub const Immediate: u8 = 0x09;
-    pub const ZeroPage: u8 = 0x05;
-    pub const ZeroPageX: u8 = 0x15;
-    pub const Absolute: u8 = 0x0d;
-    pub const AbsoluteX: u8 = 0x1d;
-    pub const AbsoluteY: u8 = 0x19;
-    pub const IndirectX: u8 = 0x01;
-    pub const IndirectY: u8 = 0x11;
-}
-
-// Bitwise Xor
-pub mod Eor {
-    pub const Immediate: u8 = 0x49;
-    pub const ZeroPage: u8 = 0x45;
-    pub const ZeroPageX: u8 = 0x55;
-    pub const Absolute: u8 = 0x4d;
-    pub const AbsoluteX: u8 = 0x5d;
-    pub const AbsoluteY: u8 = 0x59;
-    pub const IndirectX: u8 = 0x41;
-    pub const IndirectY: u8 = 0x51;
-}
-
-// Bit testing. Performs an "And" but doesn't change any value besides P
-pub mod Bit {
-    pub const ZeroPage: u8 = 0x24;
-    pub const Absolute: u8 = 0x2c;
-}
-
-// Addition with carry
-pub mod Adc {
-    pub const Immediate: u8 = 0x69;
-    pub const ZeroPage: u8 = 0x65;
-    pub const ZeroPageX: u8 = 0x75;
-    pub const Absolute: u8 = 0x6d;
-    pub const AbsoluteX: u8 = 0x7d;
-    pub const AbsoluteY: u8 = 0x79;
-    pub const IndirectX: u8 = 0x61;
-    pub const IndirectY: u8 = 0x71;
-}
-
-// Subtraction with borrow
-pub mod Sbc {
-    pub const Immediate: u8 = 0xe9;
-    pub const ZeroPage: u8 = 0xe5;
-    pub const ZeroPageX: u8 = 0xf5;
-    pub const Absolute: u8 = 0xed;
-    pub const AbsoluteX: u8 = 0xfd;
-    pub const AbsoluteY: u8 = 0xf9;
-    pub const IndirectX: u8 = 0xe1;
-    pub const IndirectY: u8 = 0xf1;
-}
-
-// Increment memory
-pub mod Inc {
-    pub const ZeroPage: u8 = 0xe6;
-    pub const ZeroPageX: u8 = 0xf6;
-    pub const Absolute: u8 = 0xee;
-    pub const AbsoluteX: u8 = 0xfe;
-}
-
-// Increment registers
-pub const Inx: u8 = 0xe8;
-pub const Iny: u8 = 0xc8;
-
-// Decrement memory
-pub mod Dec {
-    pub const ZeroPage: u8 = 0xc6;
-    pub const ZeroPageX: u8 = 0xd6;
-    pub const Absolute: u8 = 0xce;
-    pub const AbsoluteX: u8 = 0xde;
-}
-
-// Decrement registers
-pub const Dex: u8 = 0xca;
-pub const Dey: u8 = 0x88;
-
-// Left shift
-pub mod Asl {
-    pub const Accumulator: u8 = 0x0a;
-    pub const ZeroPage: u8 = 0x06;
-    pub const ZeroPageX: u8 = 0x16;
-    pub const Absolute: u8 = 0x0e;
-    pub const AbsoluteX: u8 = 0x1e;
-}
-
-// Right shift
-pub mod Lsr {
-    pub const Accumulator: u8 = 0x4a;
-    pub const ZeroPage: u8 = 0x46;
-    pub const ZeroPageX: u8 = 0x56;
-    pub const Absolute: u8 = 0x4e;
-    pub const AbsoluteX: u8 = 0x5e;
-}
-
-// Left rotation
-pub mod Rol {
-    pub const Accumulator: u8 = 0x2a;
-    pub const ZeroPage: u8 = 0x26;
-    pub const ZeroPageX: u8 = 0x36;
-    pub const Absolute: u8 = 0x2e;
-    pub const AbsoluteX: u8 = 0x3e;
-}
-
-// Right rotation
-pub mod Ror {
-    pub const Accumulator: u8 = 0x6a;
-    pub const ZeroPage: u8 = 0x66;
-    pub const ZeroPageX: u8 = 0x76;
-    pub const Absolute: u8 = 0x6e;
-    pub const AbsoluteX: u8 = 0x7e;
-}
-
-// Compare values with A
-pub mod Cmp {
-    pub const Immediate: u8 = 0xc9;
-    pub const ZeroPage: u8 = 0xc5;
-    pub const ZeroPageX: u8 = 0xd5;
-    pub const Absolute: u8 = 0xcd;
-    pub const AbsoluteX: u8 = 0xdd;
-    pub const AbsoluteY: u8 = 0xd9;
-    pub const IndirectX: u8 = 0xc1;
-    pub const IndirectY: u8 = 0xd1;
-}
-
-// Compare values with X
-pub mod Cpx {
-    pub const Immediate: u8 = 0xe0;
-    pub const ZeroPage: u8 = 0xe4;
-    pub const Absolute: u8 = 0xec;
-}
-
-// Compare values with Y
-pub mod Cpy {
-    pub const Immediate: u8 = 0xc0;
-    pub const ZeroPage: u8 = 0xc4;
-    pub const Absolute: u8 = 0xcc;
-}
-
-// Clear and set status flags
-pub const Clc: u8 = 0x18;
-pub const Cld: u8 = 0xd8;
-pub const Cli: u8 = 0x58;
-pub const Clv: u8 = 0xb8;
-pub const Sec: u8 = 0x38;
-pub const Sed: u8 = 0xf8;
-pub const Sei: u8 = 0x78;
-
-// Branches
-pub const Bcs: u8 = 0xb0;
-pub const Bcc: u8 = 0x90;
-pub const Beq: u8 = 0xf0;
-pub const Bne: u8 = 0xd0;
-pub const Bmi: u8 = 0x30;
-pub const Bpl: u8 = 0x10;
-pub const Bvc: u8 = 0x50;
-pub const Bvs: u8 = 0x70;
-
-// Jump
-pub mod Jmp {
-    pub const Absolute: u8 = 0x4c;
-    pub const Indirect: u8 = 0x6c;
-}
-
-pub const Jsr: u8 = 0x20;
-pub const Rts: u8 = 0x60;
-pub const Rti: u8 = 0x40;
-
-// No operation
-pub mod Nop {
-    pub const Implicit0: u8 = 0xea;
-    pub const Implicit1: u8 = 0x1a;
-    pub const Implicit2: u8 = 0x3a;
-    pub const Implicit3: u8 = 0x5a;
-    pub const Implicit4: u8 = 0x7a;
-    pub const Implicit5: u8 = 0xda;
-    pub const Implicit6: u8 = 0xfa;
-
-    pub const Immediate: u8 = 0x80;
-
-    pub const ZeroPage0: u8 = 0x04;
-    pub const ZeroPage1: u8 = 0x44;
-    pub const ZeroPage2: u8 = 0x64;
-
-    pub const Absolute: u8 = 0x0c;
-
-    pub const AbsoluteX0: u8 = 0x1c;
-    pub const AbsoluteX1: u8 = 0x3c;
-    pub const AbsoluteX2: u8 = 0x5c;
-    pub const AbsoluteX3: u8 = 0x7c;
-    pub const AbsoluteX4: u8 = 0xdc;
-    pub const AbsoluteX5: u8 = 0xfc;
-
-    pub const IndirectX0: u8 = 0x14;
-    pub const IndirectX1: u8 = 0x34;
-    pub const IndirectX2: u8 = 0x54;
-    pub const IndirectX3: u8 = 0x74;
-    pub const IndirectX4: u8 = 0xD4;
-    pub const IndirectX5: u8 = 0xF4;
-}
-
-pub fn name(opcode: u8) -> String {
-    format!("{:02x}:{}", opcode, match opcode {
-        Nop::Implicit0 => "Nop:__0",
-        Nop::Implicit1 => "Nop:__1",
-        Nop::Implicit2 => "Nop:__2",
-        Nop::Implicit3 => "Nop:__3",
-        Nop::Implicit4 => "Nop:__4",
-        Nop::Implicit5 => "Nop:__5",
-        Nop::Implicit6 => "Nop:__6",
-
-        Nop::Immediate => "Nop:imm",
-
-        Nop::ZeroPage0 => "Nop:zp0",
-        Nop::ZeroPage1 => "Nop:zp1",
-        Nop::ZeroPage2 => "Nop:zp2",
-
-        Nop::Absolute => "Nop:abs",
-
-        Nop::AbsoluteX0 => "Nop:ax0",
-        Nop::AbsoluteX1 => "Nop:ax1",
-        Nop::AbsoluteX2 => "Nop:ax2",
-        Nop::AbsoluteX3 => "Nop:ax3",
-        Nop::AbsoluteX4 => "Nop:ax4",
-        Nop::AbsoluteX5 => "Nop:ax5",
-
-        Nop::IndirectX0 => "Nop:id0",
-        Nop::IndirectX1 => "Nop:id1",
-        Nop::IndirectX2 => "Nop:id2",
-        Nop::IndirectX3 => "Nop:id3",
-        Nop::IndirectX4 => "Nop:id4",
-        Nop::IndirectX5 => "Nop:id5",
-
-        Lda::Immediate => "Lda:imm",
-        Lda::ZeroPage => "Lda:zpg",
-        Lda::ZeroPageX => "Lda:zpx",
-        Lda::Absolute => "Lda:abs",
-        Lda::AbsoluteX => "Lda:abx",
-        Lda::AbsoluteY => "Lda:aby",
-        Lda::IndirectX => "Lda:idx",
-        Lda::IndirectY => "Lda:idy",
-
-        Ldx::Immediate => "Ldx:imm",
-        Ldx::ZeroPage => "Ldx:zpg",
-        Ldx::ZeroPageY => "Ldx:zpy",
-        Ldx::Absolute => "Ldx:abs",
-        Ldx::AbsoluteY => "Ldx:aby",
-
-        Ldy::Immediate => "Ldy:imm",
-        Ldy::ZeroPage => "Ldy:zpg",
-        Ldy::ZeroPageX => "Ldy:zpx",
-        Ldy::Absolute => "Ldy:abs",
-        Ldy::AbsoluteX => "Ldy:abx",
-
-        Sta::ZeroPage => "Sta:zpg",
-        Sta::ZeroPageX => "Sta:zpx",
-        Sta::Absolute => "Sta:abs",
-        Sta::AbsoluteX => "Sta:abx",
-        Sta::AbsoluteY => "Sta:aby",
-        Sta::IndirectX => "Sta:idx",
-        Sta::IndirectY => "Sta:idy",
-
-        Stx::ZeroPage => "Stx:zpg",
-        Stx::ZeroPageY => "Stx:zpx",
-        Stx::Absolute => "Stx:abs",
-
-        Sty::ZeroPage => "Sty:zpg",
-        Sty::ZeroPageX => "Sty:zpx",
-        Sty::Absolute => "Sty:abs",
-
-        Tax => "Tax    ",
-        Tay => "Tay    ",
-        Txa => "Txa    ",
-        Tya => "Tya    ",
-        Tsx => "Tsx    ",
-        Txs => "Txs    ",
-
-        Pha => "Pha    ",
-        Php => "Php    ",
-        Pla => "Pla    ",
-        Plp => "Plp    ",
-
-        And::Immediate => "And:imm",
-        And::ZeroPage => "And:zpg",
-        And::ZeroPageX => "And:zpx",
-        And::Absolute => "And:abs",
-        And::AbsoluteX => "And:abx",
-        And::AbsoluteY => "And:aby",
-        And::IndirectX => "And:idx",
-        And::IndirectY => "And:idy",
-
-        Ora::Immediate => "Ora:imm",
-        Ora::ZeroPage => "Ora:zpg",
-        Ora::ZeroPageX => "Ora:zpx",
-        Ora::Absolute => "Ora:abs",
-        Ora::AbsoluteX => "Ora:abx",
-        Ora::AbsoluteY => "Ora:aby",
-        Ora::IndirectX => "Ora:idx",
-        Ora::IndirectY => "Ora:idy",
-
-        Eor::Immediate => "Eor:imm",
-        Eor::ZeroPage => "Eor:zpg",
-        Eor::ZeroPageX => "Eor:zpx",
-        Eor::Absolute => "Eor:abs",
-        Eor::AbsoluteX => "Eor:abx",
-        Eor::AbsoluteY => "Eor:aby",
-        Eor::IndirectX => "Eor:idx",
-        Eor::IndirectY => "Eor:idy",
-
-        Bit::ZeroPage => "Bit:zpg",
-        Bit::Absolute => "Bit:abs",
-
-        Adc::Immediate => "Adc:imm",
-        Adc::ZeroPage => "Adc:zpg",
-        Adc::ZeroPageX => "Adc:zpx",
-        Adc::Absolute => "Adc:abs",
-        Adc::AbsoluteX => "Adc:abx",
-        Adc::AbsoluteY => "Adc:aby",
-        Adc::IndirectX => "Adc:idx",
-        Adc::IndirectY => "Adc:idy",
-
-        Sbc::Immediate => "Sbc:imm",
-        Sbc::ZeroPage => "Sbc:zpg",
-        Sbc::ZeroPageX => "Sbc:zpx",
-        Sbc::Absolute => "Sbc:abs",
-        Sbc::AbsoluteX => "Sbc:abx",
-        Sbc::AbsoluteY => "Sbc:aby",
-        Sbc::IndirectX => "Sbc:idx",
-        Sbc::IndirectY => "Sbc:idy",
-
-        Inc::ZeroPage => "Inc:zpg",
-        Inc::ZeroPageX => "Inc:zpx",
-        Inc::Absolute => "Inc:abs",
-        Inc::AbsoluteX => "Inc:abx",
-
-        Dec::ZeroPage => "Dec:zpg",
-        Dec::ZeroPageX => "Dec:zpx",
-        Dec::Absolute => "Dec:abs",
-        Dec::AbsoluteX => "Dec:abx",
-
-        Inx => "Inx    ",
-        Dex => "Dex    ",
-        Iny => "Iny    ",
-        Dey => "Dey    ",
-
-        Asl::Accumulator => "Asl:acc",
-        Asl::ZeroPage => "Asl:zpg",
-        Asl::ZeroPageX => "Asl:zpx",
-        Asl::Absolute => "Asl:abs",
-        Asl::AbsoluteX => "Asl:abx",
-
-        Lsr::Accumulator => "Lsr:acc",
-        Lsr::ZeroPage => "Lsr:zpg",
-        Lsr::ZeroPageX => "Lsr:zpx",
-        Lsr::Absolute => "Lsr:abs",
-        Lsr::AbsoluteX => "Lsr:abx",
-
-        Rol::Accumulator => "Rol:acc",
-        Rol::ZeroPage => "Rol:zpg",
-        Rol::ZeroPageX => "Rol:zpx",
-        Rol::Absolute => "Rol:abs",
-        Rol::AbsoluteX => "Rol:abx",
-
-        Ror::Accumulator => "Ror:acc",
-        Ror::ZeroPage => "Ror:zpg",
-        Ror::ZeroPageX => "Ror:zpx",
-        Ror::Absolute => "Ror:abs",
-        Ror::AbsoluteX => "Ror:abx",
-
-        Cmp::Immediate => "Cmp:imm",
-        Cmp::ZeroPage => "Cmp:zpg",
-        Cmp::ZeroPageX => "Cmp:zpx",
-        Cmp::Absolute => "Cmp:abs",
-        Cmp::AbsoluteX => "Cmp:abx",
-        Cmp::AbsoluteY => "Cmp:aby",
-        Cmp::IndirectX => "Cmp:idx",
-        Cmp::IndirectY => "Cmp:idy",
-
-        Cpx::Immediate => "Cpx:imm",
-        Cpx::ZeroPage => "Cpx:zpg",
-        Cpx::Absolute => "Cpx:abs",
-
-        Cpy::Immediate => "Cpy:imm",
-        Cpy::ZeroPage => "Cpy:zpg",
-        Cpy::Absolute => "Cpy:abs",
-
-        Clc => "Clc    ",
-        Cld => "Cld    ",
-        Cli => "Cli    ",
-        Clv => "Clv    ",
-        Sec => "Sec    ",
-        Sed => "Sed    ",
-        Sei => "Sei    ",
-
-        Bcs => "Bcs    ",
-        Bcc => "Bcc    ",
-        Beq => "Beq    ",
-        Bne => "Bne    ",
-        Bmi => "Bmi    ",
-        Bpl => "Bpl    ",
-        Bvs => "Bvs    ",
-        Bvc => "Bvc    ",
-
-        Jmp::Absolute => "Jmp:abs",
-        Jmp::Indirect => "Jmp:ind",
-
-        Jsr => "Jsr    ",
-        Rts => "Rts    ",
-        Rti => "Rti    ",
-
-        _ => "___:___"
-    })
-}
+pub const NONE: Opcode = Opcode { name: "___", oper: Operation::None, mode: AddrMode::Implicit };
+
+pub const NOP: Opcode = Opcode { name: "NOP", oper: Operation::Nop, mode: AddrMode::Implicit };
+pub const NOP_IMM: Opcode = Opcode { name: "NOP", oper: Operation::Nop, mode: AddrMode::Immediate };
+
+
+pub const STP: Opcode = Opcode { name: "STP", oper: Operation::Stop, mode: AddrMode::Implicit };
+
+pub const OPCODES: [Opcode; 256] = [
+    /*00*/ NONE,
+    /*01*/ NONE,
+    /*02*/ STP,
+    /*03*/ NONE,
+    /*04*/ NONE,
+    /*05*/ NONE,
+    /*06*/ NONE,
+    /*07*/ NONE,
+    /*08*/ NONE,
+    /*09*/ NONE,
+    /*0a*/ NONE,
+    /*0b*/ NONE,
+    /*0c*/ NONE,
+    /*0d*/ NONE,
+    /*0e*/ NONE,
+    /*0f*/ NONE,
+    /**/
+    /*10*/ NONE,
+    /*11*/ NONE,
+    /*12*/ STP,
+    /*13*/ NONE,
+    /*14*/ NONE,
+    /*15*/ NONE,
+    /*16*/ NONE,
+    /*17*/ NONE,
+    /*18*/ NONE,
+    /*19*/ NONE,
+    /*1a*/ NONE,
+    /*1b*/ NONE,
+    /*1c*/ NONE,
+    /*1d*/ NONE,
+    /*1e*/ NONE,
+    /*1f*/ NONE,
+    /**/
+    /*20*/ NONE,
+    /*21*/ NONE,
+    /*22*/ STP,
+    /*23*/ NONE,
+    /*24*/ NONE,
+    /*25*/ NONE,
+    /*26*/ NONE,
+    /*27*/ NONE,
+    /*28*/ NONE,
+    /*29*/ NONE,
+    /*2a*/ NONE,
+    /*2b*/ NONE,
+    /*2c*/ NONE,
+    /*2d*/ NONE,
+    /*2e*/ NONE,
+    /*2f*/ NONE,
+    /**/
+    /*30*/ NONE,
+    /*31*/ NONE,
+    /*32*/ STP,
+    /*33*/ NONE,
+    /*34*/ NONE,
+    /*35*/ NONE,
+    /*36*/ NONE,
+    /*37*/ NONE,
+    /*38*/ NONE,
+    /*39*/ NONE,
+    /*3a*/ NONE,
+    /*3b*/ NONE,
+    /*3c*/ NONE,
+    /*3d*/ NONE,
+    /*3e*/ NONE,
+    /*3f*/ NONE,
+    /**/
+    /*40*/ NONE,
+    /*41*/ NONE,
+    /*42*/ STP,
+    /*43*/ NONE,
+    /*44*/ NONE,
+    /*45*/ NONE,
+    /*46*/ NONE,
+    /*47*/ NONE,
+    /*48*/ NONE,
+    /*49*/ NONE,
+    /*4a*/ NONE,
+    /*4b*/ NONE,
+    /*4c*/ NONE,
+    /*4d*/ NONE,
+    /*4e*/ NONE,
+    /*4f*/ NONE,
+    /**/
+    /*50*/ NONE,
+    /*51*/ NONE,
+    /*52*/ STP,
+    /*53*/ NONE,
+    /*54*/ NONE,
+    /*55*/ NONE,
+    /*56*/ NONE,
+    /*57*/ NONE,
+    /*58*/ NONE,
+    /*59*/ NONE,
+    /*5a*/ NONE,
+    /*5b*/ NONE,
+    /*5c*/ NONE,
+    /*5d*/ NONE,
+    /*5e*/ NONE,
+    /*5f*/ NONE,
+    /**/
+    /*60*/ NONE,
+    /*61*/ NONE,
+    /*62*/ STP,
+    /*63*/ NONE,
+    /*64*/ NONE,
+    /*65*/ NONE,
+    /*66*/ NONE,
+    /*67*/ NONE,
+    /*68*/ NONE,
+    /*69*/ NONE,
+    /*6a*/ NONE,
+    /*6b*/ NONE,
+    /*6c*/ NONE,
+    /*6d*/ NONE,
+    /*6e*/ NONE,
+    /*6f*/ NONE,
+    /**/
+    /*70*/ NONE,
+    /*71*/ NONE,
+    /*72*/ STP,
+    /*73*/ NONE,
+    /*74*/ NONE,
+    /*75*/ NONE,
+    /*76*/ NONE,
+    /*77*/ NONE,
+    /*78*/ NONE,
+    /*79*/ NONE,
+    /*7a*/ NONE,
+    /*7b*/ NONE,
+    /*7c*/ NONE,
+    /*7d*/ NONE,
+    /*7e*/ NONE,
+    /*7f*/ NONE,
+    /**/
+    /*80*/ NONE,
+    /*81*/ NONE,
+    /*82*/ NONE,
+    /*83*/ NONE,
+    /*84*/ NONE,
+    /*85*/ NONE,
+    /*86*/ NONE,
+    /*87*/ NONE,
+    /*88*/ NONE,
+    /*89*/ NONE,
+    /*8a*/ NONE,
+    /*8b*/ NONE,
+    /*8c*/ NONE,
+    /*8d*/ NONE,
+    /*8e*/ NONE,
+    /*8f*/ NONE,
+    /**/
+    /*90*/ NONE,
+    /*91*/ NONE,
+    /*92*/ STP,
+    /*93*/ NONE,
+    /*94*/ NONE,
+    /*95*/ NONE,
+    /*96*/ NONE,
+    /*97*/ NONE,
+    /*98*/ NONE,
+    /*99*/ NONE,
+    /*9a*/ NONE,
+    /*9b*/ NONE,
+    /*9c*/ NONE,
+    /*9d*/ NONE,
+    /*9e*/ NONE,
+    /*9f*/ NONE,
+    /**/
+    /*a0*/ NONE,
+    /*a1*/ NONE,
+    /*a2*/ NONE,
+    /*a3*/ NONE,
+    /*a4*/ NONE,
+    /*a5*/ NONE,
+    /*a6*/ NONE,
+    /*a7*/ NONE,
+    /*a8*/ NONE,
+    /*a9*/ NONE,
+    /*aa*/ NONE,
+    /*ab*/ NONE,
+    /*ac*/ NONE,
+    /*ad*/ NONE,
+    /*ae*/ NONE,
+    /*af*/ NONE,
+    /**/
+    /*b0*/ NONE,
+    /*b1*/ NONE,
+    /*b2*/ STP,
+    /*b3*/ NONE,
+    /*b4*/ NONE,
+    /*b5*/ NONE,
+    /*b6*/ NONE,
+    /*b7*/ NONE,
+    /*b8*/ NONE,
+    /*b9*/ NONE,
+    /*ba*/ NONE,
+    /*bb*/ NONE,
+    /*bc*/ NONE,
+    /*bd*/ NONE,
+    /*be*/ NONE,
+    /*bf*/ NONE,
+    /**/
+    /*c0*/ NONE,
+    /*c1*/ NONE,
+    /*c2*/ NONE,
+    /*c3*/ NONE,
+    /*c4*/ NONE,
+    /*c5*/ NONE,
+    /*c6*/ NONE,
+    /*c7*/ NONE,
+    /*c8*/ NONE,
+    /*c9*/ NONE,
+    /*ca*/ NONE,
+    /*cb*/ NONE,
+    /*cc*/ NONE,
+    /*cd*/ NONE,
+    /*ce*/ NONE,
+    /*cf*/ NONE,
+    /**/
+    /*d0*/ NONE,
+    /*d1*/ NONE,
+    /*d2*/ STP,
+    /*d3*/ NONE,
+    /*d4*/ NONE,
+    /*d5*/ NONE,
+    /*d6*/ NONE,
+    /*d7*/ NONE,
+    /*d8*/ NONE,
+    /*d9*/ NONE,
+    /*da*/ NONE,
+    /*db*/ NONE,
+    /*dc*/ NONE,
+    /*dd*/ NONE,
+    /*de*/ NONE,
+    /*df*/ NONE,
+    /**/
+    /*e0*/ NONE,
+    /*e1*/ NONE,
+    /*e2*/ NONE,
+    /*e3*/ NONE,
+    /*e4*/ NONE,
+    /*e5*/ NONE,
+    /*e6*/ NONE,
+    /*e7*/ NONE,
+    /*e8*/ NONE,
+    /*e9*/ NONE,
+    /*ea*/ NOP,
+    /*eb*/ NONE,
+    /*ec*/ NONE,
+    /*ed*/ NONE,
+    /*ee*/ NONE,
+    /*ef*/ NONE,
+    /**/
+    /*f0*/ NONE,
+    /*f1*/ NONE,
+    /*f2*/ STP,
+    /*f3*/ NONE,
+    /*f4*/ NONE,
+    /*f5*/ NONE,
+    /*f6*/ NONE,
+    /*f7*/ NONE,
+    /*f8*/ NONE,
+    /*f9*/ NONE,
+    /*fa*/ NONE,
+    /*fb*/ NONE,
+    /*fc*/ NONE,
+    /*fd*/ NONE,
+    /*fe*/ NONE,
+    /*ff*/ NONE,
+];
