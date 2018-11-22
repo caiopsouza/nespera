@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use hardware::mem::Memory;
+use crate::hardware::mem::Memory;
 
 const EIGHT_KBYTES_IN_BYTES: usize = 8192;
 const SIXTEEN_KBYTES_IN_BYTES: usize = 2 * EIGHT_KBYTES_IN_BYTES;
@@ -54,9 +54,8 @@ impl Into<Memory> for INes {
 
 #[cfg(test)]
 mod tests {
-    use hardware::bus::Bus;
-
     use super::*;
+    use crate::hardware::bus::Bus;
 
     fn make_test<'a>(data: &[u8]) -> Vec<u8> { Vec::<u8>::from(data) }
 

@@ -1,5 +1,6 @@
-use hardware::flags;
 use std::fmt;
+
+use crate::hardware::flags;
 
 #[derive(PartialOrd, PartialEq, Copy, Clone)]
 pub struct Cpu {

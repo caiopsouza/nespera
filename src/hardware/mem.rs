@@ -1,8 +1,7 @@
 use std::fmt;
 
 use pretty_hex::*;
-
-use hardware::bus::Bus;
+use crate::hardware::bus::Bus;
 
 // Memory capacity
 const RAM_CAPACITY: usize = 0x0800;

@@ -1,12 +1,11 @@
 use std::ops::Generator;
 use std::ops::GeneratorState;
-
-use hardware::bus::Bus;
-use hardware::cpu::Cpu;
-use hardware::flags;
-use hardware::opc;
-use hardware::opc::mode;
-use hardware::opc::Opcode;
+use crate::hardware::cpu::Cpu;
+use crate::hardware::flags;
+use crate::hardware::opc;
+use crate::hardware::opc::Opcode;
+use crate::hardware::opc::mode;
+use crate::hardware::bus::Bus;
 
 #[derive(Debug, PartialOrd, PartialEq, Clone)]
 pub struct Nes<TBus: Bus> {
@@ -95,7 +94,7 @@ impl<TBus: Bus> Nes<TBus> {
 
 #[cfg(test)]
 mod opcodes {
-    use hardware::bus;
+    use crate::hardware::bus;
 
     type Nes = super::Nes<bus::seq::Bus>;
 
