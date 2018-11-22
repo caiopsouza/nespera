@@ -1,4 +1,6 @@
 use std::ops::Generator;
+#[cfg(test)]
+use std::ops::GeneratorState;
 
 use hardware::bus::Bus;
 use hardware::cpu::Cpu;
@@ -6,7 +8,6 @@ use hardware::flags;
 use hardware::opc;
 use hardware::opc::mode;
 use hardware::opc::Opcode;
-use std::ops::GeneratorState;
 
 #[derive(Debug, PartialOrd, PartialEq, Clone)]
 pub struct Nes<TBus: Bus> {
@@ -36,16 +37,6 @@ impl<TBus: Bus> Nes<TBus> {
 
     // Create a function to step the emulator. Yields true if an opcode has finished.
     pub fn step(&mut self) -> impl Generator<Yield=(bool), Return=()> + '_ {
-        // Helpers to yield.
-        macro_rules! cycle { () => {{ self.cycle += 1; yield false; }; }}
-        macro_rules! cycle_fecth {
-            () => {{
-                self.cpu.inc_pc();
-                let next = self.bus.read(self.cpu.pc);
-                cycle!();
-                next
-            }};
-        }
 
         // Run a single step of the CPU
         let mut stepper = move || {
@@ -63,11 +54,13 @@ impl<TBus: Bus> Nes<TBus> {
                     // Does nothing
                     Opcode::Nop(mode) => {
                         match mode {
-                            mode::Nop::Implicit => { cycle!(); }
-                            mode::Nop::Accumulator | mode::Nop::Immediate | mode::Nop::ZeroPage => {
-                                cycle_fecth!();
-                                cycle!();
-                            }
+                            // NES always read the next byte after an opcode, even if they're not needed.
+                            mode::Nop::Implied => { cycle_read!(self, self.cpu.pc); }
+                            mode::Nop::Immediate => { cycle_fetch!(self); }
+                            mode::Nop::ZeroPage => { cycle_zero_page!(self); }
+                            mode::Nop::ZeroPageX => { cycle_zero_page_x!(self); }
+                            mode::Nop::Absolute => { cycle_absolute!(self); }
+                            mode::Nop::AbsoluteX => { cycle_absolute_x!(self); }
                         }
                     }
 
@@ -105,16 +98,16 @@ mod opcodes {
 
     type Nes = super::Nes<bus::seq::Bus>;
 
-    fn test(bus: Vec<u8>, cycles: u32, pc_offset: i16, checker: fn(Nes) -> Nes) {
+    fn run(bus: Vec<u8>, size: i16, cycles: u32, setup: fn(&mut Nes)) {
         let bus = bus::seq::Bus::new(bus);
 
         let mut nes = Nes::new(bus);
+        setup(&mut nes);
+
         let mut check = nes.clone();
 
         check.cycle = cycles.wrapping_add(1);
-        check.cpu.pc = nes.cpu.pc.wrapping_add(pc_offset as u16).wrapping_add(1);
-
-        check = checker(check);
+        check.cpu.pc = nes.cpu.pc.wrapping_add(size as u16).wrapping_add(1);
 
         nes.run(1);
 
@@ -124,22 +117,35 @@ mod opcodes {
     }
 
     #[test]
-    fn stp() { test(vec![0x02], 0, 0, |nes| nes); }
+    fn stp() { run(vec![0x02], 0, 0, |_nes| {}); }
 
     #[cfg(test)]
     mod nop {
         use super::*;
 
         #[test]
-        fn implicit() { test(vec![0xea], 2, 1, |nes| nes); }
+        fn implied() { run(vec![0xea], 1, 2, |_nes| {}); }
 
         #[test]
-        fn accumulator() { test(vec![0x0c], 3, 2, |nes| nes); }
+        fn immediate() { run(vec![0xe2], 2, 2, |_nes| {}); }
 
         #[test]
-        fn immediate() { test(vec![0xe2], 3, 2, |nes| nes); }
+        fn zero_page() { run(vec![0x64], 2, 3, |_nes| {}); }
 
         #[test]
-        fn zero_page() { test(vec![0x64], 3, 2, |nes| nes); }
+        fn zero_page_x() { run(vec![0x14], 2, 4, |_nes| {}); }
+
+        #[test]
+        fn absolute() { run(vec![0x0C], 3, 4, |_nes| {}); }
+
+        #[test]
+        fn absolute_x() { run(vec![0x1C, 0xfe, 0x00], 3, 4, |_nes| {}); }
+
+        #[test]
+        fn absolute_x_cross_page() {
+            run(vec![0x1C, 0xff, 0x00], 3, 5,
+                |nes| { nes.cpu.x = 1 },
+            );
+        }
     }
 }

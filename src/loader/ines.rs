@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn memory() {
-        let mem: Memory = load_test().into();
+        let mut mem: Memory = load_test().into();
         assert_eq!(mem.read(0xC000), 0x4C);
     }
 }

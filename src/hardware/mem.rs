@@ -33,28 +33,21 @@ impl Memory {
             rom: prg_rom,
         }
     }
-}
 
-impl Bus for Memory {
-    fn read(&self, addr: u16) -> u8 {
+    fn map(&mut self, addr: u16) -> &mut u8 {
         unsafe {
-            *match addr {
-                0x0000...0x1fff => self.ram.get_unchecked(addr as usize % RAM_CAPACITY),
-                0x8000...0xFFFF => self.rom.get_unchecked((addr - 0x8000) as usize % ROM_CAPACITY),
+            match addr {
+                0x0000...0x1fff => self.ram.get_unchecked_mut(addr as usize % RAM_CAPACITY),
+                0x8000...0xFFFF => self.rom.get_unchecked_mut((addr - 0x8000) as usize % ROM_CAPACITY),
                 _ => panic!("Mapper not implemented for address 0x{:x}\n{:?}", addr, self)
             }
         }
     }
+}
 
-    fn write(&mut self, addr: u16, data: u8) {
-        unsafe {
-            *match addr {
-                0x0000...0x1fff => self.ram.get_unchecked_mut(addr as usize % RAM_CAPACITY),
-                0x8000...0xFFFF => self.rom.get_unchecked_mut((addr - 0x8000) as usize % ROM_CAPACITY),
-                _ => panic!("Mapper not implemented for address 0x{:x}\n{:?}", addr, self)
-            } = data;
-        }
-    }
+impl Bus for Memory {
+    fn read(&mut self, addr: u16) -> u8 { *self.map(addr) }
+    fn write(&mut self, addr: u16, data: u8) { *self.map(addr) = data; }
 }
 
 impl fmt::Debug for Memory {

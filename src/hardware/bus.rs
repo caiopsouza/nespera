@@ -1,29 +1,19 @@
 pub trait Bus {
-    fn read(&self, addr: u16) -> u8;
+    // Reading a Bus on the NES can have side effects, so it'll be mutable here.
+    fn read(&mut self, addr: u16) -> u8;
     fn write(&mut self, addr: u16, data: u8);
 }
 
 // A bus which reads the specified bytes in sequence
 #[cfg(test)]
 pub mod seq {
-    use std::cell::Cell;
-    use std::fmt::Debug;
-    use std::fmt;
-
-    #[derive(Clone)]
+    #[derive(Debug, Clone)]
     pub struct Bus {
-        counter: Cell<usize>,
         pub bytes: Vec<u8>,
     }
 
-    impl Debug for Bus {
-        fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-            write!(f, "{:02X?}", self.bytes)
-        }
-    }
-
     impl Bus {
-        pub fn new(bytes: Vec<u8>) -> Self { Self { counter: Cell::new(0), bytes } }
+        pub fn new(bytes: Vec<u8>) -> Self { Self { bytes } }
     }
 
     impl PartialEq for Bus {
@@ -31,12 +21,7 @@ pub mod seq {
     }
 
     impl super::Bus for Bus {
-        fn read(&self, _addr: u16) -> u8 {
-            let counter = self.counter.get();
-            let res = self.bytes[counter % self.bytes.len()];
-            self.counter.set(counter + 1);
-            res
-        }
+        fn read(&mut self, addr: u16) -> u8 { self.bytes[addr as usize % self.bytes.len()] }
         fn write(&mut self, _addr: u16, _data: u8) {}
     }
 }

@@ -1,3 +1,6 @@
+#[macro_use]
+pub mod cycle;
+
 pub mod bus;
 pub mod cpu;
 pub mod flags;
