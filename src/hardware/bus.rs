@@ -7,11 +7,19 @@ pub trait Bus {
 #[cfg(test)]
 pub mod seq {
     use std::cell::Cell;
+    use std::fmt::Debug;
+    use std::fmt;
 
-    #[derive(Debug, Clone)]
+    #[derive(Clone)]
     pub struct Bus {
         counter: Cell<usize>,
         pub bytes: Vec<u8>,
+    }
+
+    impl Debug for Bus {
+        fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+            write!(f, "{:02X?}", self.bytes)
+        }
     }
 
     impl Bus {

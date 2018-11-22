@@ -24,5 +24,5 @@ impl Cpu {
     pub fn new() -> Self { Self { a: 0, x: 0, y: 0, pc: 0, s: 0, p: 0 } }
 
     // Increment PC
-    pub fn inc_pc(&self) { self.pc.wrapping_add(1); }
+    pub fn inc_pc(&mut self) { self.pc = self.pc.wrapping_add(1); }
 }

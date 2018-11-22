@@ -6,6 +6,7 @@ use hardware::flags;
 use hardware::opc;
 use hardware::opc::mode;
 use hardware::opc::Opcode;
+use std::ops::GeneratorState;
 
 #[derive(Debug, PartialOrd, PartialEq, Clone)]
 pub struct Nes<TBus: Bus> {
@@ -33,43 +34,66 @@ impl<TBus: Bus> Nes<TBus> {
         res
     }
 
-    // Create a function to step the emulator
-    pub fn step(&mut self) -> impl Generator<Yield=(), Return=()> + '_ {
-        // Helpers to yield. Also increments cycle
-        macro_rules! cycle { () => {{ self.cycle += 1; yield; }}; }
+    // Create a function to step the emulator. Yields true if an opcode has finished.
+    pub fn step(&mut self) -> impl Generator<Yield=(bool), Return=()> + '_ {
+        // Helpers to yield.
+        macro_rules! cycle { () => {{ self.cycle += 1; yield false; }; }}
+        macro_rules! cycle_fecth {
+            () => {{
+                self.cpu.inc_pc();
+                let next = self.bus.read(self.cpu.pc);
+                cycle!();
+                next
+            }};
+        }
 
         // Run a single step of the CPU
-        move || {
+        let mut stepper = move || {
             loop {
                 // Fetch the opcode to execute
                 let opcode = self.bus.read(self.cpu.pc);
                 self.cpu.inc_pc();
-                cycle!();
+                self.cycle += 1;
+                yield true;
 
                 match &opc::OPCODES[opcode as usize] {
-                    // STP crashes the CPU. I'll just return for now.
-                    Opcode::Stp => { return; }
+                    // STP prevent cycle to advance effectively crashing the CPU.
+                    Opcode::Stp => { loop { yield (true); } }
 
                     // Does nothing
                     Opcode::Nop(mode) => {
                         match mode {
                             mode::Nop::Implicit => { cycle!(); }
+                            mode::Nop::Accumulator | mode::Nop::Immediate | mode::Nop::ZeroPage => {
+                                cycle_fecth!();
+                                cycle!();
+                            }
                         }
                     }
 
                     // Not implemented
-                    Opcode::None => panic!("Opcode not implemented: {:#X}", opcode)
+                    Opcode::None => panic!("Opcode not implemented: 0x{:02X}", opcode)
                 }
             }
-        }
+        };
+
+        // Fetch the first opcode.
+        // Every instruction finishes fetching the next opcode, so this is the "zeroth" instruction.
+        unsafe { stepper.resume(); }
+        stepper
     }
 
-    // Run the NES by the amount of cycles specified
-    pub fn run(&mut self, cycles: u32) {
+    // Run for the specified amount of instructions.
+    #[cfg(test)]
+    pub fn run(&mut self, mut instr_amount: u32) {
         let mut step = self.step();
-        for _ in 0..cycles {
+
+        while instr_amount > 0 {
             unsafe {
-                step.resume();
+                match step.resume() {
+                    GeneratorState::Yielded(false) => {}
+                    GeneratorState::Yielded(true) | GeneratorState::Complete(_) => { instr_amount -= 1 }
+                }
             }
         }
     }
@@ -81,18 +105,41 @@ mod opcodes {
 
     type Nes = super::Nes<bus::seq::Bus>;
 
-    fn test(bus: Vec<u8>, checker: fn(Nes) -> Nes) {
+    fn test(bus: Vec<u8>, cycles: u32, pc_offset: i16, checker: fn(Nes) -> Nes) {
         let bus = bus::seq::Bus::new(bus);
+
         let mut nes = Nes::new(bus);
-        let check = checker(nes.clone());
-        nes.run(2);
-        assert_eq!(check, nes);
+        let mut check = nes.clone();
+
+        check.cycle = cycles.wrapping_add(1);
+        check.cpu.pc = nes.cpu.pc.wrapping_add(pc_offset as u16).wrapping_add(1);
+
+        check = checker(check);
+
+        nes.run(1);
+
+        assert!(check == nes, r#"assertion failed: `(expected == encountered)`
+    expected: `{:02X?}`,
+ encountered: `{:02X?}`"#, check, nes);
     }
 
     #[test]
-    #[should_panic]
-    fn stp() { test(vec![0x02], |nes| nes); }
+    fn stp() { test(vec![0x02], 0, 0, |nes| nes); }
 
-    #[test]
-    fn nop() { test(vec![0xea], |nes| Nes { cycle: 2, ..nes }); }
+    #[cfg(test)]
+    mod nop {
+        use super::*;
+
+        #[test]
+        fn implicit() { test(vec![0xea], 2, 1, |nes| nes); }
+
+        #[test]
+        fn accumulator() { test(vec![0x0c], 3, 2, |nes| nes); }
+
+        #[test]
+        fn immediate() { test(vec![0xe2], 3, 2, |nes| nes); }
+
+        #[test]
+        fn zero_page() { test(vec![0x64], 3, 2, |nes| nes); }
+    }
 }
