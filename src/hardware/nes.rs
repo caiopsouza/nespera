@@ -50,30 +50,21 @@ impl<TBus: Bus> Nes<TBus> {
                     // STP prevent cycle to advance effectively crashing the CPU.
                     Opcode::Stp => { loop { yield (true); } }
 
-                    // Does nothing
-                    Opcode::Nop(mode) => {
-                        match mode {
-                            // NES always read the next byte after an opcode, even if they're not needed.
-                            mode::Nop::Implied => { cycle_implied!(self); }
-                            mode::Nop::Immediate => { cycle_immediate!(self); }
-                            mode::Nop::ZeroPage => { cycle_zero_page!(self); }
-                            mode::Nop::ZeroPageX => { cycle_zero_page_x!(self); }
-                            mode::Nop::Absolute => { cycle_absolute!(self); }
-                            mode::Nop::AbsoluteX => { cycle_absolute_x!(self); }
-                        }
-                    }
+                    // NES always read the next byte after an opcode, even if they're not needed.
+                    Opcode::Nop(mode::Nop::Implied) => { cycle_implied!(self); }
+                    Opcode::Nop(mode::Nop::Immediate) => { cycle_immediate!(self); }
+                    Opcode::Nop(mode::Nop::ZeroPage) => { cycle_zero_page!(self); }
+                    Opcode::Nop(mode::Nop::ZeroPageX) => { cycle_zero_page_x!(self); }
+                    Opcode::Nop(mode::Nop::Absolute) => { cycle_absolute!(self); }
+                    Opcode::Nop(mode::Nop::AbsoluteX) => { cycle_absolute_x!(self); }
 
                     // Load into A
-                    Opcode::Lda(mode) => {
-                        match mode {
-                            mode::Lda::Immediate => { pipe!(cycle_immediate!(self) => self.cpu.set_a); }
-                            mode::Lda::ZeroPage => { pipe!(cycle_zero_page!(self) => self.cpu.set_a); }
-                            mode::Lda::ZeroPageX => { pipe!(cycle_zero_page_x!(self) => self.cpu.set_a); }
-                            mode::Lda::Absolute => { pipe!(cycle_absolute!(self) => self.cpu.set_a); }
-                            mode::Lda::AbsoluteX => { pipe!(cycle_absolute_x!(self) => self.cpu.set_a); }
-                            mode::Lda::AbsoluteY => { pipe!(cycle_absolute_y!(self) => self.cpu.set_a); }
-                        }
-                    }
+                    Opcode::Lda(mode::Lda::Immediate) => { pipe!(cycle_immediate!(self) => self.cpu.set_a); }
+                    Opcode::Lda(mode::Lda::ZeroPage) => { pipe!(cycle_zero_page!(self) => self.cpu.set_a); }
+                    Opcode::Lda(mode::Lda::ZeroPageX) => { pipe!(cycle_zero_page_x!(self) => self.cpu.set_a); }
+                    Opcode::Lda(mode::Lda::Absolute) => { pipe!(cycle_absolute!(self) => self.cpu.set_a); }
+                    Opcode::Lda(mode::Lda::AbsoluteX) => { pipe!(cycle_absolute_x!(self) => self.cpu.set_a); }
+                    Opcode::Lda(mode::Lda::AbsoluteY) => { pipe!(cycle_absolute_y!(self) => self.cpu.set_a); }
 
                     // Not implemented
                     Opcode::None => panic!("Opcode not implemented: 0x{:02X}", opcode)
