@@ -1,5 +1,4 @@
 use std::ops::Generator;
-#[cfg(test)]
 use std::ops::GeneratorState;
 
 use hardware::bus::Bus;
@@ -55,12 +54,24 @@ impl<TBus: Bus> Nes<TBus> {
                     Opcode::Nop(mode) => {
                         match mode {
                             // NES always read the next byte after an opcode, even if they're not needed.
-                            mode::Nop::Implied => { cycle_read!(self, self.cpu.pc); }
-                            mode::Nop::Immediate => { cycle_fetch!(self); }
+                            mode::Nop::Implied => { cycle_implied!(self); }
+                            mode::Nop::Immediate => { cycle_immediate!(self); }
                             mode::Nop::ZeroPage => { cycle_zero_page!(self); }
                             mode::Nop::ZeroPageX => { cycle_zero_page_x!(self); }
                             mode::Nop::Absolute => { cycle_absolute!(self); }
                             mode::Nop::AbsoluteX => { cycle_absolute_x!(self); }
+                        }
+                    }
+
+                    // Load into A
+                    Opcode::Lda(mode) => {
+                        match mode {
+                            mode::Lda::Immediate => { pipe!(cycle_immediate!(self) => self.cpu.set_a); }
+                            mode::Lda::ZeroPage => { pipe!(cycle_zero_page!(self) => self.cpu.set_a); }
+                            mode::Lda::ZeroPageX => { pipe!(cycle_zero_page_x!(self) => self.cpu.set_a); }
+                            mode::Lda::Absolute => { pipe!(cycle_absolute!(self) => self.cpu.set_a); }
+                            mode::Lda::AbsoluteX => { pipe!(cycle_absolute_x!(self) => self.cpu.set_a); }
+                            mode::Lda::AbsoluteY => { pipe!(cycle_absolute_y!(self) => self.cpu.set_a); }
                         }
                     }
 
@@ -77,7 +88,6 @@ impl<TBus: Bus> Nes<TBus> {
     }
 
     // Run for the specified amount of instructions.
-    #[cfg(test)]
     pub fn run(&mut self, mut instr_amount: u32) {
         let mut step = self.step();
 
@@ -98,53 +108,101 @@ mod opcodes {
 
     type Nes = super::Nes<bus::seq::Bus>;
 
-    fn run(bus: Vec<u8>, size: i16, cycles: u32, setup: fn(&mut Nes)) {
+    fn run(bus: Vec<u8>, size: i16, cycles: u32, setup: fn(&mut Nes), result: fn(&mut Nes)) {
         let bus = bus::seq::Bus::new(bus);
 
         let mut nes = Nes::new(bus);
         setup(&mut nes);
 
         let mut check = nes.clone();
+        result(&mut check);
 
         check.cycle = cycles.wrapping_add(1);
         check.cpu.pc = nes.cpu.pc.wrapping_add(size as u16).wrapping_add(1);
 
         nes.run(1);
 
-        assert!(check == nes, r#"assertion failed: `(expected == encountered)`
-    expected: `{:02X?}`,
- encountered: `{:02X?}`"#, check, nes);
+        assert_eq!(check, nes);
     }
 
-    #[test]
-    fn stp() { run(vec![0x02], 0, 0, |_nes| {}); }
+    fn as_is(_: &mut Nes) {}
 
-    #[cfg(test)]
+    #[test]
+    fn stp() { run(vec![0x02], 0, 0, as_is, as_is); }
+
     mod nop {
         use super::*;
 
         #[test]
-        fn implied() { run(vec![0xea], 1, 2, |_nes| {}); }
+        fn implied() { run(vec![0xea], 1, 2, as_is, as_is); }
 
         #[test]
-        fn immediate() { run(vec![0xe2], 2, 2, |_nes| {}); }
+        fn immediate() { run(vec![0xe2], 2, 2, as_is, as_is); }
 
         #[test]
-        fn zero_page() { run(vec![0x64], 2, 3, |_nes| {}); }
+        fn zero_page() { run(vec![0x64], 2, 3, as_is, as_is); }
 
         #[test]
-        fn zero_page_x() { run(vec![0x14], 2, 4, |_nes| {}); }
+        fn zero_page_x() { run(vec![0x14], 2, 4, as_is, as_is); }
 
         #[test]
-        fn absolute() { run(vec![0x0C], 3, 4, |_nes| {}); }
+        fn absolute() { run(vec![0x0C], 3, 4, as_is, as_is); }
 
         #[test]
-        fn absolute_x() { run(vec![0x1C, 0xfe, 0x00], 3, 4, |_nes| {}); }
+        fn absolute_x() { run(vec![0x1C, 0xfe, 0x00], 3, 4, as_is, as_is); }
 
         #[test]
         fn absolute_x_cross_page() {
             run(vec![0x1C, 0xff, 0x00], 3, 5,
                 |nes| { nes.cpu.x = 1 },
+                as_is,
+            );
+        }
+    }
+
+    mod lda {
+        use super::*;
+
+        #[test]
+        fn immediate() {
+            run(vec![0xA9, 0x01], 2, 2, as_is,
+                |nes| { nes.cpu.a = 0x01 },
+            );
+        }
+
+        #[test]
+        fn immediate_zero() {
+            run(vec![0xA9, 0x00], 2, 2,
+                |nes| { nes.cpu.a = 0x07; },
+                |nes| {
+                    nes.cpu.set_z();
+                    nes.cpu.a = 0x00;
+                },
+            );
+        }
+
+        #[test]
+        fn immediate_negative() {
+            run(vec![0xA9, -0x01i8 as u8], 2, 2, as_is,
+                |nes| {
+                    nes.cpu.set_n();
+                    nes.cpu.a = -0x01i8 as u8;
+                },
+            );
+        }
+
+        #[test]
+        fn zero_page() {
+            run(vec![0xA5, 0x02, 0x09], 2, 3, as_is,
+                |nes| { nes.cpu.a = 0x09 },
+            );
+        }
+
+        #[test]
+        fn zero_page_x() {
+            run(vec![0xB5, 0x02, 0x08, 0x09], 2, 4,
+                |nes| { nes.cpu.x = 0x01 },
+                |nes| { nes.cpu.a = 0x09 },
             );
         }
     }

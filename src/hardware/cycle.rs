@@ -1,3 +1,12 @@
+// Pipe um result into another for chaining.
+macro_rules! pipe {
+    ( $initial:expr $( => $s:ident $( .$ident:ident )* )* ) => {{
+        let res = $initial;
+        $( let res = $s $( .$ident )* (res); )*
+        res
+    }}
+}
+
 // Helper to yield a cycle.
 macro_rules! cycle {
     ( $self:ident ) => {{
@@ -24,6 +33,12 @@ macro_rules! cycle_fetch {
         data
     }}
 }
+
+// Read the next byte and discard it
+macro_rules! cycle_implied { ( $self:ident ) => { cycle_read!($self, $self.cpu.pc); } }
+
+// Fetch the next byte
+macro_rules! cycle_immediate { ( $self:ident ) => { cycle_fetch!($self) } }
 
 // Read an address at Zero Page.
 macro_rules! cycle_zero_page {
@@ -79,4 +94,9 @@ macro_rules! cycle_absolute_indexed {
 // Read an address at Absolute X.
 macro_rules! cycle_absolute_x {
     ( $self:ident ) => { cycle_absolute_indexed!($self, $self.cpu.x) }
+}
+
+// Read an address at Absolute Y.
+macro_rules! cycle_absolute_y {
+    ( $self:ident ) => { cycle_absolute_indexed!($self, $self.cpu.y) }
 }
