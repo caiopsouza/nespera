@@ -17,11 +17,23 @@ macro_rules! cycle {
 
 // Read a value at the specified address.
 macro_rules! cycle_read {
+    // Read directly through the address
     ( $self:ident, $addr:expr ) => {{
         let data = $self.bus.read($addr);
         cycle!($self);
         data
-    }}
+    }};
+
+    // Combine two bytes to make the address
+    ( $self:ident, $lsb:expr, $msb:expr ) => {
+        cycle_read!($self, ($lsb as u16) | (($msb as u16) << 8))
+    }
+}
+
+// Read an address and discard its value.
+// Some read operations can have side effects, so they are necessary even if their value is not used.
+macro_rules! cycle_dummy_read {
+    ( $self:ident, $addr:expr ) => {{ cycle_read!($self, $addr); }}
 }
 
 // Read an address at PC and advances it.
@@ -34,10 +46,10 @@ macro_rules! cycle_fetch {
     }}
 }
 
-// Read the next byte and discard it
-macro_rules! cycle_implied { ( $self:ident ) => { cycle_read!($self, $self.cpu.pc); } }
+// The implied argument is always read and discarded.
+macro_rules! cycle_implied { ( $self:ident ) => { cycle_dummy_read!($self, $self.cpu.pc); } }
 
-// Fetch the next byte
+// Fetch an immediate argument
 macro_rules! cycle_immediate { ( $self:ident ) => { cycle_fetch!($self) } }
 
 // Read an address at Zero Page.
@@ -52,10 +64,7 @@ macro_rules! cycle_zero_page {
 macro_rules! cycle_zero_page_indexed {
     ( $self:ident, $index:expr ) => {{
         let addr = cycle_fetch!($self);
-
-        // Third cycle reads a value and adds the index to it, but won't use the result.
-        cycle_read!($self, addr.into());
-
+        cycle_dummy_read!($self, addr.into());
         cycle_read!($self, addr.wrapping_add($index).into())
     }}
 }
@@ -82,10 +91,10 @@ macro_rules! cycle_absolute_indexed {
         let msb: u16 = cycle_fetch!($self).into();
         let (lsb, overflow) = lsb.overflowing_add($index);
 
-        let mut data = cycle_read!($self, (msb << 8) | (lsb as u16));
+        let mut data = cycle_read!($self, lsb, msb);
 
         // If overflow, msb needs to be adjusted
-        if overflow { data = cycle_read!($self, (msb.wrapping_add(1) << 8) | (lsb as u16)); }
+        if overflow { data = cycle_read!($self, lsb, msb.wrapping_add(1)); }
 
         data
     }}
@@ -99,4 +108,35 @@ macro_rules! cycle_absolute_x {
 // Read an address at Absolute Y.
 macro_rules! cycle_absolute_y {
     ( $self:ident ) => { cycle_absolute_indexed!($self, $self.cpu.y) }
+}
+
+// Indexed Indirect by X.
+// If reading from 0x??FF, next byte will be from 0x??00 instead of 0x??00 + 0x0100.
+macro_rules! cycle_indirect_x {
+    ( $self:ident ) => {{
+        let addr = cycle_fetch!($self);
+        cycle_dummy_read!($self, addr.into());
+        let lsb = cycle_read!($self, addr.wrapping_add($self.cpu.x).into());
+        let msb = cycle_read!($self, addr.wrapping_add($self.cpu.x).wrapping_add(1).into());
+        cycle_read!($self, lsb, msb)
+    }}
+}
+
+
+// Indexed Indirect by Y.
+macro_rules! cycle_indirect_y {
+    ( $self:ident ) => {{
+        let addr = cycle_fetch!($self);
+
+        let lsb = cycle_read!($self, addr.into());
+        let msb = cycle_read!($self, addr.wrapping_add(1).into());
+
+        let (lsb, overflow) = lsb.overflowing_add($self.cpu.y);
+        let mut data = cycle_read!($self, lsb, msb);
+
+        // If overflow, msb needs to be adjusted
+        if overflow { data = cycle_read!($self, lsb, msb.wrapping_add(1)); }
+
+        data
+    }}
 }

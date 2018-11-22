@@ -64,6 +64,8 @@ impl<TBus: Bus> Nes<TBus> {
                     Opcode::Lda(mode::Lda::Absolute) => { pipe!(cycle_absolute!(self) => self.cpu.set_a); }
                     Opcode::Lda(mode::Lda::AbsoluteX) => { pipe!(cycle_absolute_x!(self) => self.cpu.set_a); }
                     Opcode::Lda(mode::Lda::AbsoluteY) => { pipe!(cycle_absolute_y!(self) => self.cpu.set_a); }
+                    Opcode::Lda(mode::Lda::IndirectX) => { pipe!(cycle_indirect_x!(self) => self.cpu.set_a); }
+                    Opcode::Lda(mode::Lda::IndirectY) => { pipe!(cycle_indirect_y!(self) => self.cpu.set_a); }
 
                     // Not implemented
                     Opcode::None => panic!("Opcode not implemented: 0x{:02X}", opcode)
@@ -193,6 +195,30 @@ mod opcodes {
             run(vec![0xB5, 0x02, 0x08, 0x09], 2, 4,
                 |nes| { nes.cpu.x = 0x01 },
                 |nes| { nes.cpu.a = 0x09 },
+            );
+        }
+
+        #[test]
+        fn indirect_x() {
+            run(vec![0xA1, 0x03, 0xff, 0xff, 0xff, 0x07, 0x00, 0x10, 0xff, 0xff, 0xff], 2, 6,
+                |nes| { nes.cpu.x = 0x02 },
+                |nes| { nes.cpu.a = 0x10 },
+            );
+        }
+
+        #[test]
+        fn indirect_y() {
+            run(vec![0xB1, 0x03, 0xff, 0x05, 0x00, 0xff, 0xff, 0x10, 0xff, 0xff, 0xff], 2, 5,
+                |nes| { nes.cpu.y = 0x02 },
+                |nes| { nes.cpu.a = 0x10 },
+            );
+        }
+
+        #[test]
+        fn indirect_y_cross_page() {
+            run(vec![0xB1, 0x03, 0xff, 0xff, 0x01, 0xff, 0xff, 0x10, 0xff, 0xff, 0xff], 2, 6,
+                |nes| { nes.cpu.y = 0x02 },
+                |nes| { nes.cpu.a = 0x10 },
             );
         }
     }

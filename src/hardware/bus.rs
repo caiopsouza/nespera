@@ -21,7 +21,11 @@ pub mod seq {
     }
 
     impl super::Bus for Bus {
-        fn read(&mut self, addr: u16) -> u8 { self.bytes[addr as usize % self.bytes.len()] }
+        fn read(&mut self, mut addr: u16) -> u8 {
+            addr %= 0xc000; // Pretends the rom start is a 0x00
+            self.bytes[addr as usize % self.bytes.len()]
+        }
+
         fn write(&mut self, _addr: u16, _data: u8) {}
     }
 }

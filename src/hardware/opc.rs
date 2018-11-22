@@ -2,7 +2,7 @@
 pub mod mode {
     pub enum Nop { Implied, Immediate, ZeroPage, ZeroPageX, Absolute, AbsoluteX }
 
-    pub enum Lda { Immediate, ZeroPage, ZeroPageX, Absolute, AbsoluteX, AbsoluteY/*, IndirectX, IndirectY*/ }
+    pub enum Lda { Immediate, ZeroPage, ZeroPageX, Absolute, AbsoluteX, AbsoluteY, IndirectX, IndirectY }
 }
 
 // Operations to execute
@@ -192,7 +192,7 @@ pub const OPCODES: [Opcode; 256] = [
     /*9F*/ Opcode::None,
     /**/
     /*A0*/ Opcode::None,
-    /*A1*/ Opcode::None,
+    /*A1*/ Opcode::Lda(mode::Lda::IndirectX),
     /*A2*/ Opcode::None,
     /*A3*/ Opcode::None,
     /*A4*/ Opcode::None,
@@ -209,7 +209,7 @@ pub const OPCODES: [Opcode; 256] = [
     /*AF*/ Opcode::None,
     /**/
     /*B0*/ Opcode::None,
-    /*B1*/ Opcode::None,
+    /*B1*/ Opcode::Lda(mode::Lda::IndirectY),
     /*B2*/ Opcode::Stp,
     /*B3*/ Opcode::None,
     /*B4*/ Opcode::None,
