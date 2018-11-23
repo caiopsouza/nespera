@@ -5,30 +5,49 @@ use crate::hardware::flags;
 #[derive(PartialOrd, PartialEq, Copy, Clone)]
 pub struct Cpu {
     // Accumulator
-    pub a: u8,
+    a: u8,
 
     // Index X
-    pub x: u8,
+    x: u8,
 
     // Index Y
-    pub y: u8,
+    y: u8,
 
     // Flags
-    pub p: u8,
+    p: u8,
 
     // Program counter
-    pub pc: u16,
+    pc: u16,
 
     // Stack pointer
-    pub s: u8,
+    s: u8,
 }
 
 impl Cpu {
     // Create a new CPU. It has the default "power up" state.
-    pub fn new() -> Self { Self { a: 0, x: 0, y: 0, pc: 0, s: 0, p: 0 } }
+    pub fn new() -> Self {
+        Self {
+            a: 0,
+            x: 0,
+            y: 0,
+            pc: 0xc000,
+            s: 0,
+            p: flags::INTERRUPT_DISABLE | flags::UNUSED,
+        }
+    }
 
-    // Increment PC
-    pub fn inc_pc(&mut self) { self.pc = self.pc.wrapping_add(1); }
+    // Dismember 16 bits into its bytes components
+    pub fn lsb(value: u16) -> u8 { ((value) >> 8) as u8 }
+    pub fn msb(value: u16) -> u8 { value as u8 }
+
+    // Copy a byte into a 16 bits value
+    pub fn copy_lsb(value: u16, byte: u8) -> u16 { (value & 0x00ff) | ((byte as u16) << 8) }
+    pub fn copy_msb(value: u16, byte: u8) -> u16 { (value & 0xff00) | (byte as u16) }
+
+    // Getters for the registers
+    pub fn get_a(&self) -> u8 { self.a }
+    pub fn get_x(&self) -> u8 { self.x }
+    pub fn get_y(&self) -> u8 { self.y }
 
     // Getters for the P Flag
     pub fn get_c(&self) -> bool { (self.p & flags::CARRY) != 0 }
@@ -41,46 +60,34 @@ impl Cpu {
     pub fn get_n(&self) -> bool { (self.p & flags::NEGATIVE) != 0 }
 
     // Setters for the P Flag
-    pub fn set_c(&mut self) { self.p |= flags::CARRY; }
-    pub fn set_z(&mut self) { self.p |= flags::ZERO; }
-    pub fn set_i(&mut self) { self.p |= flags::INTERRUPT_DISABLE; }
-    pub fn set_d(&mut self) { self.p |= flags::DECIMAL_MODE; }
-    pub fn set_b(&mut self) { self.p |= flags::BREAK_COMMAND; }
-    pub fn set_u(&mut self) { self.p |= flags::UNUSED; }
-    pub fn set_v(&mut self) { self.p |= flags::OVERFLOW; }
-    pub fn set_n(&mut self) { self.p |= flags::NEGATIVE; }
+    pub fn set_p(&mut self, flag: u8) { self.p = flag; }
 
-    // Change the value of a flag
-    pub fn change_flag(&mut self, flags: u8, condition: bool) {
-        if condition { self.p |= flags } else { self.p &= !flags }
-    }
+    // Getters for PC
+    pub fn get_pc(&self) -> u16 { self.pc }
+    pub fn get_pcl(&self) -> u8 { Self::lsb(self.pc) }
+    pub fn get_pch(&self) -> u8 { Self::msb(self.pc) }
 
-    pub fn change_flag_zero(&mut self, value: u8) {
-        self.change_flag(flags::ZERO, value == 0);
-    }
+    // Setters for PC
+    pub fn set_pc(&mut self, value: u16) { self.pc = value; }
+    pub fn set_pcl(&mut self, value: u8) { self.pc = Self::copy_lsb(self.pc, value); }
+    pub fn set_pch(&mut self, value: u8) { self.pc = Self::copy_msb(self.pc, value); }
 
-    pub fn change_flag_negative(&mut self, value: u8) {
-        // Flag Negative is the 7th bit and should be set when the 7th bit of the value is set.
-        // Just copy it, then.
-        self.p = (self.p & !flags::NEGATIVE) | (value & flags::NEGATIVE);
-    }
+    // Increment PC
+    pub fn inc_pc(&mut self) { self.set_pc(self.pc.wrapping_add(1)); }
 
     // Setters for the register
     pub fn set_a(&mut self, value: u8) {
-        self.change_flag_zero(value);
-        self.change_flag_negative(value);
+        self.p = flags::change_zero_negative(self.p, value);
         self.a = value;
     }
 
     pub fn set_x(&mut self, value: u8) {
-        self.change_flag_zero(value);
-        self.change_flag_negative(value);
+        self.p = flags::change_zero_negative(self.p, value);
         self.x = value;
     }
 
     pub fn set_y(&mut self, value: u8) {
-        self.change_flag_zero(value);
-        self.change_flag_negative(value);
+        self.p = flags::change_zero_negative(self.p, value);
         self.y = value;
     }
 }
@@ -101,43 +108,39 @@ impl fmt::Debug for Cpu {
     }
 }
 
+// Unsafe setters. These should be used only for debug and testing.
 #[cfg(test)]
-mod tests {
-    use super::*;
+pub trait Testing {
+    fn s_a(&mut self, value: u8);
+    fn s_x(&mut self, value: u8);
+    fn s_y(&mut self, value: u8);
+    fn s_p(&mut self, value: u8);
+    fn s_pc(&mut self, value: u16);
+    fn s_s(&mut self, value: u8);
+    fn s_c(&mut self, value: bool);
+    fn s_z(&mut self, value: bool);
+    fn s_i(&mut self, value: bool);
+    fn s_d(&mut self, value: bool);
+    fn s_b(&mut self, value: bool);
+    fn s_u(&mut self, value: bool);
+    fn s_v(&mut self, value: bool);
+    fn s_n(&mut self, value: bool);
+}
 
-    #[test]
-    fn flag_zero() {
-        let mut cpu = Cpu::new();
-        cpu.p = !flags::ZERO;
-        assert!(!cpu.get_z());
-        cpu.change_flag_zero(0);
-        assert!(cpu.get_z());
-    }
-
-    #[test]
-    fn flag_not_zero() {
-        let mut cpu = Cpu::new();
-        cpu.p = flags::ZERO;
-        assert!(cpu.get_z());
-        cpu.change_flag_zero(0x10);
-        assert!(!cpu.get_z());
-    }
-
-    #[test]
-    fn flag_negative() {
-        let mut cpu = Cpu::new();
-        cpu.p = !flags::NEGATIVE;
-        assert!(!cpu.get_n());
-        cpu.change_flag_negative(-1i8 as u8);
-        assert!(cpu.get_n());
-    }
-
-    #[test]
-    fn flag_not_negative() {
-        let mut cpu = Cpu::new();
-        cpu.p = flags::NEGATIVE;
-        assert!(cpu.get_n());
-        cpu.change_flag_negative(0);
-        assert!(!cpu.get_n());
-    }
+#[cfg(test)]
+impl Testing for Cpu {
+    fn s_a(&mut self, value: u8) { self.a = value }
+    fn s_x(&mut self, value: u8) { self.x = value }
+    fn s_y(&mut self, value: u8) { self.y = value }
+    fn s_p(&mut self, value: u8) { self.p = value }
+    fn s_pc(&mut self, value: u16) { self.pc = value }
+    fn s_s(&mut self, value: u8) { self.s = value }
+    fn s_c(&mut self, value: bool) { if value { self.p |= flags::CARRY } else { self.p &= !flags::CARRY } }
+    fn s_z(&mut self, value: bool) { if value { self.p |= flags::ZERO; } else { self.p &= !flags::ZERO } }
+    fn s_i(&mut self, value: bool) { if value { self.p |= flags::INTERRUPT_DISABLE; } else { self.p &= !flags::INTERRUPT_DISABLE } }
+    fn s_d(&mut self, value: bool) { if value { self.p |= flags::DECIMAL_MODE; } else { self.p &= !flags::DECIMAL_MODE } }
+    fn s_b(&mut self, value: bool) { if value { self.p |= flags::BREAK_COMMAND; } else { self.p &= !flags::BREAK_COMMAND } }
+    fn s_u(&mut self, value: bool) { if value { self.p |= flags::UNUSED; } else { self.p &= !flags::UNUSED } }
+    fn s_v(&mut self, value: bool) { if value { self.p |= flags::OVERFLOW; } else { self.p &= !flags::OVERFLOW } }
+    fn s_n(&mut self, value: bool) { if value { self.p |= flags::NEGATIVE; } else { self.p &= !flags::NEGATIVE } }
 }

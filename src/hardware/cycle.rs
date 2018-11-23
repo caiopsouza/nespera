@@ -54,7 +54,7 @@ macro_rules! cycle_dummy_read {
 // Read an address at PC and advances it.
 macro_rules! cycle_fetch {
     ( $self:ident ) => {{
-        let data = $self.bus.read($self.cpu.pc);
+        let data = $self.bus.read($self.cpu.get_pc());
         $self.cpu.inc_pc();
         cycle!($self);
         data
@@ -62,7 +62,7 @@ macro_rules! cycle_fetch {
 }
 
 // The implied argument is always read and discarded.
-macro_rules! cycle_implied { ( $self:ident ) => { cycle_dummy_read!($self, $self.cpu.pc); } }
+macro_rules! cycle_implied { ( $self:ident ) => { cycle_dummy_read!($self, $self.cpu.get_pc()); } }
 
 // Fetch an immediate argument
 macro_rules! cycle_immediate { ( $self:ident ) => { cycle_fetch!($self) } }
@@ -93,12 +93,12 @@ macro_rules! cycle_zero_page_indexed {
 
 // Read an address at Zero Page X.
 macro_rules! cycle_zero_page_x {
-    ( $self:ident ) => { cycle_zero_page_indexed!($self, $self.cpu.x) }
+    ( $self:ident ) => { cycle_zero_page_indexed!($self, $self.cpu.get_x()) }
 }
 
 // Read an address at Zero Page Y.
 macro_rules! cycle_zero_page_y {
-    ( $self:ident ) => { cycle_zero_page_indexed!($self, $self.cpu.y) }
+    ( $self:ident ) => { cycle_zero_page_indexed!($self, $self.cpu.get_y()) }
 }
 
 // Read an Absolute address.
@@ -129,12 +129,12 @@ macro_rules! cycle_absolute_indexed {
 
 // Read an address at Absolute X.
 macro_rules! cycle_absolute_x {
-    ( $self:ident ) => { cycle_absolute_indexed!($self, $self.cpu.x) }
+    ( $self:ident ) => { cycle_absolute_indexed!($self, $self.cpu.get_x()) }
 }
 
 // Read an address at Absolute Y.
 macro_rules! cycle_absolute_y {
-    ( $self:ident ) => { cycle_absolute_indexed!($self, $self.cpu.y) }
+    ( $self:ident ) => { cycle_absolute_indexed!($self, $self.cpu.get_y()) }
 }
 
 // Indexed Indirect by X.
@@ -143,8 +143,8 @@ macro_rules! cycle_indirect_x {
     ( $self:ident ) => {{
         let addr = cycle_fetch!($self);
         cycle_dummy_read!($self, addr.into());
-        let lsb = cycle_read!($self, addr.wrapping_add($self.cpu.x).into());
-        let msb = cycle_read!($self, addr.wrapping_add($self.cpu.x).wrapping_add(1).into());
+        let lsb = cycle_read!($self, addr.wrapping_add($self.cpu.get_x()).into());
+        let msb = cycle_read!($self, addr.wrapping_add($self.cpu.get_x()).wrapping_add(1).into());
         cycle_read!($self, lsb, msb)
     }}
 }
@@ -158,7 +158,7 @@ macro_rules! cycle_indirect_y {
         let lsb = cycle_read!($self, addr.into());
         let msb = cycle_read!($self, addr.wrapping_add(1).into());
 
-        let (lsb, overflow) = lsb.overflowing_add($self.cpu.y);
+        let (lsb, overflow) = lsb.overflowing_add($self.cpu.get_y());
         let mut data = cycle_read!($self, lsb, msb);
 
         // If overflow, msb needs to be adjusted

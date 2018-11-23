@@ -1,11 +1,11 @@
 use std::ops::Generator;
 use std::ops::GeneratorState;
-use crate::hardware::cpu::Cpu;
-use crate::hardware::flags;
-use crate::hardware::opc;
-use crate::hardware::opc::Opcode;
-use crate::hardware::opc::mode;
+
 use crate::hardware::bus::Bus;
+use crate::hardware::cpu::Cpu;
+use crate::hardware::opc;
+use crate::hardware::opc::mode;
+use crate::hardware::opc::Opcode;
 
 #[derive(Debug, PartialOrd, PartialEq, Clone)]
 pub struct Nes<TBus: Bus> {
@@ -21,16 +21,7 @@ pub struct Nes<TBus: Bus> {
 
 impl<TBus: Bus> Nes<TBus> {
     pub fn new(bus: TBus) -> Self {
-        let mut res = Self {
-            cycle: 0,
-            cpu: Cpu::new(),
-            bus,
-        };
-
-        res.cpu.pc = 0xc000;
-        res.cpu.p = flags::INTERRUPT_DISABLE | flags::UNUSED;
-
-        res
+        Self { cycle: 0, cpu: Cpu::new(), bus }
     }
 
     // Create a function to step the emulator. Yields true if an opcode has finished.
@@ -40,7 +31,7 @@ impl<TBus: Bus> Nes<TBus> {
         let mut stepper = move || {
             loop {
                 // Fetch the opcode to execute
-                let opcode = self.bus.read(self.cpu.pc);
+                let opcode = self.bus.read(self.cpu.get_pc());
                 self.cpu.inc_pc();
                 self.cycle += 1;
                 yield true;
@@ -82,7 +73,7 @@ impl<TBus: Bus> Nes<TBus> {
                     Opcode::Ldy(mode::Ldy::AbsoluteX) => { pipe!(cycle_absolute_x!(self) => self.cpu.set_y); }
 
                     // Store A into memory
-                    Opcode::Sta(mode::Sta::ZeroPage) => { cycle_zero_page!(self, self.cpu.a); }
+                    Opcode::Sta(mode::Sta::ZeroPage) => { cycle_zero_page!(self, self.cpu.get_a()); }
 
                     // Not implemented
                     Opcode::None => panic!("Opcode not implemented: 0x{:02X}", opcode)
@@ -114,6 +105,7 @@ impl<TBus: Bus> Nes<TBus> {
 #[cfg(test)]
 mod opcodes {
     use crate::hardware::bus;
+    use crate::hardware::cpu::Testing;
 
     type Nes = super::Nes<bus::seq::Bus>;
 
@@ -127,7 +119,7 @@ mod opcodes {
         result(&mut check);
 
         check.cycle = cycles.wrapping_add(1);
-        check.cpu.pc = nes.cpu.pc.wrapping_add(size as u16).wrapping_add(1);
+        check.cpu.s_pc(nes.cpu.get_pc().wrapping_add(size as u16).wrapping_add(1));
 
         nes.run(1);
 
@@ -163,7 +155,7 @@ mod opcodes {
         #[test]
         fn absolute_x_cross_page() {
             run(vec![0x1C, 0xff, 0x00], 3, 5,
-                |nes| { nes.cpu.x = 1 },
+                |nes| { nes.cpu.s_x(1) },
                 as_is,
             );
         }
@@ -175,17 +167,17 @@ mod opcodes {
         #[test]
         fn immediate() {
             run(vec![0xA9, 0x01], 2, 2, as_is,
-                |nes| { nes.cpu.a = 0x01 },
+                |nes| { nes.cpu.s_a(0x01) },
             );
         }
 
         #[test]
         fn immediate_zero() {
             run(vec![0xA9, 0x00], 2, 2,
-                |nes| { nes.cpu.a = 0x07; },
+                |nes| { nes.cpu.s_a(0x07); },
                 |nes| {
-                    nes.cpu.set_z();
-                    nes.cpu.a = 0x00;
+                    nes.cpu.s_z(true);
+                    nes.cpu.s_a(0x00);
                 },
             );
         }
@@ -194,8 +186,8 @@ mod opcodes {
         fn immediate_negative() {
             run(vec![0xA9, -0x01i8 as u8], 2, 2, as_is,
                 |nes| {
-                    nes.cpu.set_n();
-                    nes.cpu.a = -0x01i8 as u8;
+                    nes.cpu.s_n(true);
+                    nes.cpu.s_a(-0x01i8 as u8);
                 },
             );
         }
@@ -203,39 +195,39 @@ mod opcodes {
         #[test]
         fn zero_page() {
             run(vec![0xA5, 0x02, 0x09], 2, 3, as_is,
-                |nes| { nes.cpu.a = 0x09 },
+                |nes| { nes.cpu.s_a(0x09) },
             );
         }
 
         #[test]
         fn zero_page_x() {
             run(vec![0xB5, 0x02, 0x08, 0x09], 2, 4,
-                |nes| { nes.cpu.x = 0x01 },
-                |nes| { nes.cpu.a = 0x09 },
+                |nes| { nes.cpu.s_x(0x01) },
+                |nes| { nes.cpu.s_a(0x09) },
             );
         }
 
         #[test]
         fn indirect_x() {
             run(vec![0xA1, 0x03, 0xff, 0xff, 0xff, 0x07, 0x00, 0x10, 0xff, 0xff, 0xff], 2, 6,
-                |nes| { nes.cpu.x = 0x02 },
-                |nes| { nes.cpu.a = 0x10 },
+                |nes| { nes.cpu.s_x(0x02) },
+                |nes| { nes.cpu.s_a(0x10) },
             );
         }
 
         #[test]
         fn indirect_y() {
             run(vec![0xB1, 0x03, 0xff, 0x05, 0x00, 0xff, 0xff, 0x10, 0xff, 0xff, 0xff], 2, 5,
-                |nes| { nes.cpu.y = 0x02 },
-                |nes| { nes.cpu.a = 0x10 },
+                |nes| { nes.cpu.s_y(0x02) },
+                |nes| { nes.cpu.s_a(0x10) },
             );
         }
 
         #[test]
         fn indirect_y_cross_page() {
             run(vec![0xB1, 0x03, 0xff, 0xff, 0x01, 0xff, 0xff, 0x10, 0xff, 0xff, 0xff], 2, 6,
-                |nes| { nes.cpu.y = 0x02 },
-                |nes| { nes.cpu.a = 0x10 },
+                |nes| { nes.cpu.s_y(0x02) },
+                |nes| { nes.cpu.s_a(0x10) },
             );
         }
     }
@@ -246,8 +238,8 @@ mod opcodes {
         #[test]
         fn zero_page() {
             run(vec![0x85, 0x03, 0xff, 0x05], 2, 3,
-                |nes| { nes.cpu.a = 0x09 },
-                |nes| { nes.cpu.a = 0x09 },
+                |nes| { nes.cpu.s_a(0x09) },
+                |nes| { nes.cpu.s_a(0x09) },
             );
         }
     }
