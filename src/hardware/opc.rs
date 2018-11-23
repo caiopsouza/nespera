@@ -3,21 +3,20 @@ pub mod mode {
     pub enum Nop { Implied, Immediate, ZeroPage, ZeroPageX, Absolute, AbsoluteX }
 
     pub enum Lda { Immediate, ZeroPage, ZeroPageX, Absolute, AbsoluteX, AbsoluteY, IndirectX, IndirectY }
+
+    pub enum Ldx { Immediate, ZeroPage, ZeroPageY, Absolute, AbsoluteY }
+
+    pub enum Ldy { Immediate, ZeroPage, ZeroPageX, Absolute, AbsoluteX }
 }
 
 // Operations to execute
 pub enum Opcode {
-    // Not implemented.
     None,
-
-    // No operation
     Nop(mode::Nop),
-
-    // Kill the processor
     Stp,
-
-    // Load into A
     Lda(mode::Lda),
+    Ldx(mode::Ldx),
+    Ldy(mode::Ldy),
 }
 
 pub const OPCODES: [Opcode; 256] = [
@@ -191,38 +190,38 @@ pub const OPCODES: [Opcode; 256] = [
     /*9E*/ Opcode::None,
     /*9F*/ Opcode::None,
     /**/
-    /*A0*/ Opcode::None,
+    /*A0*/ Opcode::Ldy(mode::Ldy::Immediate),
     /*A1*/ Opcode::Lda(mode::Lda::IndirectX),
-    /*A2*/ Opcode::None,
+    /*A2*/ Opcode::Ldx(mode::Ldx::Immediate),
     /*A3*/ Opcode::None,
-    /*A4*/ Opcode::None,
+    /*A4*/ Opcode::Ldy(mode::Ldy::ZeroPage),
     /*A5*/ Opcode::Lda(mode::Lda::ZeroPage),
-    /*A6*/ Opcode::None,
+    /*A6*/ Opcode::Ldx(mode::Ldx::ZeroPage),
     /*A7*/ Opcode::None,
     /*A8*/ Opcode::None,
     /*A9*/ Opcode::Lda(mode::Lda::Immediate),
     /*AA*/ Opcode::None,
     /*AB*/ Opcode::None,
-    /*AC*/ Opcode::None,
+    /*AC*/ Opcode::Ldy(mode::Ldy::Absolute),
     /*AD*/ Opcode::Lda(mode::Lda::Absolute),
-    /*AE*/ Opcode::None,
+    /*AE*/ Opcode::Ldx(mode::Ldx::Absolute),
     /*AF*/ Opcode::None,
     /**/
     /*B0*/ Opcode::None,
     /*B1*/ Opcode::Lda(mode::Lda::IndirectY),
     /*B2*/ Opcode::Stp,
     /*B3*/ Opcode::None,
-    /*B4*/ Opcode::None,
+    /*B4*/ Opcode::Ldy(mode::Ldy::ZeroPageX),
     /*B5*/ Opcode::Lda(mode::Lda::ZeroPageX),
-    /*B6*/ Opcode::None,
+    /*B6*/ Opcode::Ldx(mode::Ldx::ZeroPageY),
     /*B7*/ Opcode::None,
     /*B8*/ Opcode::None,
     /*B9*/ Opcode::Lda(mode::Lda::AbsoluteY),
     /*BA*/ Opcode::None,
     /*BB*/ Opcode::None,
-    /*BC*/ Opcode::None,
+    /*BC*/ Opcode::Ldy(mode::Ldy::AbsoluteX),
     /*BD*/ Opcode::Lda(mode::Lda::AbsoluteX),
-    /*BE*/ Opcode::None,
+    /*BE*/ Opcode::Ldx(mode::Ldx::AbsoluteY),
     /*BF*/ Opcode::None,
     /**/
     /*C0*/ Opcode::None,

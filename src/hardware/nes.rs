@@ -67,6 +67,20 @@ impl<TBus: Bus> Nes<TBus> {
                     Opcode::Lda(mode::Lda::IndirectX) => { pipe!(cycle_indirect_x!(self) => self.cpu.set_a); }
                     Opcode::Lda(mode::Lda::IndirectY) => { pipe!(cycle_indirect_y!(self) => self.cpu.set_a); }
 
+                    // Load into X
+                    Opcode::Ldx(mode::Ldx::Immediate) => { pipe!(cycle_immediate!(self) => self.cpu.set_x); }
+                    Opcode::Ldx(mode::Ldx::ZeroPage) => { pipe!(cycle_zero_page!(self) => self.cpu.set_x); }
+                    Opcode::Ldx(mode::Ldx::ZeroPageY) => { pipe!(cycle_zero_page_y!(self) => self.cpu.set_x); }
+                    Opcode::Ldx(mode::Ldx::Absolute) => { pipe!(cycle_absolute!(self) => self.cpu.set_x); }
+                    Opcode::Ldx(mode::Ldx::AbsoluteY) => { pipe!(cycle_absolute_y!(self) => self.cpu.set_x); }
+
+                    // Load into Y
+                    Opcode::Ldy(mode::Ldy::Immediate) => { pipe!(cycle_immediate!(self) => self.cpu.set_y); }
+                    Opcode::Ldy(mode::Ldy::ZeroPage) => { pipe!(cycle_zero_page!(self) => self.cpu.set_y); }
+                    Opcode::Ldy(mode::Ldy::ZeroPageX) => { pipe!(cycle_zero_page_x!(self) => self.cpu.set_y); }
+                    Opcode::Ldy(mode::Ldy::Absolute) => { pipe!(cycle_absolute!(self) => self.cpu.set_y); }
+                    Opcode::Ldy(mode::Ldy::AbsoluteX) => { pipe!(cycle_absolute_x!(self) => self.cpu.set_y); }
+
                     // Not implemented
                     Opcode::None => panic!("Opcode not implemented: 0x{:02X}", opcode)
                 }

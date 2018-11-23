@@ -71,6 +71,18 @@ impl Cpu {
         self.change_flag_negative(value);
         self.a = value;
     }
+
+    pub fn set_x(&mut self, value: u8) {
+        self.change_flag_zero(value);
+        self.change_flag_negative(value);
+        self.x = value;
+    }
+
+    pub fn set_y(&mut self, value: u8) {
+        self.change_flag_zero(value);
+        self.change_flag_negative(value);
+        self.y = value;
+    }
 }
 
 impl fmt::Debug for Cpu {

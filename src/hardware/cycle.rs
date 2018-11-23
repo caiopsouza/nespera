@@ -74,6 +74,11 @@ macro_rules! cycle_zero_page_x {
     ( $self:ident ) => { cycle_zero_page_indexed!($self, $self.cpu.x) }
 }
 
+// Read an address at Zero Page Y.
+macro_rules! cycle_zero_page_y {
+    ( $self:ident ) => { cycle_zero_page_indexed!($self, $self.cpu.y) }
+}
+
 // Read an Absolute address.
 macro_rules! cycle_absolute {
     ( $self:ident ) => {{
