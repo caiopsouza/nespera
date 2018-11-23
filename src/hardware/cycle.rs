@@ -30,6 +30,21 @@ macro_rules! cycle_read {
     }
 }
 
+// Write a value at the specified address.
+macro_rules! cycle_write {
+    // Read directly through the address
+    ( $self:ident, $addr:expr, $data:expr ) => {{
+        $self.bus.write($addr, $data);
+        cycle!($self);
+    }};
+
+    // Combine two bytes to make the address
+    ( $self:ident, $lsb:expr, $msb:expr, $data:expr ) => {{
+        let data = $data;
+        cycle_write!($self, ($lsb as u16) | (($msb as u16) << 8), data);
+    }}
+}
+
 // Read an address and discard its value.
 // Some read operations can have side effects, so they are necessary even if their value is not used.
 macro_rules! cycle_dummy_read {
@@ -54,9 +69,16 @@ macro_rules! cycle_immediate { ( $self:ident ) => { cycle_fetch!($self) } }
 
 // Read an address at Zero Page.
 macro_rules! cycle_zero_page {
+    // Read
     ( $self:ident ) => {{
         let addr = cycle_fetch!($self);
         cycle_read!($self, addr.into())
+    }};
+
+    // Write
+    ( $self:ident, $data:expr ) => {{
+        let addr = cycle_fetch!($self);
+        cycle_write!($self, addr.into(), $data);
     }}
 }
 

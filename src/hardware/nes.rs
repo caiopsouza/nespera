@@ -81,6 +81,9 @@ impl<TBus: Bus> Nes<TBus> {
                     Opcode::Ldy(mode::Ldy::Absolute) => { pipe!(cycle_absolute!(self) => self.cpu.set_y); }
                     Opcode::Ldy(mode::Ldy::AbsoluteX) => { pipe!(cycle_absolute_x!(self) => self.cpu.set_y); }
 
+                    // Store A into memory
+                    Opcode::Sta(mode::Sta::ZeroPage) => { cycle_zero_page!(self, self.cpu.a); }
+
                     // Not implemented
                     Opcode::None => panic!("Opcode not implemented: 0x{:02X}", opcode)
                 }
@@ -233,6 +236,18 @@ mod opcodes {
             run(vec![0xB1, 0x03, 0xff, 0xff, 0x01, 0xff, 0xff, 0x10, 0xff, 0xff, 0xff], 2, 6,
                 |nes| { nes.cpu.y = 0x02 },
                 |nes| { nes.cpu.a = 0x10 },
+            );
+        }
+    }
+
+    mod sta {
+        use super::*;
+
+        #[test]
+        fn zero_page() {
+            run(vec![0x85, 0x03, 0xff, 0x05], 2, 3,
+                |nes| { nes.cpu.a = 0x09 },
+                |nes| { nes.cpu.a = 0x09 },
             );
         }
     }

@@ -7,6 +7,8 @@ pub mod mode {
     pub enum Ldx { Immediate, ZeroPage, ZeroPageY, Absolute, AbsoluteY }
 
     pub enum Ldy { Immediate, ZeroPage, ZeroPageX, Absolute, AbsoluteX }
+
+    pub enum Sta { ZeroPage }
 }
 
 // Operations to execute
@@ -17,6 +19,7 @@ pub enum Opcode {
     Lda(mode::Lda),
     Ldx(mode::Ldx),
     Ldy(mode::Ldy),
+    Sta(mode::Sta),
 }
 
 pub const OPCODES: [Opcode; 256] = [
@@ -161,7 +164,7 @@ pub const OPCODES: [Opcode; 256] = [
     /*82*/ Opcode::Nop(mode::Nop::Immediate),
     /*83*/ Opcode::None,
     /*84*/ Opcode::None,
-    /*85*/ Opcode::None,
+    /*85*/ Opcode::Sta(mode::Sta::ZeroPage),
     /*86*/ Opcode::None,
     /*87*/ Opcode::None,
     /*88*/ Opcode::None,

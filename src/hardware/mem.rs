@@ -32,7 +32,9 @@ impl Memory {
             rom: prg_rom,
         }
     }
+}
 
+impl Bus for Memory {
     fn map(&mut self, addr: u16) -> &mut u8 {
         unsafe {
             match addr {
@@ -42,11 +44,6 @@ impl Memory {
             }
         }
     }
-}
-
-impl Bus for Memory {
-    fn read(&mut self, addr: u16) -> u8 { *self.map(addr) }
-    fn write(&mut self, addr: u16, data: u8) { *self.map(addr) = data; }
 }
 
 impl fmt::Debug for Memory {

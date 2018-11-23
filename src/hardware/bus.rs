@@ -1,7 +1,10 @@
 pub trait Bus {
-    // Reading a Bus on the NES can have side effects, so it'll be mutable here.
-    fn read(&mut self, addr: u16) -> u8;
-    fn write(&mut self, addr: u16, data: u8);
+    // Map an address to some data for reading and writing.
+    // Reading a Bus on the NES can have side effects, so mapping is always mutable.
+    fn map(&mut self, addr: u16) -> &mut u8;
+
+    fn read(&mut self, addr: u16) -> u8 { *self.map(addr) }
+    fn write(&mut self, addr: u16, data: u8) { *self.map(addr) = data; }
 }
 
 // A bus which reads the specified bytes in sequence
@@ -21,11 +24,10 @@ pub mod seq {
     }
 
     impl super::Bus for Bus {
-        fn read(&mut self, mut addr: u16) -> u8 {
-            addr %= 0xc000; // Pretends the rom start is a 0x00
-            self.bytes[addr as usize % self.bytes.len()]
+        fn map(&mut self, mut addr: u16) -> &mut u8 {
+            addr %= 0xc000; // Pretends the rom start is a 0x00.
+            let addr = addr as usize % self.bytes.len();
+            unsafe { self.bytes.get_unchecked_mut(addr) }
         }
-
-        fn write(&mut self, _addr: u16, _data: u8) {}
     }
 }
