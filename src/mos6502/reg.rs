@@ -1,6 +1,5 @@
 use crate::mos6502::bus::Bus;
 use crate::mos6502::cycle;
-use crate::mos6502::cycle::Cycle;
 use crate::mos6502::flags;
 use crate::mos6502::flags::Flags;
 
@@ -35,7 +34,7 @@ pub struct Reg {
     current_instr: u8,
 
     // Current cycle of the instruction.
-    cycle: Cycle,
+    cycle: u8,
 
     // Data bus. Every transfer should pass though here.
     data_bus: u8,
@@ -88,6 +87,11 @@ impl Reg {
         self.p = self.p.change(flags::NEGATIVE.into(), self.data_bus & flags::LEAST_BIT != 0);
     }
 
+    // Getter for the registers
+    pub fn get_a(&mut self) -> u8 { self.a }
+    pub fn get_x(&mut self) -> u8 { self.x }
+    pub fn get_y(&mut self) -> u8 { self.y }
+
     // Readers for the registers
     pub fn read_a(&mut self) -> u8 { self.db(self.a) }
     pub fn read_x(&mut self) -> u8 { self.db(self.x) }
@@ -100,6 +104,11 @@ impl Reg {
         self.set_zero_negative_from_db();
     }
 
+    pub fn write_x(&mut self, value: u8) {
+        self.x = self.db(value);
+        self.set_zero_negative_from_db();
+    }
+
     pub fn write_m(&mut self, value: u8) { self.m = self.db(value) }
     pub fn write_n(&mut self, value: u8) { self.n = self.db(value) }
 
@@ -107,16 +116,19 @@ impl Reg {
     pub fn get_current_instr(&self) -> u8 { self.current_instr }
 
     // Cycle
-    pub fn get_cycle(&self) -> Cycle { self.cycle }
-    pub fn set_next_cycle(&mut self) { self.cycle.0 += 1; }
-    pub fn set_last_cycle(&mut self) { self.cycle = cycle::LAST }
+    pub fn get_cycle(&self) -> u8 { self.cycle }
+    pub fn set_next_cycle(&mut self) { self.cycle += 1; }
+    pub fn set_next_to_last_cycle(&mut self) { self.cycle = cycle::NEX_TO_LAST }
 
     // PC
     pub fn get_pc(&self) -> u16 { self.pc }
+    pub fn peek_pc(&mut self, bus: &mut Bus) -> u8 { self.peek_addr(bus, self.pc) }
     pub fn set_next_pc(&mut self) { self.pc = self.pc.wrapping_add(1) }
-    pub fn fetch_opcode(&mut self, bus: &mut Bus) {
-        self.current_instr = self.peek_pc(bus);
+    pub fn fetch_opcode(&mut self, bus: &mut Bus) { self.current_instr = self.fetch_pc(bus) }
+    pub fn fetch_pc(&mut self, bus: &mut Bus) -> u8 {
+        let res = self.peek_addr(bus, self.pc);
         self.set_next_pc();
+        res
     }
 
     // Getters for the internal registers
@@ -179,9 +191,6 @@ impl Reg {
         self.data_bus
     }
 
-    // Read the PC at the external bus
-    pub fn peek_pc(&mut self, bus: &mut Bus) -> u8 { self.peek_addr(bus, self.pc) }
-
     // Read from M as an address to the external bus
     pub fn peek_m(&mut self, bus: &mut Bus) -> u8 {
         self.peek_addr(bus, self.m as u16)
@@ -215,7 +224,7 @@ impl Reg {
     pub fn s_p(&mut self, value: u8) { self.p = Flags::from(value) }
     pub fn s_pc(&mut self, value: u16) { self.pc = value }
     pub fn s_s(&mut self, value: u8) { self.s = value }
-    pub fn s_t(&mut self, value: u8) { self.cycle = Cycle(value) }
+    pub fn s_t(&mut self, value: u8) { self.cycle = value }
     pub fn s_c(&mut self, value: bool) { if value { self.p.0 |= flags::CARRY } else { self.p.0 &= !flags::CARRY } }
     pub fn s_z(&mut self, value: bool) { if value { self.p.0 |= flags::ZERO; } else { self.p.0 &= !flags::ZERO } }
     pub fn s_i(&mut self, value: bool) { if value { self.p.0 |= flags::INTERRUPT_DISABLE; } else { self.p.0 &= !flags::INTERRUPT_DISABLE } }

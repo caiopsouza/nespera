@@ -1,5 +1,5 @@
 #[macro_use]
-pub mod microcode;
+pub mod opc;
 
 pub mod bus;
 pub mod cpu;
