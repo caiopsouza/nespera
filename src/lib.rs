@@ -1,7 +1,4 @@
-#![feature(generators, generator_trait)]
 #![feature(nll)]
+#![feature(self_struct_ctor)]
 
-extern crate pretty_hex;
-
-pub mod hardware;
-pub mod loader;
+pub mod mos6502;

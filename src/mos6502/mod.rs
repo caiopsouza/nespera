@@ -1,9 +1,8 @@
 #[macro_use]
-pub mod cycle;
+pub mod microcode;
 
 pub mod bus;
 pub mod cpu;
+pub mod cycle;
 pub mod flags;
-pub mod mem;
-pub mod nes;
-pub mod opc;
+pub mod reg;
