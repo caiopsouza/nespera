@@ -1,6 +1,7 @@
 use std::ops::Range;
 
-use crate::hardware::mem::Memory;
+use crate::mos6502::bus::Bus;
+use crate::mos6502::cpu::Cpu;
 
 const EIGHT_KBYTES_IN_BYTES: usize = 8192;
 const SIXTEEN_KBYTES_IN_BYTES: usize = 2 * EIGHT_KBYTES_IN_BYTES;
@@ -48,14 +49,16 @@ impl INes {
 }
 
 // Convert into Memory
-impl Into<Memory> for INes {
-    fn into(self) -> Memory { Memory::with_rom(self.prg_rom()) }
+impl Into<Cpu> for INes {
+    fn into(self) -> Cpu {
+        let addr_bus = Bus::with_rom(self.prg_rom());
+        Cpu::new(addr_bus)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hardware::bus::Bus;
 
     fn make_test<'a>(data: &[u8]) -> Vec<u8> { Vec::<u8>::from(data) }
 
@@ -100,7 +103,8 @@ mod tests {
 
     #[test]
     fn memory() {
-        let mut mem: Memory = load_test().into();
-        assert_eq!(mem.read(0xC000), 0x4C);
+        let rom = load_test();
+        let bus = &mut Bus::with_rom(rom.prg_rom());
+        assert_eq!(bus.read(0xC000), 0x4C);
     }
 }

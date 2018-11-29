@@ -1,26 +1,98 @@
+use std::ops;
+
 // Bit for each flag
-pub const CARRY: u8 = 0b00000001;
-pub const ZERO: u8 = 0b00000010;
-pub const INTERRUPT_DISABLE: u8 = 0b00000100;
-pub const DECIMAL_MODE: u8 = 0b00001000;
-pub const BREAK_COMMAND: u8 = 0b00010000;
-pub const UNUSED: u8 = 0b00100000;
-pub const OVERFLOW: u8 = 0b01000000;
-pub const NEGATIVE: u8 = 0b10000000;
+pub const CARRY: Flags = Flags(0b00000001);
+pub const ZERO: Flags = Flags(0b00000010);
+pub const INTERRUPT_DISABLE: Flags = Flags(0b00000100);
+pub const DECIMAL_MODE: Flags = Flags(0b00001000);
+pub const BREAK_COMMAND: Flags = Flags(0b00010000);
+pub const UNUSED: Flags = Flags(0b00100000);
+pub const OVERFLOW: Flags = Flags(0b01000000);
+pub const NEGATIVE: Flags = Flags(0b10000000);
 
 pub const LEAST_BIT: u8 = 0b10000000;
 
 // Flags for the P register
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub struct Flags(pub u8);
+
+impl Flags {
+    pub fn change(&mut self, other: Flags, condition: bool) {
+        self.0 = if condition { self.0 | other.0 } else { self.0 & !other.0 }
+    }
+
+    pub fn copy(&mut self, other: Flags, mask: Flags) {
+        self.0 = (self.0 & !mask.0) | (other.0 & mask.0)
+    }
+
+    pub fn contains(&self, flags: Flags) -> bool {
+        (self.0 & flags.0) == flags.0
+    }
+
+    // Set and clear
+    pub fn set(&mut self, flags: Flags) { self.copy(flags, flags) }
+    pub fn clear(&mut self, flags: Flags) { self.copy(!flags, flags) }
+
+    // Getter
+    pub fn get_carry(&self) -> bool { self.contains(CARRY) }
+    pub fn get_zero(&self) -> bool { self.contains(ZERO) }
+    pub fn get_interrupt_disable(&self) -> bool { self.contains(INTERRUPT_DISABLE) }
+    pub fn get_decimal_mode(&self) -> bool { self.contains(DECIMAL_MODE) }
+    pub fn get_break_command(&self) -> bool { self.contains(BREAK_COMMAND) }
+    pub fn get_unused(&self) -> bool { self.contains(UNUSED) }
+    pub fn get_overflow(&self) -> bool { self.contains(OVERFLOW) }
+    pub fn get_negative(&self) -> bool { self.contains(NEGATIVE) }
+
+    pub fn change_zero_negative(&mut self, value: u8) {
+        self.change(ZERO, value == 0);
+        self.change(NEGATIVE, (value & LEAST_BIT) != 0);
+    }
+
+    // Set the Zero, Negative and Carry flag based on a comparison
+    pub fn change_cmp(&mut self, value: u8, other: u8) {
+        self.change(ZERO, value == other);
+        self.change(CARRY, value >= other);
+
+        // Negative has the same bit as the 7th of the difference
+        let diff = value.wrapping_sub(other);
+        self.change(NEGATIVE, (diff & 0b10000000) != 0);
+    }
+}
 
 impl From<u8> for Flags {
     fn from(data: u8) -> Self { Self(data) }
 }
 
-impl Flags {
-    pub fn change(&self, other: Flags, condition: bool) -> Flags {
-        let res = if condition { self.0 | other.0 } else { self.0 & !other.0 };
-        res.into()
+impl Into<u8> for Flags {
+    fn into(self) -> u8 { self.0 }
+}
+
+impl ops::Not for Flags {
+    type Output = Flags;
+
+    fn not(self) -> <Self as ops::Not>::Output { Self(!self.0) }
+}
+
+impl ops::BitAnd for Flags {
+    type Output = Flags;
+
+    fn bitand(self, rhs: Flags) -> <Self as ops::BitAnd<Flags>>::Output {
+        Self(self.0 & rhs.0)
     }
+}
+
+impl ops::BitOr for Flags {
+    type Output = Flags;
+
+    fn bitor(self, rhs: Flags) -> <Self as ops::BitAnd<Flags>>::Output {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl ops::BitAndAssign for Flags {
+    fn bitand_assign(&mut self, rhs: Flags) { self.0 &= rhs.0 }
+}
+
+impl ops::BitOrAssign for Flags {
+    fn bitor_assign(&mut self, rhs: Flags) { self.0 |= rhs.0 }
 }
