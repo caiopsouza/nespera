@@ -1,24 +1,17 @@
-use crate::mos6502::bus::Bus;
+use crate::mos6502::cpu::Cpu;
 use crate::mos6502::cycle;
 use crate::mos6502::flags;
-use crate::mos6502::reg::Reg;
 
-// Opcode
-pub struct Opcode<'a> {
-    pub reg: &'a mut Reg,
-    pub bus: &'a mut Bus,
-}
-
-// First cycle is always fetching the opcode
-impl<'a> Opcode<'a> {
+impl Cpu {
     // region Miscellaneous
 
     // Set current cycle to the last one.
     // It's actually the next to last cycle but this is always incremented later.
+    // First cycle is always fetching the opcode
     fn finish(&mut self) { self.reg.set_next_to_last_cycle() }
 
-    fn peek(&mut self, addr: u16) -> u8 { self.reg.peek_addr(self.bus, addr) }
-    fn poke(&mut self, addr: u16, data: u8) { self.reg.poke_addr(self.bus, addr, data) }
+    fn peek(&mut self, addr: u16) -> u8 { self.reg.peek_addr(&mut self.bus, addr) }
+    fn poke(&mut self, addr: u16, data: u8) { self.reg.poke_addr(&mut self.bus, addr, data) }
 
     // endregion
 
@@ -30,7 +23,7 @@ impl<'a> Opcode<'a> {
     // 2    PC     R  read next instruction byte (and throw it away). Revert cycle to the first one so it won't advance.
     pub fn kil(&mut self) {
         match self.reg.get_cycle() {
-            cycle::T2 => { self.reg.peek_pc(self.bus); }
+            cycle::T2 => { self.reg.peek_pc(&mut self.bus); }
             cycle::T3 => { self.reg.set_first_cycle(); }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -389,9 +382,9 @@ impl<'a> Opcode<'a> {
     // 3    PC     R  copy low address byte to PCL, fetch high address byte to PCH
     pub fn jmp_absolute(&mut self) {
         match self.reg.get_cycle() {
-            cycle::T2 => { self.reg.fetch_into_m(self.bus); }
+            cycle::T2 => { self.reg.fetch_into_m(&mut self.bus); }
             cycle::T3 => {
-                self.reg.fetch_into_n(self.bus);
+                self.reg.fetch_into_n(&mut self.bus);
                 let pc = self.reg.get_absolute();
                 self.reg.write_pc(pc);
                 self.finish();
@@ -407,13 +400,13 @@ impl<'a> Opcode<'a> {
     // 5  pointer+1* R  fetch PCH, copy latch to PCL
     pub fn jmp_indirect(&mut self) {
         match self.reg.get_cycle() {
-            cycle::T2 => { self.reg.fetch_into_m(self.bus); }
-            cycle::T3 => { self.reg.fetch_into_n(self.bus); }
-            cycle::T4 => { self.reg.peek_absolute_to_q(self.bus); }
+            cycle::T2 => { self.reg.fetch_into_m(&mut self.bus); }
+            cycle::T3 => { self.reg.fetch_into_n(&mut self.bus); }
+            cycle::T4 => { self.reg.peek_absolute_to_q(&mut self.bus); }
             cycle::T5 => {
                 let pcl = self.reg.get_q();
                 self.reg.write_inc_m(1);
-                self.reg.peek_absolute_to_q(self.bus);
+                self.reg.peek_absolute_to_q(&mut self.bus);
                 self.reg.write_pcl_pch(pcl, self.reg.get_q());
                 self.finish();
             }
@@ -429,18 +422,18 @@ impl<'a> Opcode<'a> {
     // 6    PC     R  copy low address byte to PCL, fetch high address byte to PCH
     pub fn jsr(&mut self) {
         match self.reg.get_cycle() {
-            cycle::T2 => { self.reg.fetch_into_m(self.bus); }
+            cycle::T2 => { self.reg.fetch_into_m(&mut self.bus); }
             cycle::T3 => {}
             cycle::T4 => {
-                self.reg.poke_at_stack(self.bus, (self.reg.get_pc() >> 8) as u8);
+                self.reg.poke_at_stack(&mut self.bus, (self.reg.get_pc() >> 8) as u8);
                 self.reg.set_inc_s(-1)
             }
             cycle::T5 => {
-                self.reg.poke_at_stack(self.bus, self.reg.get_pc() as u8);
+                self.reg.poke_at_stack(&mut self.bus, self.reg.get_pc() as u8);
                 self.reg.set_inc_s(-1)
             }
             cycle::T6 => {
-                self.reg.fetch_into_n(self.bus);
+                self.reg.fetch_into_n(&mut self.bus);
                 let m = self.reg.get_m();
                 let n = self.reg.get_n();
                 self.reg.write_pcl_pch(m, n);
@@ -458,21 +451,21 @@ impl<'a> Opcode<'a> {
     // 6  $0100,S  R  pull PCH from stack
     pub fn rti(&mut self) {
         match self.reg.get_cycle() {
-            cycle::T2 => { self.reg.prefetch_pc(self.bus); }
+            cycle::T2 => { self.reg.prefetch_pc(&mut self.bus); }
             cycle::T3 => { self.reg.set_inc_s(1) }
             cycle::T4 => {
-                let mut p: flags::Flags = (self.reg.peek_at_stack(self.bus)).into();
+                let mut p: flags::Flags = (self.reg.peek_at_stack(&mut self.bus)).into();
                 p.copy(self.reg.get_p(), flags::BREAK_COMMAND | flags::UNUSED);
                 self.reg.write_p(p);
                 self.reg.set_inc_s(1)
             }
             cycle::T5 => {
-                let pcl = self.reg.peek_at_stack(self.bus);
+                let pcl = self.reg.peek_at_stack(&mut self.bus);
                 self.reg.write_pcl(pcl);
                 self.reg.set_inc_s(1)
             }
             cycle::T6 => {
-                let pch = self.reg.peek_at_stack(self.bus);
+                let pch = self.reg.peek_at_stack(&mut self.bus);
                 self.reg.write_pch(pch);
                 self.finish();
             }
@@ -488,15 +481,15 @@ impl<'a> Opcode<'a> {
     // 6    PC     R  increment PC
     pub fn rts(&mut self) {
         match self.reg.get_cycle() {
-            cycle::T2 => { self.reg.prefetch_pc(self.bus); }
+            cycle::T2 => { self.reg.prefetch_pc(&mut self.bus); }
             cycle::T3 => { self.reg.set_inc_s(1) }
             cycle::T4 => {
-                let pcl = self.reg.peek_at_stack(self.bus);
+                let pcl = self.reg.peek_at_stack(&mut self.bus);
                 self.reg.write_pcl(pcl);
                 self.reg.set_inc_s(1);
             }
             cycle::T5 => {
-                let pch = self.reg.peek_at_stack(self.bus);
+                let pch = self.reg.peek_at_stack(&mut self.bus);
                 self.reg.write_pch(pch);
             }
             cycle::T6 => {
@@ -543,7 +536,7 @@ impl<'a> Opcode<'a> {
     pub fn w_stack(&mut self) -> Option<u16> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.peek_pc(self.bus);
+                self.reg.peek_pc(&mut self.bus);
                 Option::None
             }
             cycle::T3 => {
@@ -561,7 +554,7 @@ impl<'a> Opcode<'a> {
     pub fn w_zero_page(&mut self) -> Option<u16> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.fetch_into_m(self.bus);
+                self.reg.fetch_into_m(&mut self.bus);
                 Option::None
             }
             cycle::T3 => {
@@ -579,11 +572,11 @@ impl<'a> Opcode<'a> {
     fn w_zero_page_indexed(&mut self, index: u8) -> Option<u16> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.fetch_into_m(self.bus);
+                self.reg.fetch_into_m(&mut self.bus);
                 Option::None
             }
             cycle::T3 => {
-                self.reg.peek_m(self.bus);
+                self.reg.peek_m(&mut self.bus);
                 self.reg.write_inc_m(index);
                 Option::None
             }
@@ -612,11 +605,11 @@ impl<'a> Opcode<'a> {
     pub fn w_absolute(&mut self) -> Option<u16> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.fetch_into_m(self.bus);
+                self.reg.fetch_into_m(&mut self.bus);
                 Option::None
             }
             cycle::T3 => {
-                self.reg.fetch_into_n(self.bus);
+                self.reg.fetch_into_n(&mut self.bus);
                 Option::None
             }
             cycle::T4 => {
@@ -635,11 +628,11 @@ impl<'a> Opcode<'a> {
     fn w_absolute_indexed(&mut self, index: u8) -> Option<u16> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.fetch_into_m(self.bus);
+                self.reg.fetch_into_m(&mut self.bus);
                 Option::None
             }
             cycle::T3 => {
-                self.reg.fetch_into_n(self.bus);
+                self.reg.fetch_into_n(&mut self.bus);
                 self.reg.write_inc_m(index);
                 Option::None
             }
@@ -675,22 +668,22 @@ impl<'a> Opcode<'a> {
     pub fn w_indirect_x(&mut self) -> Option<u16> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.fetch_into_m(self.bus);
+                self.reg.fetch_into_m(&mut self.bus);
                 Option::None
             }
             cycle::T3 => {
-                self.reg.peek_m(self.bus);
+                self.reg.peek_m(&mut self.bus);
                 self.reg.write_inc_m_by_x();
                 let m = self.reg.read_m();
                 self.reg.write_n(m.wrapping_add(1));
                 Option::None
             }
             cycle::T4 => {
-                self.reg.peek_m_to_self(self.bus);
+                self.reg.peek_m_to_self(&mut self.bus);
                 Option::None
             }
             cycle::T5 => {
-                self.reg.peek_n_to_self(self.bus);
+                self.reg.peek_n_to_self(&mut self.bus);
                 Option::None
             }
             cycle::T6 => {
@@ -710,16 +703,16 @@ impl<'a> Opcode<'a> {
     pub fn w_indirect_y(&mut self) -> Option<u16> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                let m = self.reg.fetch_into_m(self.bus);
+                let m = self.reg.fetch_into_m(&mut self.bus);
                 self.reg.write_n(m.wrapping_add(1));
                 Option::None
             }
             cycle::T3 => {
-                self.reg.peek_m_to_self(self.bus);
+                self.reg.peek_m_to_self(&mut self.bus);
                 Option::None
             }
             cycle::T4 => {
-                self.reg.peek_n_to_self(self.bus);
+                self.reg.peek_n_to_self(&mut self.bus);
                 self.reg.write_inc_m_by_y();
                 Option::None
             }
@@ -745,7 +738,7 @@ impl<'a> Opcode<'a> {
     pub fn implied(&mut self) -> Option<()> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.peek_pc(self.bus);
+                self.reg.peek_pc(&mut self.bus);
                 self.finish();
                 Option::Some(())
             }
@@ -758,7 +751,7 @@ impl<'a> Opcode<'a> {
     pub fn accumulator(&mut self) -> Option<u8> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.peek_pc(self.bus);
+                self.reg.peek_pc(&mut self.bus);
                 self.finish();
                 Option::Some(self.reg.read_a())
             }
@@ -772,7 +765,7 @@ impl<'a> Opcode<'a> {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.finish();
-                Option::Some(self.reg.fetch_pc(self.bus))
+                Option::Some(self.reg.fetch_pc(&mut self.bus))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -785,7 +778,7 @@ impl<'a> Opcode<'a> {
     pub fn r_stack(&mut self) -> Option<u8> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.peek_pc(self.bus);
+                self.reg.peek_pc(&mut self.bus);
                 Option::None
             }
             cycle::T3 => {
@@ -794,7 +787,7 @@ impl<'a> Opcode<'a> {
             }
             cycle::T4 => {
                 self.finish();
-                Option::Some(self.reg.peek_at_stack(self.bus))
+                Option::Some(self.reg.peek_at_stack(&mut self.bus))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -803,25 +796,25 @@ impl<'a> Opcode<'a> {
     // Zero Page
     pub fn r_zero_page(&mut self) -> Option<u8> {
         let addr = self.w_zero_page()?;
-        Option::Some(self.reg.peek_at_m(self.bus, addr))
+        Option::Some(self.reg.peek_at_m(&mut self.bus, addr))
     }
 
     pub fn r_zero_page_x(&mut self) -> Option<u8> {
         let index = self.reg.get_x();
         let addr = self.w_zero_page_indexed(index)?;
-        Option::Some(self.reg.peek_at_m(self.bus, addr))
+        Option::Some(self.reg.peek_at_m(&mut self.bus, addr))
     }
 
     pub fn r_zero_page_y(&mut self) -> Option<u8> {
         let index = self.reg.get_y();
         let addr = self.w_zero_page_indexed(index)?;
-        Option::Some(self.reg.peek_at_m(self.bus, addr))
+        Option::Some(self.reg.peek_at_m(&mut self.bus, addr))
     }
 
     // Absolute
     pub fn r_absolute(&mut self) -> Option<u8> {
         let addr = self.w_absolute()?;
-        Option::Some(self.reg.peek_at_m(self.bus, addr))
+        Option::Some(self.reg.peek_at_m(&mut self.bus, addr))
     }
 
     // Absolute indexed
@@ -832,16 +825,16 @@ impl<'a> Opcode<'a> {
     fn r_absolute_indexed(&mut self, index: u8) -> Option<u8> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.fetch_into_m(self.bus);
+                self.reg.fetch_into_m(&mut self.bus);
                 Option::None
             }
             cycle::T3 => {
-                self.reg.fetch_into_n(self.bus);
+                self.reg.fetch_into_n(&mut self.bus);
                 self.reg.write_inc_m(index);
                 Option::None
             }
             cycle::T4 => {
-                let value = self.reg.peek_absolute(self.bus);
+                let value = self.reg.peek_absolute(&mut self.bus);
                 self.reg.set_fix_carry_n();
 
                 if !self.reg.get_internal_overflow() { self.finish() }
@@ -850,7 +843,7 @@ impl<'a> Opcode<'a> {
             }
             cycle::T5 => {
                 self.finish();
-                Option::Some(self.reg.peek_absolute(self.bus))
+                Option::Some(self.reg.peek_absolute(&mut self.bus))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -881,21 +874,21 @@ impl<'a> Opcode<'a> {
     pub fn r_indirect_y(&mut self) -> Option<u8> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                let m = self.reg.fetch_into_m(self.bus);
+                let m = self.reg.fetch_into_m(&mut self.bus);
                 self.reg.write_n(m.wrapping_add(1));
                 Option::None
             }
             cycle::T3 => {
-                self.reg.peek_m_to_self(self.bus);
+                self.reg.peek_m_to_self(&mut self.bus);
                 Option::None
             }
             cycle::T4 => {
-                self.reg.peek_n_to_self(self.bus);
+                self.reg.peek_n_to_self(&mut self.bus);
                 self.reg.write_inc_m_by_y();
                 Option::None
             }
             cycle::T5 => {
-                let value = self.reg.peek_absolute(self.bus);
+                let value = self.reg.peek_absolute(&mut self.bus);
                 self.reg.set_fix_carry_n();
 
                 if !self.reg.get_internal_overflow() { self.finish() }
@@ -904,7 +897,7 @@ impl<'a> Opcode<'a> {
             }
             cycle::T6 => {
                 self.finish();
-                Option::Some(self.reg.peek_absolute(self.bus))
+                Option::Some(self.reg.peek_absolute(&mut self.bus))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -917,11 +910,11 @@ impl<'a> Opcode<'a> {
     pub fn relative(&mut self, branch_taken: bool) {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.fetch_into_m(self.bus);
+                self.reg.fetch_into_m(&mut self.bus);
                 if !branch_taken { self.finish() }
             }
             cycle::T3 => {
-                self.reg.prefetch_pc(self.bus);
+                self.reg.prefetch_pc(&mut self.bus);
 
                 let m = self.reg.get_m();
                 self.reg.write_inc_pcl(m as i8);
@@ -929,7 +922,7 @@ impl<'a> Opcode<'a> {
                 if !self.reg.get_internal_overflow() { self.finish() }
             }
             cycle::T4 => {
-                self.reg.prefetch_pc(self.bus);
+                self.reg.prefetch_pc(&mut self.bus);
                 self.reg.set_fix_carry_pc();
                 self.finish()
             }
@@ -949,15 +942,15 @@ impl<'a> Opcode<'a> {
     pub fn rw_zero_page(&mut self) -> Option<(u16, u8)> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.fetch_into_m(self.bus);
+                self.reg.fetch_into_m(&mut self.bus);
                 Option::None
             }
             cycle::T3 => {
-                self.reg.peek_m_to_n(self.bus);
+                self.reg.peek_m_to_n(&mut self.bus);
                 Option::None
             }
             cycle::T4 => {
-                self.reg.poke_n_to_m(self.bus);
+                self.reg.poke_n_to_m(&mut self.bus);
                 Option::None
             }
             cycle::T5 => {
@@ -977,20 +970,20 @@ impl<'a> Opcode<'a> {
     fn rw_zero_page_indexed(&mut self, index: u8) -> Option<(u16, u8)> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.fetch_into_m(self.bus);
+                self.reg.fetch_into_m(&mut self.bus);
                 Option::None
             }
             cycle::T3 => {
-                self.reg.peek_m(self.bus);
+                self.reg.peek_m(&mut self.bus);
                 self.reg.write_inc_m(index);
                 Option::None
             }
             cycle::T4 => {
-                self.reg.peek_m_to_n(self.bus);
+                self.reg.peek_m_to_n(&mut self.bus);
                 Option::None
             }
             cycle::T5 => {
-                self.reg.poke_n_to_m(self.bus);
+                self.reg.poke_n_to_m(&mut self.bus);
                 Option::None
             }
             cycle::T6 => {
@@ -1020,19 +1013,19 @@ impl<'a> Opcode<'a> {
     pub fn rw_absolute(&mut self) -> Option<(u16, u8)> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.fetch_into_m(self.bus);
+                self.reg.fetch_into_m(&mut self.bus);
                 Option::None
             }
             cycle::T3 => {
-                self.reg.fetch_into_n(self.bus);
+                self.reg.fetch_into_n(&mut self.bus);
                 Option::None
             }
             cycle::T4 => {
-                self.reg.peek_absolute_to_q(self.bus);
+                self.reg.peek_absolute_to_q(&mut self.bus);
                 Option::None
             }
             cycle::T5 => {
-                self.reg.poke_q_to_absolute(self.bus);
+                self.reg.poke_q_to_absolute(&mut self.bus);
                 Option::None
             }
             cycle::T6 => {
@@ -1053,25 +1046,25 @@ impl<'a> Opcode<'a> {
     fn rw_absolute_indexed(&mut self, index: u8) -> Option<(u16, u8)> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.fetch_into_m(self.bus);
+                self.reg.fetch_into_m(&mut self.bus);
                 Option::None
             }
             cycle::T3 => {
-                self.reg.fetch_into_n(self.bus);
+                self.reg.fetch_into_n(&mut self.bus);
                 self.reg.write_inc_m(index);
                 Option::None
             }
             cycle::T4 => {
-                self.reg.peek_absolute(self.bus);
+                self.reg.peek_absolute(&mut self.bus);
                 self.reg.set_fix_carry_n();
                 Option::None
             }
             cycle::T5 => {
-                self.reg.peek_absolute_to_q(self.bus);
+                self.reg.peek_absolute_to_q(&mut self.bus);
                 Option::None
             }
             cycle::T6 => {
-                self.reg.poke_q_to_absolute(self.bus);
+                self.reg.poke_q_to_absolute(&mut self.bus);
                 Option::None
             }
             cycle::T7 => {
@@ -1103,30 +1096,30 @@ impl<'a> Opcode<'a> {
     pub fn rw_indirect_x(&mut self) -> Option<(u16, u8)> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.reg.fetch_into_m(self.bus);
+                self.reg.fetch_into_m(&mut self.bus);
                 Option::None
             }
             cycle::T3 => {
-                self.reg.peek_m(self.bus);
+                self.reg.peek_m(&mut self.bus);
                 self.reg.write_inc_m_by_x();
                 let m = self.reg.read_m();
                 self.reg.write_n(m.wrapping_add(1));
                 Option::None
             }
             cycle::T4 => {
-                self.reg.peek_m_to_self(self.bus);
+                self.reg.peek_m_to_self(&mut self.bus);
                 Option::None
             }
             cycle::T5 => {
-                self.reg.peek_n_to_self(self.bus);
+                self.reg.peek_n_to_self(&mut self.bus);
                 Option::None
             }
             cycle::T6 => {
-                self.reg.peek_absolute_to_q(self.bus);
+                self.reg.peek_absolute_to_q(&mut self.bus);
                 Option::None
             }
             cycle::T7 => {
-                self.reg.poke_q_to_absolute(self.bus);
+                self.reg.poke_q_to_absolute(&mut self.bus);
                 Option::None
             }
             cycle::T8 => {
@@ -1148,31 +1141,31 @@ impl<'a> Opcode<'a> {
     pub fn rw_indirect_y(&mut self) -> Option<(u16, u8)> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                let m = self.reg.fetch_into_m(self.bus);
+                let m = self.reg.fetch_into_m(&mut self.bus);
                 self.reg.write_n(m.wrapping_add(1));
                 Option::None
             }
             cycle::T3 => {
-                self.reg.peek_m_to_self(self.bus);
+                self.reg.peek_m_to_self(&mut self.bus);
                 Option::None
             }
             cycle::T4 => {
-                self.reg.peek_n_to_self(self.bus);
+                self.reg.peek_n_to_self(&mut self.bus);
                 self.reg.write_inc_m_by_y();
                 Option::None
             }
             cycle::T5 => {
-                self.reg.peek_absolute(self.bus);
+                self.reg.peek_absolute(&mut self.bus);
                 self.reg.set_fix_carry_n();
 
                 Option::None
             }
             cycle::T6 => {
-                self.reg.peek_absolute_to_q(self.bus);
+                self.reg.peek_absolute_to_q(&mut self.bus);
                 Option::None
             }
             cycle::T7 => {
-                self.reg.poke_q_to_absolute(self.bus);
+                self.reg.poke_q_to_absolute(&mut self.bus);
                 Option::None
             }
             cycle::T8 => {

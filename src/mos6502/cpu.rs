@@ -2,7 +2,6 @@ use std::fmt;
 
 use crate::mos6502::bus::Bus;
 use crate::mos6502::cycle;
-use crate::mos6502::opc;
 use crate::mos6502::reg::Reg;
 
 #[derive(Clone, PartialEq)]
@@ -11,7 +10,7 @@ pub struct Cpu {
     pub reg: Reg,
 
     // Address Bus
-    pub addr_bus: Bus,
+    pub bus: Bus,
 
     // Number of cycles since the CPU has been turned on.
     clock: u32,
@@ -19,13 +18,13 @@ pub struct Cpu {
 
 impl fmt::Debug for Cpu {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "Nespera | {:?}\n{:?}", self.reg, self.addr_bus)
+        write!(formatter, "Nespera | {:?}\n{:?}", self.reg, self.bus)
     }
 }
 
 impl Cpu {
-    pub fn new(addr_bus: Bus) -> Self {
-        Self { reg: Reg::new(), clock: 0, addr_bus }
+    pub fn new(bus: Bus) -> Self {
+        Self { reg: Reg::new(), clock: 0, bus }
     }
 
     pub fn get_clock(&self) -> u32 { self.clock }
@@ -36,7 +35,7 @@ impl Cpu {
 
         // Last cycle fetches the opcode.
         if self.reg.get_cycle() == cycle::LAST {
-            self.reg.fetch_opcode(&mut self.addr_bus);
+            self.reg.fetch_opcode(&mut self.bus);
             self.reg.set_next_cycle();
             return;
         }
@@ -44,14 +43,12 @@ impl Cpu {
         // Run an opcode
         macro_rules! run {
             ($code:ident) => {{
-                let opcode = &mut opc::Opcode { reg: &mut self.reg, bus: &mut self.addr_bus };
-                opcode.$code();
+                self.$code();
                 self.reg.set_next_cycle();
             }};
 
             ($code:ident, $mode:ident) => {{
-                let opcode = &mut opc::Opcode { reg: &mut self.reg, bus: &mut self.addr_bus };
-                if let Some(res) = opcode.$mode() { opcode.$code(res); }
+                if let Some(res) = self.$mode() { self.$code(res); }
                 self.reg.set_next_cycle();
             }}
         }

@@ -23,9 +23,9 @@ fn main() {
         assert_eq!(res, text, "\n{:?}", cpu.reg);
 
         println!("{:04} | {:02x}, {:02x}, {:02x} | {:03} | {:?}", line,
-                 cpu.reg.peek_addr(&mut cpu.addr_bus, cpu.reg.get_pc() as u16),
-                 cpu.reg.peek_addr(&mut cpu.addr_bus, (cpu.reg.get_pc() + 1) as u16),
-                 cpu.reg.peek_addr(&mut cpu.addr_bus, (cpu.reg.get_pc() + 2) as u16),
+                 cpu.reg.peek_addr(&mut cpu.bus, cpu.reg.get_pc() as u16),
+                 cpu.reg.peek_addr(&mut cpu.bus, (cpu.reg.get_pc() + 1) as u16),
+                 cpu.reg.peek_addr(&mut cpu.bus, (cpu.reg.get_pc() + 2) as u16),
                  ppu_cycle,
                  cpu.reg);
 
