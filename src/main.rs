@@ -9,8 +9,6 @@ fn main() {
     let mut cpu: Cpu = INes::new(rom).unwrap().into();
 
     for (line, text) in log.split("\r\n").enumerate() {
-        if text == "" { break; }
-
         let line = line + 1;
 
         let ppu_cycle = (3 * cpu.get_clock()) % 341;
@@ -20,7 +18,7 @@ fn main() {
                           cpu.reg.get_pc(), cpu.reg.get_a(), cpu.reg.get_x(),
                           cpu.reg.get_y(), p, cpu.reg.get_s(), ppu_cycle);
 
-        assert_eq!(res, text, "\n{:?}", cpu.reg);
+        assert_eq!(res, text, "\n\n{}", cpu);
 
         println!("{:04} | {:02x}, {:02x}, {:02x} | {:03} | {:?}", line,
                  cpu.reg.peek_addr(&mut cpu.bus, cpu.reg.get_pc() as u16),
@@ -31,4 +29,7 @@ fn main() {
 
         cpu.step_instruction()
     }
+
+    // Return from subroutine
+    assert_eq!(0x60, cpu.reg.get_current_instr(), "\n\n{}", cpu);
 }

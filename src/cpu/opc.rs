@@ -13,18 +13,57 @@ impl Cpu {
     fn peek(&mut self, addr: u16) -> u8 { self.reg.peek_addr(&mut self.bus, addr) }
     fn poke(&mut self, addr: u16, data: u8) { self.reg.poke_addr(&mut self.bus, addr, data) }
 
+    fn push(&mut self, data: u8) {
+        self.reg.poke_at_stack(&mut self.bus, data);
+        self.reg.set_inc_s(-1);
+    }
+    fn pull(&mut self) -> u8 {
+        let res = self.reg.peek_at_stack(&mut self.bus);
+        self.reg.set_inc_s(1); // Should be pre decremented, so I do it later here.
+        res
+    }
+
     // endregion
 
     // region Codes
 
-    // region Halt
+    // region Interrupts
 
-    // Reading mode for the Kil opcode.
-    // 2    PC     R  read next instruction byte (and throw it away). Revert cycle to the first one so it won't advance.
+    // Kil opcode.
+    // 2    PC     R  read next instruction byte (and throw it away). revert cycle to the first one so it won't advance.
     pub fn kil(&mut self) {
         match self.reg.get_cycle() {
             cycle::T2 => { self.reg.peek_pc(&mut self.bus); }
             cycle::T3 => { self.reg.set_first_cycle(); }
+            _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
+        }
+    }
+
+    // Break execution and load the interrupt vector
+    // 2    PC     R  read next instruction byte (and throw it away), increment PC
+    // 3  $0100,S  W  push PCH on stack (with B flag set), decrement S
+    // 4  $0100,S  W  push PCL on stack, decrement S
+    // 5  $0100,S  W  push P on stack, decrement S
+    // 6   $FFFE   R  fetch PCL
+    // 7   $FFFF   R  fetch PCH
+    pub fn brk(&mut self) {
+        match self.reg.get_cycle() {
+            cycle::T2 => { self.reg.fetch_pc(&mut self.bus); }
+            cycle::T3 => { self.push(self.reg.get_pch()); }
+            cycle::T4 => { self.push(self.reg.get_pcl()); }
+            cycle::T5 => {
+                let p = self.reg.get_p() | flags::BREAK_COMMAND | flags::UNUSED;
+                self.push(p.into());
+            }
+            cycle::T6 => {
+                let pcl = self.peek(0xfffe);
+                self.reg.write_pcl(pcl);
+            }
+            cycle::T7 => {
+                let pcl = self.peek(0xffff);
+                self.reg.write_pch(pcl);
+                self.finish();
+            }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
     }
@@ -424,14 +463,8 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => { self.reg.fetch_into_m(&mut self.bus); }
             cycle::T3 => {}
-            cycle::T4 => {
-                self.reg.poke_at_stack(&mut self.bus, (self.reg.get_pc() >> 8) as u8);
-                self.reg.set_inc_s(-1)
-            }
-            cycle::T5 => {
-                self.reg.poke_at_stack(&mut self.bus, self.reg.get_pc() as u8);
-                self.reg.set_inc_s(-1)
-            }
+            cycle::T4 => { self.push((self.reg.get_pc() >> 8) as u8) }
+            cycle::T5 => { self.push(self.reg.get_pc() as u8) }
             cycle::T6 => {
                 self.reg.fetch_into_n(&mut self.bus);
                 let m = self.reg.get_m();
@@ -454,15 +487,13 @@ impl Cpu {
             cycle::T2 => { self.reg.prefetch_pc(&mut self.bus); }
             cycle::T3 => { self.reg.set_inc_s(1) }
             cycle::T4 => {
-                let mut p: flags::Flags = (self.reg.peek_at_stack(&mut self.bus)).into();
+                let mut p: flags::Flags = (self.pull()).into();
                 p.copy(self.reg.get_p(), flags::BREAK_COMMAND | flags::UNUSED);
                 self.reg.write_p(p);
-                self.reg.set_inc_s(1)
             }
             cycle::T5 => {
-                let pcl = self.reg.peek_at_stack(&mut self.bus);
+                let pcl = self.pull();
                 self.reg.write_pcl(pcl);
-                self.reg.set_inc_s(1)
             }
             cycle::T6 => {
                 let pch = self.reg.peek_at_stack(&mut self.bus);
@@ -484,9 +515,8 @@ impl Cpu {
             cycle::T2 => { self.reg.prefetch_pc(&mut self.bus); }
             cycle::T3 => { self.reg.set_inc_s(1) }
             cycle::T4 => {
-                let pcl = self.reg.peek_at_stack(&mut self.bus);
+                let pcl = self.pull();
                 self.reg.write_pcl(pcl);
-                self.reg.set_inc_s(1);
             }
             cycle::T5 => {
                 let pch = self.reg.peek_at_stack(&mut self.bus);

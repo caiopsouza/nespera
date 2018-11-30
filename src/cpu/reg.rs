@@ -52,9 +52,10 @@ impl fmt::Debug for Reg {
         let pu8: u8 = p.into();
 
         write!(formatter,
-               "a: {:02x}, x: {:02x}, y: {:02x}, pc: {:04x}, s: {:02x}, p: {:02x} {}{}{}{}{}{}{}{}",
-               self.get_a(), self.get_x(), self.get_y(),
-               self.get_pc(), self.get_s(), pu8,
+               "Regs | 0x{:02x}, a: {:02x}, x: {:02x}, y: {:02x}, pc: {:04x}, s: {:02x}, p: {:02x} {}{}{}{}{}{}{}{}",
+               self.current_instr,
+               self.a, self.x, self.y,
+               self.pc, self.s, pu8,
                if p.get_negative() { 'n' } else { '_' },
                if p.get_overflow() { 'v' } else { '_' },
                if p.get_unused() { 'u' } else { '_' },
@@ -63,6 +64,12 @@ impl fmt::Debug for Reg {
                if p.get_interrupt_disable() { 'i' } else { '_' },
                if p.get_zero() { 'z' } else { '_' },
                if p.get_carry() { 'c' } else { '_' })
+    }
+}
+
+impl fmt::Display for Reg {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(formatter, "{:?}", self)
     }
 }
 
@@ -222,13 +229,20 @@ impl Reg {
         self.write_inc_m(data);
     }
 
+    // PCL and PCH are represented as a single 16 bit register to ease working with it by other parts.
+    // Some bit manipulation is necessary here to write into PCL.
     pub fn write_inc_pcl(&mut self, data: i8) {
+        // Transform into PCL then into an i16 for signed arithmetic.
         let pcl = self.pc as u8 as i16;
+
         let data = data as i16;
 
         let new_pcl = pcl + data;
+
+        // Overflows if any bit is set in the high part of the new PCL
         self.internal_overflow = (new_pcl as u16 & 0xff00) != 0;
 
+        // Clear old PCL and set the new one
         self.pc = (self.pc & 0xff00) | ((new_pcl as u16) & 0x00ff);
     }
 
@@ -251,14 +265,6 @@ impl Reg {
 
     // Fixes PC based on the internal overflow flag
     pub fn set_fix_carry_pc(&mut self) {
-//        let overflow = (self.internal_overflow as u16) << 8;
-//
-//        self.pc = if self.pc as i16 > 0 {
-//            self.pc + overflow
-//        } else {
-//            self.pc - overflow
-//        };
-
         self.pc = self.pc.wrapping_add((self.internal_overflow as u16) << 8);
     }
 

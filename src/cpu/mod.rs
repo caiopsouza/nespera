@@ -25,7 +25,13 @@ pub struct Cpu {
 
 impl fmt::Debug for Cpu {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "Nespera | {:?}\n{:?}", self.reg, self.bus)
+        write!(formatter, "Cpu | clock: {}, [ {:?} ]", self.clock, self.reg)
+    }
+}
+
+impl fmt::Display for Cpu {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(formatter, "{:?}\n{}", self, self.bus)
     }
 }
 
@@ -61,7 +67,7 @@ impl Cpu {
         }
 
         match self.reg.get_current_instr() {
-            0x00 => unimplemented!(),           /*bytes: 0 cycles: 7  _____=>_____ __      Brk, Implied     */
+            0x00 => run!(brk),                  /*bytes: 0 cycles: 7  _____=>_____ __      Brk, Implied     */
             0x01 => run!(ora, r_indirect_x),    /*bytes: 2 cycles: 6  A____=>____P R_ izx  Ora, IndirectX   */
             0x02 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
             0x03 => run!(slo, rw_indirect_x),   /*bytes: 2 cycles: 8  A____=>____P RW izx  Slo, IndirectX   */
@@ -340,7 +346,6 @@ mod tests {
         setup(&mut cpu);
 
         let mut check = cpu.clone();
-        result(&mut check);
 
         check.clock = clock;
         check.reg.s_pc(cpu.reg.get_pc().wrapping_add(size as u16));
@@ -358,7 +363,9 @@ mod tests {
         check.reg.s_oper_other(cpu.reg.get_n());
         check.reg.s_oper_v(cpu.reg.get_internal_overflow());
 
-        assert_eq!(check, cpu);
+        result(&mut check);
+
+        assert_eq!(check, cpu, "\n\n{}", cpu);
     }
 
     fn as_is(_: &mut Cpu) {}
@@ -366,6 +373,20 @@ mod tests {
     #[test]
     #[should_panic(expected = "CPU couldn't finish.")]
     fn kil() { run(vec![0x02], 0, 0, as_is, as_is); }
+
+    #[test]
+    fn brk() {
+        run(vec![0x00], 0, 7,
+            as_is,
+            |cpu| {
+                cpu.reg.s_pc(0x00);
+                cpu.reg.s_s(0xfa);
+                cpu.bus.write(0x01fd, 0xc0);
+                cpu.bus.write(0x01fc, 0x02);
+                cpu.bus.write(0x01fb, 0x34);
+            },
+        );
+    }
 
     mod nop {
         use super::*;

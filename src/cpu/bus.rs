@@ -52,13 +52,22 @@ impl Bus {
 
 impl fmt::Debug for Bus {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(formatter, "RAM: {:?}", (&self.ram[..]).hex_dump())/*?;
-        write!(formatter, "ROM: {:?}", (&self.rom[..]).hex_dump())*/
+        writeln!(formatter, "Ram | {:?}", (&self.ram[..]).hex_dump())?;
+        writeln!(formatter, "Rom | {:?}", (&self.rom[..]).hex_dump())?;
+        write!(formatter, "Apu | {:?}", (&self.apu[..]).hex_dump())
+    }
+}
+
+impl fmt::Display for Bus {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{:?}", self)
     }
 }
 
 impl PartialEq for Bus {
     fn eq(&self, other: &Bus) -> bool {
-        self.ram.eq(&other.ram[..]) && self.rom.eq(&other.rom[..])
+        self.ram.eq(&other.ram[..])
+            && self.rom.eq(&other.rom[..])
+            && self.apu.eq(&other.apu[..])
     }
 }
