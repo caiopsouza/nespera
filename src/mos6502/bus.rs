@@ -5,11 +5,13 @@ use pretty_hex::*;
 // Memory capacity
 const RAM_CAPACITY: usize = 0x0800;
 const ROM_CAPACITY: usize = 0x4000;
+const APU_CAPACITY: usize = 0x0018;
 
 #[derive(Copy, Clone)]
 pub struct Bus {
-    ram: [u8; RAM_CAPACITY],
-    rom: [u8; ROM_CAPACITY],
+    pub ram: [u8; RAM_CAPACITY],
+    pub rom: [u8; ROM_CAPACITY],
+    pub apu: [u8; APU_CAPACITY],
 }
 
 impl Bus {
@@ -22,14 +24,14 @@ impl Bus {
         let rom_len = ROM_CAPACITY.min(mem.len());
         rom[..rom_len].copy_from_slice(&mem[..rom_len]);
 
-        Self { ram, rom }
+        Self { ram, rom, apu: [0; APU_CAPACITY] }
     }
 
     pub fn with_rom(rom: &[u8]) -> Self {
         let mut bus_rom = [0; ROM_CAPACITY];
         bus_rom.copy_from_slice(rom);
 
-        Self { ram: [0; RAM_CAPACITY], rom: bus_rom }
+        Self { ram: [0; RAM_CAPACITY], rom: bus_rom, apu: [0; APU_CAPACITY] }
     }
 
     // Map an address to some data for reading and writing.
@@ -38,6 +40,7 @@ impl Bus {
             match addr {
                 0x0000...0x1fff => self.ram.get_unchecked_mut(addr as usize % RAM_CAPACITY),
                 0x8000...0xFFFF => self.rom.get_unchecked_mut((addr - 0x8000) as usize % ROM_CAPACITY),
+                0x4000...0x4017 => self.apu.get_unchecked_mut((addr - 0x4000) as usize % ROM_CAPACITY),
                 _ => panic!("Mapper not implemented for address 0x{:x}\n{:?}", addr, self)
             }
         }
@@ -49,8 +52,8 @@ impl Bus {
 
 impl fmt::Debug for Bus {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(formatter, "RAM: {:?}", (&self.ram[..]).hex_dump())?;
-        write!(formatter, "ROM: {:?}", (&self.rom[..]).hex_dump())
+        writeln!(formatter, "RAM: {:?}", (&self.ram[..]).hex_dump())/*?;
+        write!(formatter, "ROM: {:?}", (&self.rom[..]).hex_dump())*/
     }
 }
 

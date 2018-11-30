@@ -59,7 +59,7 @@ impl Cpu {
         match self.reg.get_current_instr() {
             0x00 => unimplemented!(),           /*bytes: 0 cycles: 7  _____=>_____ __      Brk, Implied     */
             0x01 => run!(ora, r_indirect_x),    /*bytes: 2 cycles: 6  A____=>____P R_ izx  Ora, IndirectX   */
-            0x02 => run!(kil),                  /*Crashes.Stops the cycle from advancing   Kil, Implied     */
+            0x02 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
             0x03 => run!(slo, rw_indirect_x),   /*bytes: 2 cycles: 8  A____=>____P RW izx  Slo, IndirectX   */
             0x04 => run!(dop, r_zero_page),     /*bytes: 2 cycles: 3  _____=>_____ R_ zp   Nop, ZeroPage    */
             0x05 => run!(ora, r_zero_page),     /*bytes: 2 cycles: 3  A____=>A___P R_ zp   Ora, ZeroPage    */
@@ -75,7 +75,7 @@ impl Cpu {
             0x0F => run!(slo, rw_absolute),     /*bytes: 3 cycles: 6  A____=>A___P RW abs  Slo, Absolute    */
             0x10 => run!(bpl),                  /*bytes: 2 cycles: 2* ____P=>_____ __      Bpl, Relative    */
             0x11 => run!(ora, r_indirect_y),    /*bytes: 2 cycles: 5* A____=>____P R_ izy  Ora, IndirectY   */
-            0x12 => run!(kil),                  /*Crashes.Stops the cycle from advancing   Kil, Implied     */
+            0x12 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
             0x13 => run!(slo, rw_indirect_y),   /*bytes: 2 cycles: 8  A____=>____P RW izy  Slo, IndirectY   */
             0x14 => run!(dop, r_zero_page_x),   /*bytes: 2 cycles: 4  _____=>_____ R_ zpx  Nop, ZeroPageX   */
             0x15 => run!(ora, r_zero_page_x),   /*bytes: 2 cycles: 4  A____=>A___P R_ zpx  Ora, ZeroPageX   */
@@ -91,7 +91,7 @@ impl Cpu {
             0x1F => run!(slo, rw_absolute_x),   /*bytes: 3 cycles: 7  A____=>A___P RW absx Slo, AbsoluteX   */
             0x20 => run!(jsr),                  /*bytes: X cycles: 6  ___S_=>___S_ _W      Jsr, Absolute    */
             0x21 => run!(and, r_indirect_x),    /*bytes: 2 cycles: 6  _____=>A___P R_ izx  And, IndirectX   */
-            0x22 => run!(kil),                  /*Crashes.Stops the cycle from advancing   Kil, Implied     */
+            0x22 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
             0x23 => run!(rla, rw_indirect_x),   /*bytes: 2 cycles: 8  ____P=>A___P RW izx  Rla, IndirectX   */
             0x24 => run!(bit, r_zero_page),     /*bytes: 2 cycles: 3  A____=>____P R_ zp   Bit, ZeroPage    */
             0x25 => run!(and, r_zero_page),     /*bytes: 2 cycles: 3  A____=>A___P R_ zp   And, ZeroPage    */
@@ -99,7 +99,7 @@ impl Cpu {
             0x27 => run!(rla, rw_zero_page),    /*bytes: 2 cycles: 5  A___P=>A___P RW zp   Rla, ZeroPage    */
             0x28 => run!(plp, r_stack),         /*bytes: 1 cycles: 4  ___S_=>___SP __      Plp, Implied     */
             0x29 => run!(and, immediate),       /*bytes: 2 cycles: 2  A____=>A___P __      And, Immediate   */
-            0x2A => run!(rol, rw_zero_page),    /*bytes: 1 cycles: 2  A___P=>A___P __      Rol, ZeroPage    */
+            0x2A => run!(rol_acc, accumulator), /*bytes: 1 cycles: 2  A___P=>A___P __      Rol, Accumulator */
             0x2B => run!(anc, r_zero_page),     /*bytes: 2 cycles: 2  A____=>____P __      Anc, ZeroPage    */
             0x2C => run!(bit, r_absolute),      /*bytes: 3 cycles: 4  A____=>____P R_ abs  Bit, Absolute    */
             0x2D => run!(and, r_absolute),      /*bytes: 3 cycles: 4  A____=>A___P R_ abs  And, Absolute    */
@@ -107,7 +107,7 @@ impl Cpu {
             0x2F => run!(rla, rw_absolute),     /*bytes: 3 cycles: 6  A___P=>A___P RW abs  Rla, Absolute    */
             0x30 => run!(bmi),                  /*bytes: 2 cycles: 2* _____=>_____ __      Bmi, Relative    */
             0x31 => run!(and, r_indirect_y),    /*bytes: 2 cycles: 5* _____=>A___P R_ izy  And, IndirectY   */
-            0x32 => run!(kil),                  /*Crashes.Stops the cycle from advancing   Kil, Implied     */
+            0x32 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
             0x33 => run!(rla, rw_indirect_y),   /*bytes: 2 cycles: 8  ____P=>A___P RW izy  Rla, IndirectY   */
             0x34 => run!(dop, r_zero_page_x),   /*bytes: 2 cycles: 4  _____=>_____ R_ zpx  Nop, ZeroPageX   */
             0x35 => run!(and, r_zero_page_x),   /*bytes: 2 cycles: 4  A____=>A___P R_ zpx  And, ZeroPageX   */
@@ -120,10 +120,10 @@ impl Cpu {
             0x3C => run!(dop, r_absolute_x),    /*bytes: 3 cycles: 4* _____=>_____ R_ absx Nop, AbsoluteX   */
             0x3D => run!(and, r_absolute_x),    /*bytes: 3 cycles: 4* A____=>A___P R_ absx And, AbsoluteX   */
             0x3E => run!(rol, rw_absolute_x),   /*bytes: 3 cycles: 7  ____P=>____P RW absx Rol, AbsoluteX   */
-            0x3F => run!(rla, rw_absolute),     /*bytes: 3 cycles: 7  A___P=>A___P RW absx Rla, AbsoluteX   */
+            0x3F => run!(rla, rw_absolute_x),   /*bytes: 3 cycles: 7  A___P=>A___P RW absx Rla, AbsoluteX   */
             0x40 => run!(rti),                  /*bytes: X cycles: 6  ___S_=>___SP __      Rti, Implied     */
             0x41 => run!(eor, r_indirect_x),    /*bytes: 2 cycles: 6  A____=>____P R_ izx  Eor, IndirectX   */
-            0x42 => run!(kil),                  /*Crashes.Stops the cycle from advancing   Kil, Implied     */
+            0x42 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
             0x43 => run!(sre, rw_indirect_x),   /*bytes: 2 cycles: 8  A____=>____P RW izx  Sre, IndirectX   */
             0x44 => run!(dop, r_zero_page),     /*bytes: 2 cycles: 3  _____=>_____ R_ zp   Nop, ZeroPage    */
             0x45 => run!(eor, r_zero_page),     /*bytes: 2 cycles: 3  A____=>A___P R_ zp   Eor, ZeroPage    */
@@ -139,7 +139,7 @@ impl Cpu {
             0x4F => run!(sre, rw_absolute),     /*bytes: 3 cycles: 6  A____=>A___P RW abs  Sre, Absolute    */
             0x50 => run!(bvc),                  /*bytes: 2 cycles: 2* ____P=>_____ __      Bvc, Relative    */
             0x51 => run!(eor, r_indirect_y),    /*bytes: 2 cycles: 5* A____=>____P R_ izy  Eor, IndirectY   */
-            0x52 => run!(kil),                  /*Crashes.Stops the cycle from advancing   Kil, Implied     */
+            0x52 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
             0x53 => run!(sre, rw_indirect_y),   /*bytes: 2 cycles: 8  A____=>____P RW izy  Sre, IndirectY   */
             0x54 => run!(dop, r_zero_page_x),   /*bytes: 2 cycles: 4  _____=>_____ R_ zpx  Nop, ZeroPageX   */
             0x55 => run!(eor, r_zero_page_x),   /*bytes: 2 cycles: 4  A____=>A___P R_ zpx  Eor, ZeroPageX   */
@@ -155,7 +155,7 @@ impl Cpu {
             0x5F => run!(sre, rw_absolute_x),   /*bytes: 3 cycles: 7  A____=>A___P RW absx Sre, AbsoluteX   */
             0x60 => run!(rts),                  /*bytes: X cycles: 6  ___S_=>___S_ __      Rts, Implied     */
             0x61 => run!(adc, r_indirect_x),    /*bytes: 2 cycles: 6  A___P=>A___P R_ izx  Adc, IndirectX   */
-            0x62 => run!(kil),                  /*Crashes.Stops the cycle from advancing   Kil, Implied     */
+            0x62 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
             0x63 => run!(rra, rw_indirect_x),   /*bytes: 2 cycles: 8  A___P=>A___P RW izx  Rra, IndirectX   */
             0x64 => run!(dop, r_zero_page),     /*bytes: 2 cycles: 3  _____=>_____ R_ zp   Nop, ZeroPage    */
             0x65 => run!(adc, r_zero_page),     /*bytes: 2 cycles: 3  A___P=>A___P R_ zp   Adc, ZeroPage    */
@@ -171,7 +171,7 @@ impl Cpu {
             0x6F => run!(rra, rw_absolute),     /*bytes: 3 cycles: 6  A___P=>A___P RW abs  Rra, Absolute    */
             0x70 => run!(bvs),                  /*bytes: 2 cycles: 2* _____=>_____ __      Bvs, Relative    */
             0x71 => run!(adc, r_indirect_y),    /*bytes: 2 cycles: 5* A___P=>A___P R_ izy  Adc, IndirectY   */
-            0x72 => run!(kil),                  /*Crashes.Stops the cycle from advancing   Kil, Implied     */
+            0x72 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
             0x73 => run!(rra, rw_indirect_y),   /*bytes: 2 cycles: 8  A___P=>A___P RW izy  Rra, IndirectY   */
             0x74 => run!(dop, r_zero_page_x),   /*bytes: 2 cycles: 4  _____=>_____ R_ zpx  Nop, ZeroPageX   */
             0x75 => run!(adc, r_zero_page_x),   /*bytes: 2 cycles: 4  A___P=>A___P R_ zpx  Adc, ZeroPageX   */
@@ -188,29 +188,29 @@ impl Cpu {
             0x80 => run!(dop, immediate),       /*bytes: 2 cycles: 2  _____=>_____ __      Nop, Immediate   */
             0x81 => run!(sta, w_indirect_x),    /*bytes: 2 cycles: 6  A____=>_____ RW izx  Sta, IndirectX   */
             0x82 => run!(dop, immediate),       /*bytes: 2 cycles: 2  _____=>_____ __      Nop, Immediate   */
-            0x83 => unimplemented!(),           /*bytes: 2 cycles: 6  _____=>_____ RW izx  Sax, IndirectX   */
+            0x83 => run!(sax, w_indirect_x),    /*bytes: 2 cycles: 6  _____=>_____ RW izx  Sax, IndirectX   */
             0x84 => run!(sty, w_zero_page),     /*bytes: 2 cycles: 3  __Y__=>_____ _W zp   Sty, ZeroPage    */
             0x85 => run!(sta, w_zero_page),     /*bytes: 2 cycles: 3  A____=>_____ _W zp   Sta, ZeroPage    */
-            0x86 => run!(sta, w_zero_page),     /*bytes: 2 cycles: 3  _X___=>_____ _W zp   Stx, ZeroPage    */
-            0x87 => unimplemented!(),           /*bytes: 2 cycles: 3  _____=>_____ _W zp   Sax, ZeroPage    */
-            0x88 => unimplemented!(),           /*bytes: 1 cycles: 2  __Y__=>__Y_P __      Dey, Implied     */
+            0x86 => run!(stx, w_zero_page),     /*bytes: 2 cycles: 3  _X___=>_____ _W zp   Stx, ZeroPage    */
+            0x87 => run!(sax, w_zero_page),     /*bytes: 2 cycles: 3  _____=>_____ _W zp   Sax, ZeroPage    */
+            0x88 => run!(dey, implied),         /*bytes: 1 cycles: 2  __Y__=>__Y_P __      Dey, Implied     */
             0x89 => run!(dop, immediate),       /*bytes: 2 cycles: 2  _____=>_____ __      Nop, Immediate   */
             0x8A => run!(txa, implied),         /*bytes: 1 cycles: 2  _X___=>A___P __      Txa, Implied     */
             0x8B => unimplemented!(),           /*bytes: 2 cycles: 2  _____=>A___P __      Xaa, Immediate   */
             0x8C => run!(sty, w_absolute),      /*bytes: 3 cycles: 4  __Y__=>_____ _W abs  Sty, Absolute    */
             0x8D => run!(sta, w_absolute),      /*bytes: 3 cycles: 4  A____=>_____ _W abs  Sta, Absolute    */
             0x8E => run!(stx, w_absolute),      /*bytes: 3 cycles: 4  _X___=>_____ _W abs  Stx, Absolute    */
-            0x8F => unimplemented!(),           /*bytes: 3 cycles: 4  _____=>_____ _W abs  Sax, Absolute    */
+            0x8F => run!(sax, w_absolute),      /*bytes: 3 cycles: 4  _____=>_____ _W abs  Sax, Absolute    */
             0x90 => run!(bcc),                  /*bytes: 2 cycles: 2* ____P=>_____ __      Bcc, Relative    */
             0x91 => run!(sta, w_indirect_y),    /*bytes: 2 cycles: 6  A____=>_____ RW izy  Sta, IndirectY   */
-            0x92 => run!(kil),                  /*Crashes.Stops the cycle from advancing   Kil, Implied     */
+            0x92 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
             0x93 => unimplemented!(),           /*bytes: 2 cycles: 6  _____=>_____ RW izy  Ahx, IndirectY   */
             0x94 => run!(sty, w_zero_page_x),   /*bytes: 2 cycles: 4  __Y__=>_____ RW zpx  Sty, ZeroPageX   */
             0x95 => run!(sta, w_zero_page_x),   /*bytes: 2 cycles: 4  A____=>_____ RW zpx  Sta, ZeroPageX   */
             0x96 => run!(stx, w_zero_page_y),   /*bytes: 2 cycles: 4  _X___=>_____ RW zpy  Stx, ZeroPageY   */
-            0x97 => unimplemented!(),           /*bytes: 2 cycles: 4  _____=>_____ RW zpy  Sax, ZeroPageY   */
+            0x97 => run!(sax, w_zero_page_y),   /*bytes: 2 cycles: 4  _____=>_____ RW zpy  Sax, ZeroPageY   */
             0x98 => run!(tya, implied),         /*bytes: 1 cycles: 2  __Y__=>A___P __      Tya, Implied     */
-            0x99 => run!(sta, w_indirect_y),    /*bytes: 3 cycles: 5  A____=>_____ RW absy Sta, AbsoluteY   */
+            0x99 => run!(sta, w_absolute_y),    /*bytes: 3 cycles: 5  A____=>_____ RW absy Sta, AbsoluteY   */
             0x9A => run!(txs, implied),         /*bytes: X cycles: 2  _X___=>___S_ __      Txs, Implied     */
             0x9B => unimplemented!(),           /*bytes: X cycles: 5  __Y__=>___S_ _W      Tas, AbsoluteY   */
             0x9C => unimplemented!(),           /*bytes: 3 cycles: 5  __Y__=>_____ RW absx Shy, AbsoluteX   */
@@ -231,11 +231,11 @@ impl Cpu {
             0xAB => run!(lax, immediate),       /*bytes: 2 cycles: 2  A____=>AX__P __      Lax, Immediate   */
             0xAC => run!(ldy, r_absolute),      /*bytes: 3 cycles: 4  _____=>__Y_P R_ abs  Ldy, Absolute    */
             0xAD => run!(lda, r_absolute),      /*bytes: 3 cycles: 4  _____=>A___P R_ abs  Lda, Absolute    */
-            0xAE => run!(lax, r_absolute),      /*bytes: 3 cycles: 4  _____=>_X__P R_ abs  Ldx, Absolute    */
-            0xAF => unimplemented!(),           /*bytes: 3 cycles: 4  _____=>AX__P R_ abs  Lax, Absolute    */
+            0xAE => run!(ldx, r_absolute),      /*bytes: 3 cycles: 4  _____=>_X__P R_ abs  Ldx, Absolute    */
+            0xAF => run!(lax, r_absolute),      /*bytes: 3 cycles: 4  _____=>AX__P R_ abs  Lax, Absolute    */
             0xB0 => run!(bcs),                  /*bytes: 2 cycles: 2* _____=>_____ __      Bcs, Relative    */
             0xB1 => run!(lda, r_indirect_y),    /*bytes: 2 cycles: 5* _____=>A___P R_ izy  Lda, IndirectY   */
-            0xB2 => run!(kil),                  /*Crashes.Stops the cycle from advancing   Kil, Implied     */
+            0xB2 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
             0xB3 => run!(lax, r_indirect_y),    /*bytes: 2 cycles: 5* _____=>AX__P R_ izy  Lax, IndirectY   */
             0xB4 => run!(ldy, r_zero_page_x),   /*bytes: 2 cycles: 4  _____=>__Y_P R_ zpx  Ldy, ZeroPageX   */
             0xB5 => run!(lda, r_zero_page_x),   /*bytes: 2 cycles: 4  _____=>A___P R_ zpx  Lda, ZeroPageX   */
@@ -252,67 +252,67 @@ impl Cpu {
             0xC0 => run!(cpy, immediate),       /*bytes: 2 cycles: 2  __Y__=>____P __      Cpy, Immediate   */
             0xC1 => run!(cmp, r_indirect_x),    /*bytes: 2 cycles: 6  A____=>____P R_ izx  Cmp, IndirectX   */
             0xC2 => run!(dop, immediate),       /*bytes: 2 cycles: 2  _____=>_____ __      Nop, Immediate   */
-            0xC3 => unimplemented!(),           /*bytes: 2 cycles: 8  A____=>____P RW izx  Dcp, IndirectX   */
+            0xC3 => run!(dcp, rw_indirect_x),   /*bytes: 2 cycles: 8  A____=>____P RW izx  Dcp, IndirectX   */
             0xC4 => run!(cpy, r_zero_page),     /*bytes: 2 cycles: 3  __Y__=>____P R_ zp   Cpy, ZeroPage    */
             0xC5 => run!(cmp, r_zero_page),     /*bytes: 2 cycles: 3  A____=>____P R_ zp   Cmp, ZeroPage    */
             0xC6 => run!(dec, rw_zero_page),    /*bytes: 2 cycles: 5  _____=>____P RW zp   Dec, ZeroPage    */
-            0xC7 => unimplemented!(),           /*bytes: 2 cycles: 5  A____=>____P RW zp   Dcp, ZeroPage    */
+            0xC7 => run!(dcp, rw_zero_page),    /*bytes: 2 cycles: 5  A____=>____P RW zp   Dcp, ZeroPage    */
             0xC8 => run!(iny, implied),         /*bytes: 1 cycles: 2  __Y__=>__Y_P __      Iny, Implied     */
             0xC9 => run!(cmp, immediate),       /*bytes: 2 cycles: 2  A____=>____P __      Cmp, Immediate   */
-            0xCA => unimplemented!(),           /*bytes: 1 cycles: 2  _X___=>_X__P __      Dex, Implied     */
+            0xCA => run!(dex, implied),         /*bytes: 1 cycles: 2  _X___=>_X__P __      Dex, Implied     */
             0xCB => unimplemented!(),           /*bytes: 2 cycles: 2  _____=>_X__P __      Axs, Immediate   */
             0xCC => run!(cpy, r_absolute),      /*bytes: 3 cycles: 4  __Y__=>____P R_ abs  Cpy, Absolute    */
             0xCD => run!(cmp, r_absolute),      /*bytes: 3 cycles: 4  A____=>____P R_ abs  Cmp, Absolute    */
             0xCE => run!(dec, rw_absolute),     /*bytes: 3 cycles: 6  _____=>____P RW abs  Dec, Absolute    */
-            0xCF => unimplemented!(),           /*bytes: 3 cycles: 6  A____=>____P RW abs  Dcp, Absolute    */
+            0xCF => run!(dcp, rw_absolute),     /*bytes: 3 cycles: 6  A____=>____P RW abs  Dcp, Absolute    */
             0xD0 => run!(bne),                  /*bytes: 2 cycles: 2* ____P=>_____ __      Bne, Relative    */
             0xD1 => run!(cmp, r_indirect_y),    /*bytes: 2 cycles: 5* A____=>____P R_ izy  Cmp, IndirectY   */
-            0xD2 => run!(kil),                  /*Crashes.Stops the cycle from advancing   Kil, Implied     */
-            0xD3 => unimplemented!(),           /*bytes: 2 cycles: 8  A____=>____P RW izy  Dcp, IndirectY   */
+            0xD2 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
+            0xD3 => run!(dcp, rw_indirect_y),   /*bytes: 2 cycles: 8  A____=>____P RW izy  Dcp, IndirectY   */
             0xD4 => run!(dop, r_zero_page_x),   /*bytes: 2 cycles: 4  _____=>_____ R_ zpx  Nop, ZeroPageX   */
             0xD5 => run!(cmp, r_zero_page_x),   /*bytes: 2 cycles: 4  A____=>____P R_ zpx  Cmp, ZeroPageX   */
             0xD6 => run!(dec, rw_zero_page_x),  /*bytes: 2 cycles: 6  _____=>____P RW zpx  Dec, ZeroPageX   */
-            0xD7 => unimplemented!(),           /*bytes: 2 cycles: 6  A____=>____P RW zpx  Dcp, ZeroPageX   */
-            0xD8 => run!(clc, implied),         /*bytes: 1 cycles: 2  _____=>____P __      Cld, Implied     */
+            0xD7 => run!(dcp, rw_zero_page_x),  /*bytes: 2 cycles: 6  A____=>____P RW zpx  Dcp, ZeroPageX   */
+            0xD8 => run!(cld, implied),         /*bytes: 1 cycles: 2  _____=>____P __      Cld, Implied     */
             0xD9 => run!(cmp, r_absolute_y),    /*bytes: 3 cycles: 4* A____=>____P R_ absy Cmp, AbsoluteY   */
             0xDA => run!(nop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
-            0xDB => unimplemented!(),           /*bytes: 3 cycles: 7  A____=>____P RW absy Dcp, AbsoluteY   */
+            0xDB => run!(dcp, rw_absolute_y),   /*bytes: 3 cycles: 7  A____=>____P RW absy Dcp, AbsoluteY   */
             0xDC => run!(dop, r_absolute_x),    /*bytes: 3 cycles: 4* _____=>_____ R_ absx Nop, AbsoluteX   */
             0xDD => run!(cmp, r_absolute_x),    /*bytes: 3 cycles: 4* A____=>____P R_ absx Cmp, AbsoluteX   */
             0xDE => run!(dec, rw_absolute_x),   /*bytes: 3 cycles: 7  _____=>____P RW absx Dec, AbsoluteX   */
-            0xDF => unimplemented!(),           /*bytes: 3 cycles: 7  A____=>____P RW absx Dcp, AbsoluteX   */
+            0xDF => run!(dcp, rw_absolute_x),   /*bytes: 3 cycles: 7  A____=>____P RW absx Dcp, AbsoluteX   */
             0xE0 => run!(cpx, immediate),       /*bytes: 2 cycles: 2  _X___=>____P __      Cpx, Immediate   */
-            0xE1 => run!(sdc, r_indirect_x),    /*bytes: 2 cycles: 6  A___P=>A___P R_ izx  Sbc, IndirectX   */
+            0xE1 => run!(sbc, r_indirect_x),    /*bytes: 2 cycles: 6  A___P=>A___P R_ izx  Sbc, IndirectX   */
             0xE2 => run!(dop, immediate),       /*bytes: 2 cycles: 2  _____=>_____ __      Nop, Immediate   */
-            0xE3 => unimplemented!(),           /*bytes: 2 cycles: 8  A___P=>A___P RW izx  Isc, IndirectX   */
+            0xE3 => run!(isc, rw_indirect_x),   /*bytes: 2 cycles: 8  A___P=>A___P RW izx  Isc, IndirectX   */
             0xE4 => run!(cpx, r_zero_page),     /*bytes: 2 cycles: 3  _X___=>____P R_ zp   Cpx, ZeroPage    */
-            0xE5 => run!(sdc, r_zero_page),     /*bytes: 2 cycles: 3  A___P=>A___P R_ zp   Sbc, ZeroPage    */
+            0xE5 => run!(sbc, r_zero_page),     /*bytes: 2 cycles: 3  A___P=>A___P R_ zp   Sbc, ZeroPage    */
             0xE6 => run!(inc, rw_zero_page),    /*bytes: 2 cycles: 5  _____=>____P RW zp   Inc, ZeroPage    */
-            0xE7 => unimplemented!(),           /*bytes: 2 cycles: 5  A___P=>A___P RW zp   Isc, ZeroPage    */
+            0xE7 => run!(isc, rw_zero_page),    /*bytes: 2 cycles: 5  A___P=>A___P RW zp   Isc, ZeroPage    */
             0xE8 => run!(inx, implied),         /*bytes: 1 cycles: 2  _X___=>_X__P __      Inx, Implied     */
-            0xE9 => run!(sdc, immediate),       /*bytes: 2 cycles: 2  A___P=>A___P __      Sbc, Immediate   */
+            0xE9 => run!(sbc, immediate),       /*bytes: 2 cycles: 2  A___P=>A___P __      Sbc, Immediate   */
             0xEA => run!(nop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
-            0xEB => run!(sdc, immediate),       /*bytes: 2 cycles: 2  A___P=>A___P __      Sbc, Immediate   */
+            0xEB => run!(sbc, immediate),       /*bytes: 2 cycles: 2  A___P=>A___P __      Sbc, Immediate   */
             0xEC => run!(cpx, r_absolute),      /*bytes: 3 cycles: 4  _X___=>____P R_ abs  Cpx, Absolute    */
-            0xED => run!(sdc, r_absolute),      /*bytes: 3 cycles: 4  A___P=>A___P R_ abs  Sbc, Absolute    */
+            0xED => run!(sbc, r_absolute),      /*bytes: 3 cycles: 4  A___P=>A___P R_ abs  Sbc, Absolute    */
             0xEE => run!(inc, rw_absolute),     /*bytes: 3 cycles: 6  _____=>____P RW abs  Inc, Absolute    */
-            0xEF => unimplemented!(),           /*bytes: 3 cycles: 6  A___P=>A___P RW abs  Isc, Absolute    */
+            0xEF => run!(isc, rw_absolute),     /*bytes: 3 cycles: 6  A___P=>A___P RW abs  Isc, Absolute    */
             0xF0 => run!(beq),                  /*bytes: 2 cycles: 2* _____=>_____ __      Beq, Relative    */
-            0xF1 => run!(sdc, r_indirect_y),    /*bytes: 2 cycles: 5* A___P=>A___P R_ izy  Sbc, IndirectY   */
-            0xF2 => run!(kil),                  /*Crashes.Stops the cycle from advancing   Kil, Implied     */
-            0xF3 => unimplemented!(),           /*bytes: 2 cycles: 8  A___P=>A___P RW izy  Isc, IndirectY   */
+            0xF1 => run!(sbc, r_indirect_y),    /*bytes: 2 cycles: 5* A___P=>A___P R_ izy  Sbc, IndirectY   */
+            0xF2 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
+            0xF3 => run!(isc, rw_indirect_y),   /*bytes: 2 cycles: 8  A___P=>A___P RW izy  Isc, IndirectY   */
             0xF4 => run!(dop, r_zero_page_x),   /*bytes: 2 cycles: 4  _____=>_____ R_ zpx  Nop, ZeroPageX   */
-            0xF5 => run!(sdc, r_zero_page_x),   /*bytes: 2 cycles: 4  A___P=>A___P R_ zpx  Sbc, ZeroPageX   */
+            0xF5 => run!(sbc, r_zero_page_x),   /*bytes: 2 cycles: 4  A___P=>A___P R_ zpx  Sbc, ZeroPageX   */
             0xF6 => run!(inc, rw_zero_page_x),  /*bytes: 2 cycles: 6  _____=>____P RW zpx  Inc, ZeroPageX   */
-            0xF7 => unimplemented!(),           /*bytes: 2 cycles: 6  A___P=>A___P RW zpx  Isc, ZeroPageX   */
+            0xF7 => run!(isc, rw_zero_page_x),  /*bytes: 2 cycles: 6  A___P=>A___P RW zpx  Isc, ZeroPageX   */
             0xF8 => run!(sed, implied),         /*bytes: 1 cycles: 2  _____=>____P __      Sed, Implied     */
-            0xF9 => run!(sdc, r_absolute_y),    /*bytes: 3 cycles: 4* A___P=>A___P R_ absy Sbc, AbsoluteY   */
+            0xF9 => run!(sbc, r_absolute_y),    /*bytes: 3 cycles: 4* A___P=>A___P R_ absy Sbc, AbsoluteY   */
             0xFA => run!(nop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
-            0xFB => unimplemented!(),           /*bytes: 3 cycles: 7  A___P=>A___P RW absy Isc, AbsoluteY   */
+            0xFB => run!(isc, rw_absolute_y),   /*bytes: 3 cycles: 7  A___P=>A___P RW absy Isc, AbsoluteY   */
             0xFC => run!(dop, r_absolute_x),    /*bytes: 3 cycles: 4* _____=>_____ R_ absx Nop, AbsoluteX   */
-            0xFD => unimplemented!(),           /*bytes: 3 cycles: 4* A___P=>A___P R_ absx Sbc, AbsoluteX   */
+            0xFD => run!(sbc, r_absolute_x),    /*bytes: 3 cycles: 4* A___P=>A___P R_ absx Sbc, AbsoluteX   */
             0xFE => run!(inc, rw_absolute_x),   /*bytes: 3 cycles: 7  _____=>____P RW absx Inc, AbsoluteX   */
-            0xFF => unimplemented!(),           /*bytes: 3 cycles: 7  A___P=>A___P RW absx Isc, AbsoluteX   */
+            0xFF => run!(isc, rw_absolute_x),   /*bytes: 3 cycles: 7  A___P=>A___P RW absx Isc, AbsoluteX   */
             _ => unreachable!("Opcode not implemented: {:X}", self.reg.get_current_instr())
         }
     }

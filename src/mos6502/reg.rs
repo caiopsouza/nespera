@@ -5,9 +5,6 @@ use crate::mos6502::cycle;
 use crate::mos6502::flags;
 use crate::mos6502::flags::Flags;
 
-// Position at the start of the stack
-const STACK_START: u16 = 0x100;
-
 // Registers
 #[derive(Clone, PartialOrd, PartialEq)]
 pub struct Reg {
@@ -118,6 +115,7 @@ impl Reg {
     pub fn get_x(&self) -> u8 { self.x }
     pub fn get_y(&self) -> u8 { self.y }
     pub fn get_s(&self) -> u8 { self.s }
+    pub fn get_stack_addr(&self) -> u16 { self.s as u16 + 0x100 }
 
     pub fn get_p(&self) -> Flags { self.p }
     pub fn get_p_mut(&mut self) -> &mut Flags { &mut self.p }
@@ -163,8 +161,7 @@ impl Reg {
     pub fn write_pcl_pch(&mut self, pcl: u8, pch: u8) { self.pc = (pcl as u16) | ((pch as u16) << 8); }
 
     pub fn write_bit_test(&mut self, data: u8) {
-        let a = self.get_a();
-        let res = data & a;
+        let res = data & self.get_a();
         self.db(res);
 
         self.p.change(flags::ZERO, res == 0);
@@ -182,6 +179,8 @@ impl Reg {
 
     // PC
     pub fn get_pc(&self) -> u16 { self.pc }
+    pub fn get_pcl(&self) -> u8 { self.pc as u8 }
+    pub fn get_pch(&self) -> u8 { (self.pc >> 8) as u8 }
     pub fn peek_pc(&mut self, bus: &mut Bus) -> u8 { self.peek_addr(bus, self.pc) }
     pub fn set_next_pc(&mut self) { self.pc = self.pc.wrapping_add(1) }
     pub fn fetch_opcode(&mut self, bus: &mut Bus) { self.current_instr = self.fetch_pc(bus) }
@@ -223,10 +222,14 @@ impl Reg {
         self.write_inc_m(data);
     }
 
-    pub fn write_inc_pcl(&mut self, data: u8) {
-        let (data, overflow) = (self.pc as u8).overflowing_add(data);
-        self.pc = (self.pc & 0xff00) | (data as u16);
-        self.internal_overflow = overflow;
+    pub fn write_inc_pcl(&mut self, data: i8) {
+        let pcl = self.pc as u8 as i16;
+        let data = data as i16;
+
+        let new_pcl = pcl + data;
+        self.internal_overflow = (new_pcl as u16 & 0xff00) != 0;
+
+        self.pc = (self.pc & 0xff00) | ((new_pcl as u16) & 0x00ff);
     }
 
     pub fn prefetch_into_m(&mut self, bus: &mut Bus) {
@@ -248,13 +251,20 @@ impl Reg {
 
     // Fixes PC based on the internal overflow flag
     pub fn set_fix_carry_pc(&mut self) {
+//        let overflow = (self.internal_overflow as u16) << 8;
+//
+//        self.pc = if self.pc as i16 > 0 {
+//            self.pc + overflow
+//        } else {
+//            self.pc - overflow
+//        };
+
         self.pc = self.pc.wrapping_add((self.internal_overflow as u16) << 8);
     }
 
     // Fixes the N register based on the internal overflow flag
     pub fn set_fix_carry_n(&mut self) {
         self.n = self.n.wrapping_add(self.internal_overflow as u8);
-        self.internal_overflow = false;
     }
 
     // Buses' getters
@@ -290,17 +300,17 @@ impl Reg {
         self.peek_addr(bus, (self.m.wrapping_add(offset as u8)) as u16)
     }
 
-    pub fn peek_m_at_self(&mut self, bus: &mut Bus) {
+    pub fn peek_m_to_self(&mut self, bus: &mut Bus) {
         let data = self.peek_addr(bus, self.m as u16);
         self.write_m(data)
     }
 
-    pub fn peek_n_at_self(&mut self, bus: &mut Bus) {
+    pub fn peek_n_to_self(&mut self, bus: &mut Bus) {
         let data = self.peek_addr(bus, self.n as u16);
         self.write_n(data)
     }
 
-    pub fn peek_m_at_n(&mut self, bus: &mut Bus) {
+    pub fn peek_m_to_n(&mut self, bus: &mut Bus) {
         let data = self.peek_addr(bus, self.m as u16);
         self.write_n(data)
     }
@@ -309,7 +319,7 @@ impl Reg {
         self.peek_addr(bus, self.get_absolute())
     }
 
-    pub fn peek_absolute_at_q(&mut self, bus: &mut Bus) {
+    pub fn peek_absolute_to_q(&mut self, bus: &mut Bus) {
         let data = self.peek_absolute(bus);
         self.write_q(data)
     }
@@ -325,13 +335,14 @@ impl Reg {
 
     // Pushes a value onto the stack
     pub fn poke_at_stack(&mut self, bus: &mut Bus, data: u8) {
-        let s = self.s;
-        self.poke_addr(bus, s as u16 + STACK_START, data);
+        let addr = self.get_stack_addr();
+        self.poke_addr(bus, addr, data);
     }
 
     // Pull a value from the stack
     pub fn peek_at_stack(&mut self, bus: &mut Bus) -> u8 {
-        self.peek_addr(bus, self.s as u16 + STACK_START)
+        let addr = self.get_stack_addr();
+        self.peek_addr(bus, addr)
     }
 }
 
