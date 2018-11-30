@@ -1,7 +1,7 @@
 use std::ops::Range;
 
-use crate::mos6502::bus::Bus;
-use crate::mos6502::cpu::Cpu;
+use crate::cpu::bus::Bus;
+use crate::cpu::Cpu;
 
 const EIGHT_KBYTES_IN_BYTES: usize = 8192;
 const SIXTEEN_KBYTES_IN_BYTES: usize = 2 * EIGHT_KBYTES_IN_BYTES;

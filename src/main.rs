@@ -1,7 +1,7 @@
 extern crate nespera;
 
+use nespera::cpu::Cpu;
 use nespera::loader::ines::INes;
-use nespera::mos6502::cpu::Cpu;
 
 fn main() {
     let log = include_str!("../tests/resources/nestest.log");

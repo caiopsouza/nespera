@@ -1,9 +1,9 @@
 use std::fmt;
 
-use crate::mos6502::bus::Bus;
-use crate::mos6502::cycle;
-use crate::mos6502::flags;
-use crate::mos6502::flags::Flags;
+use crate::cpu::bus::Bus;
+use crate::cpu::cycle;
+use crate::cpu::flags;
+use crate::cpu::flags::Flags;
 
 // Registers
 #[derive(Clone, PartialOrd, PartialEq)]

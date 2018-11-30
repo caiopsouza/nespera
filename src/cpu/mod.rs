@@ -1,8 +1,15 @@
 use std::fmt;
 
-use crate::mos6502::bus::Bus;
-use crate::mos6502::cycle;
-use crate::mos6502::reg::Reg;
+use crate::cpu::bus::Bus;
+use crate::cpu::reg::Reg;
+
+#[macro_use]
+pub mod opc;
+
+pub mod bus;
+pub mod cycle;
+pub mod flags;
+pub mod reg;
 
 #[derive(Clone, PartialEq)]
 pub struct Cpu {

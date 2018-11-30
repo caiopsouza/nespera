@@ -1,6 +1,6 @@
-use crate::mos6502::cpu::Cpu;
-use crate::mos6502::cycle;
-use crate::mos6502::flags;
+use crate::cpu::Cpu;
+use crate::cpu::cycle;
+use crate::cpu::flags;
 
 impl Cpu {
     // region Miscellaneous
