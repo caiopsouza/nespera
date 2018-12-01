@@ -392,7 +392,7 @@ mod tests {
             |cpu| {
                 cpu.reg.s_pc(0x00);
                 cpu.reg.s_s(0xfa);
-                cpu.bus.write(0x01fd, 0xc0);
+                cpu.bus.write(0x01fd, 0x00);
                 cpu.bus.write(0x01fc, 0x02);
                 cpu.bus.write(0x01fb, 0x34);
             },

@@ -6,32 +6,49 @@ use pretty_hex::*;
 const RAM_CAPACITY: usize = 0x0800;
 const ROM_CAPACITY: usize = 0x4000;
 const APU_CAPACITY: usize = 0x0018;
+const PPU_CAPACITY: usize = 0x0008;
 
 #[derive(Copy, Clone)]
 pub struct Bus {
     pub ram: [u8; RAM_CAPACITY],
     pub rom: [u8; ROM_CAPACITY],
     pub apu: [u8; APU_CAPACITY],
+    pub ppu: [u8; PPU_CAPACITY],
+
+    // Dummy byte used to read and write areas not mapped.
+    pub dummy: u8,
 }
 
 impl Bus {
+    fn setup() -> Self {
+        let mut ppu = [0; PPU_CAPACITY];
+        ppu[2] = 0b10000000; // V blank
+
+        Self {
+            ram: [0; RAM_CAPACITY],
+            ppu,
+            rom: [0; ROM_CAPACITY],
+            apu: [0; APU_CAPACITY],
+            dummy: 0,
+        }
+    }
+
     pub fn new(mem: Vec<u8>) -> Self {
-        let mut ram = [0; RAM_CAPACITY];
+        let mut res = Self::setup();
+
         let ram_len = RAM_CAPACITY.min(mem.len());
-        ram[..ram_len].copy_from_slice(&mem[..ram_len]);
+        res.ram[..ram_len].copy_from_slice(&mem[..ram_len]);
 
-        let mut rom = [0; ROM_CAPACITY];
         let rom_len = ROM_CAPACITY.min(mem.len());
-        rom[..rom_len].copy_from_slice(&mem[..rom_len]);
+        res.rom[..rom_len].copy_from_slice(&mem[..rom_len]);
 
-        Self { ram, rom, apu: [0; APU_CAPACITY] }
+        res
     }
 
     pub fn with_rom(rom: &[u8]) -> Self {
-        let mut bus_rom = [0; ROM_CAPACITY];
-        bus_rom.copy_from_slice(rom);
-
-        Self { ram: [0; RAM_CAPACITY], rom: bus_rom, apu: [0; APU_CAPACITY] }
+        let mut res = Self::setup();
+        res.rom.copy_from_slice(rom);
+        res
     }
 
     // Map an address to some data for reading and writing.
@@ -39,9 +56,14 @@ impl Bus {
         unsafe {
             match addr {
                 0x0000...0x1fff => self.ram.get_unchecked_mut(addr as usize % RAM_CAPACITY),
+                0x2000...0x3FFF => self.ppu.get_unchecked_mut((addr - 0x2000) as usize % PPU_CAPACITY),
                 0x8000...0xFFFF => self.rom.get_unchecked_mut((addr - 0x8000) as usize % ROM_CAPACITY),
                 0x4000...0x4017 => self.apu.get_unchecked_mut((addr - 0x4000) as usize % ROM_CAPACITY),
-                _ => panic!("Mapper not implemented for address 0x{:x}\n{:?}", addr, self)
+                _ => {
+                    eprintln!("Warning: access to bus area not mapped.");
+                    self.dummy = 0;
+                    &mut self.dummy
+                }
             }
         }
     }
@@ -53,6 +75,7 @@ impl Bus {
 impl fmt::Debug for Bus {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         writeln!(formatter, "Ram | {:?}", (&self.ram[..]).hex_dump())?;
+        writeln!(formatter, "Ppu | {:?}", (&self.ppu[..]).hex_dump())?;
         writeln!(formatter, "Rom | {:?}", (&self.rom[..]).hex_dump())?;
         write!(formatter, "Apu | {:?}", (&self.apu[..]).hex_dump())
     }
