@@ -7,6 +7,8 @@ fn nestest() {
     let rom = Vec::<u8>::from(&include_bytes!("../tests/resources/nestest.nes")[..]);
     let bus = &mut INes::new(rom).unwrap().into_bus();
     let mut cpu = Cpu::new(bus);
+    cpu.reset_routine();
+    cpu.set_clock(0);
 
     // Starting point where the ROM won't access the PPU
     cpu.reg.set_pc(0xc000);

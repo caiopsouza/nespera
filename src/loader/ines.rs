@@ -1,6 +1,5 @@
 use std::ops::Range;
-
-use crate::cpu::bus::Bus;
+use crate::bus::Bus;
 
 const EIGHT_KBYTES_IN_BYTES: usize = 8192;
 const SIXTEEN_KBYTES_IN_BYTES: usize = 2 * EIGHT_KBYTES_IN_BYTES;
@@ -42,9 +41,7 @@ impl INes {
     pub fn prg_rom(&self) -> &[u8] { &self.data[self.prg_rom.clone()] }
 
     // Reads CHR ROM
-    pub fn chr_rom(&self) -> &[u8] {
-        &self.data[self.chr_rom.clone()]
-    }
+    pub fn chr_rom(&self) -> &[u8] { &self.data[self.chr_rom.clone()] }
 
     // Transform the file into a Bus
     pub fn into_bus(self) -> Bus {

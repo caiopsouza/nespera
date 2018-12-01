@@ -10,13 +10,6 @@ impl<'a> Cpu<'a> {
     // First cycle is always fetching the opcode
     fn finish(&mut self) { self.reg.set_next_to_last_cycle() }
 
-    // Reads PC from the Reset Vector
-    pub fn reset(&mut self) {
-        let pcl = self.fetch_pc();
-        let pch = self.fetch_pc();
-        self.reg.write_pcl_pch(pcl, pch);
-    }
-
     fn peek(&mut self, addr: u16) -> u8 {
         self.reg.addr_bus(addr, self.bus.read(addr))
     }
@@ -30,10 +23,16 @@ impl<'a> Cpu<'a> {
         self.poke(addr, data);
         self.reg.set_inc_s(-1);
     }
+
     fn pull(&mut self) -> u8 {
         let res = self.peek_at_stack();
         self.reg.set_inc_s(1); // Should be pre decremented, so I do it later here.
         res
+    }
+
+    // Similar to push, but the write gate is not enabled
+    fn push_write_disabled(&mut self, _data: u8) {
+        self.reg.set_inc_s(-1);
     }
 
     // Internal registers
@@ -113,6 +112,34 @@ impl<'a> Cpu<'a> {
     // region Codes
 
     // region Interrupts
+
+    // Reset subroutine. Load the reset vector.
+    // Reset is a read cycle, so nothing is written to the bus even if it were supposed to.
+    // 2    PC     read next instruction byte (and throw it away), increment PC
+    // 3  $0100,S  Write disabled: should push PCH on stack (with B flag set), decrement S
+    // 4  $0100,S  Write disabled: should push PCL on stack, decrement S
+    // 5  $0100,S  Write disabled: should push P on stack, decrement S
+    // 6   $FFFE   fetch PCL
+    // 7   $FFFF   fetch PCH
+    pub fn reset(&mut self) {
+        match self.reg.get_cycle() {
+            cycle::T2 => { self.fetch_pc(); }
+            cycle::T3 => { self.push_write_disabled(self.reg.get_pch()); }
+            cycle::T4 => { self.push_write_disabled(self.reg.get_pcl()); }
+            cycle::T5 => { self.push_write_disabled(0); }
+            cycle::T6 => {
+                let pcl = self.peek(0xfffc);
+                self.reg.write_pcl(pcl);
+            }
+            cycle::T7 => {
+                let pcl = self.peek(0xfffd);
+                self.reg.write_pch(pcl);
+                self.bus.reset = false;
+                self.finish();
+            }
+            _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
+        }
+    }
 
     // Kil opcode.
     // 2    PC     read next instruction byte (and throw it away).
@@ -634,7 +661,7 @@ impl<'a> Cpu<'a> {
     // endregion
 
     // region Status flags
-    
+
     pub fn clc(&mut self, _value: ()) { self.reg.get_p_mut().clear(flags::CARRY) }
     pub fn cld(&mut self, _value: ()) { self.reg.get_p_mut().clear(flags::DECIMAL_MODE) }
     pub fn cli(&mut self, _value: ()) { self.reg.get_p_mut().clear(flags::INTERRUPT_DISABLE) }

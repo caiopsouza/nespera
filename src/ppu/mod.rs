@@ -1,4 +1,4 @@
-use crate::cpu::bus::Bus;
+use crate::bus::Bus;
 
 pub struct Ppu<'a> {
     _bus: &'a mut Bus,

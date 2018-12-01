@@ -8,8 +8,11 @@ const ROM_CAPACITY: usize = 0x4000;
 const APU_CAPACITY: usize = 0x0018;
 const PPU_CAPACITY: usize = 0x0008;
 
+// General communication between all parts of the NES
 #[derive(Clone)]
 pub struct Bus {
+    pub reset: bool,
+
     pub ram: [u8; RAM_CAPACITY],
     pub rom: [u8; ROM_CAPACITY],
     pub apu: [u8; APU_CAPACITY],
@@ -25,6 +28,7 @@ impl Bus {
         ppu[2] = 0b10000000; // V blank
 
         Self {
+            reset: true,
             ram: [0; RAM_CAPACITY],
             ppu,
             rom: [0; ROM_CAPACITY],

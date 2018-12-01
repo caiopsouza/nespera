@@ -1,14 +1,11 @@
 use std::fmt;
 
-use crate::cpu::bus::Bus;
+use crate::bus::Bus;
 use crate::cpu::reg::Reg;
 
-#[macro_use]
-pub mod opc;
-
-pub mod bus;
 pub mod cycle;
 pub mod flags;
+pub mod opc;
 pub mod reg;
 
 #[derive(PartialEq)]
@@ -43,18 +40,11 @@ impl<'a> Cpu<'a> {
     }
 
     pub fn get_clock(&self) -> u32 { self.clock }
+    pub fn set_clock(&mut self, value: u32) { self.clock = value }
 
     // Step a cycle
     pub fn step(&mut self) {
         self.clock += 1;
-
-        // Last cycle fetches the opcode.
-        if self.reg.get_cycle() == cycle::LAST {
-            let pc = self.fetch_pc();
-            self.reg.set_current_instr(pc);
-            self.reg.set_next_cycle();
-            return;
-        }
 
         // Run an opcode
         macro_rules! run {
@@ -67,6 +57,20 @@ impl<'a> Cpu<'a> {
                 if let Some(res) = self.$mode() { self.$code(res); }
                 self.reg.set_next_cycle();
             }}
+        }
+
+        // Reset subroutine. Will clear the flag when finished.
+        if self.bus.reset {
+            run!(reset);
+            return;
+        }
+
+        // Last cycle fetches the opcode.
+        if self.reg.get_cycle() == cycle::LAST {
+            let pc = self.fetch_pc();
+            self.reg.set_current_instr(pc);
+            self.reg.set_next_cycle();
+            return;
         }
 
         match self.reg.get_current_instr() {
@@ -326,7 +330,7 @@ impl<'a> Cpu<'a> {
             0xFD => run!(sbc, r_absolute_x),    /*bytes: 3 cycles: 4* A___P=>A___P R_ absx Sbc, AbsoluteX   */
             0xFE => run!(inc, rw_absolute_x),   /*bytes: 3 cycles: 7  _____=>____P RW absx Inc, AbsoluteX   */
             0xFF => run!(isc, rw_absolute_x),   /*bytes: 3 cycles: 7  A___P=>A___P RW absx Isc, AbsoluteX   */
-            _ => unreachable!("Opcode not implemented: {:X}", self.reg.get_current_instr())
+            _ => unreachable!("Opcode not implemented: {:2X}", self.reg.get_current_instr())
         }
     }
 
@@ -335,6 +339,10 @@ impl<'a> Cpu<'a> {
             self.step();
             if self.reg.get_cycle() == cycle::LAST { break; }
         }
+    }
+
+    pub fn reset_routine(&mut self) {
+        while self.bus.reset { self.step(); }
     }
 }
 
@@ -346,12 +354,21 @@ mod tests {
         let bus = &mut Bus::with_mem(bus);
 
         let mut cpu = Cpu::new(bus);
+        cpu.reset_routine();
         setup(&mut cpu);
 
         let bus = &mut cpu.bus.clone();
-        let mut check = Cpu { reg: cpu.reg.clone(), clock, bus };
+        let mut check = Cpu {
+            reg: cpu.reg.clone(),
+            clock: clock + 6, // Account for reset routine
+            bus,
+        };
+
+        // Force PC to zero
+        cpu.reg.s_pc(0x00);
         check.reg.s_pc(cpu.reg.get_pc().wrapping_add(size as u16));
 
+        // Run
         loop {
             cpu.step();
             if cpu.reg.get_cycle() == cycle::LAST { break; }
