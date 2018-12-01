@@ -11,44 +11,35 @@ pub mod cycle;
 pub mod flags;
 pub mod reg;
 
-#[derive(Clone, PartialEq)]
-pub struct Cpu {
+#[derive(PartialEq)]
+pub struct Cpu<'a> {
     // Registers
     pub reg: Reg,
 
     // Address Bus
-    pub bus: Bus,
+    pub bus: &'a mut Bus,
 
     // Number of cycles since the CPU has been turned on.
     clock: u32,
 }
 
-impl fmt::Debug for Cpu {
+impl<'a> fmt::Debug for Cpu<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(formatter, "Cpu | clock: {}, [ {:?} ]", self.clock, self.reg)
     }
 }
 
-impl fmt::Display for Cpu {
+impl<'a> fmt::Display for Cpu<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(formatter, "{:?}\n{}", self, self.bus)
     }
 }
 
-impl Cpu {
-    pub fn new(mut bus: Bus) -> Self {
-        let mut reg = Reg::new();
-
-        // Reads PC from the Reset Vector
-        let pcl = reg.fetch_pc(&mut bus);
-        let pch = reg.fetch_pc(&mut bus);
-        reg.write_pcl_pch(pcl, pch);
-
-        Self {
-            reg,
-            clock: 0,
-            bus,
-        }
+impl<'a> Cpu<'a> {
+    pub fn new(bus: &'a mut Bus) -> Self {
+        let mut res = Self { reg: Reg::new(), clock: 0, bus };
+        res.reset();
+        res
     }
 
     pub fn get_clock(&self) -> u32 { self.clock }
@@ -59,7 +50,7 @@ impl Cpu {
 
         // Last cycle fetches the opcode.
         if self.reg.get_cycle() == cycle::LAST {
-            self.reg.fetch_opcode(&mut self.bus);
+            self.fetch_opcode();
             self.reg.set_next_cycle();
             return;
         }
@@ -351,14 +342,13 @@ mod tests {
     use super::*;
 
     fn run(bus: Vec<u8>, size: i16, clock: u32, setup: fn(&mut Cpu), result: fn(&mut Cpu)) {
-        let bus = Bus::new(bus);
+        let bus = &mut Bus::with_mem(bus);
 
         let mut cpu = Cpu::new(bus);
         setup(&mut cpu);
 
-        let mut check = cpu.clone();
-
-        check.clock = clock;
+        let bus = &mut cpu.bus.clone();
+        let mut check = Cpu { reg: cpu.reg.clone(), clock, bus };
         check.reg.s_pc(cpu.reg.get_pc().wrapping_add(size as u16));
 
         loop {
@@ -366,7 +356,6 @@ mod tests {
             if cpu.reg.get_cycle() == cycle::LAST { break; }
             if cpu.clock > 100 { panic!("CPU couldn't finish."); }
         }
-
         check.reg.s_instr(cpu.reg.get_current_instr());
         check.reg.s_db(cpu.reg.get_data_bus());
         check.reg.s_ab(cpu.reg.get_addr_bus());

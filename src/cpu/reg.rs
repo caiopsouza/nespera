@@ -6,7 +6,7 @@ use crate::cpu::flags;
 use crate::cpu::flags::Flags;
 
 // Registers
-#[derive(Clone, PartialOrd, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Reg {
     // Accumulator
     a: u8,
@@ -188,16 +188,8 @@ impl Reg {
     pub fn get_pc(&self) -> u16 { self.pc }
     pub fn get_pcl(&self) -> u8 { self.pc as u8 }
     pub fn get_pch(&self) -> u8 { (self.pc >> 8) as u8 }
-    pub fn peek_pc(&mut self, bus: &mut Bus) -> u8 { self.peek_addr(bus, self.pc) }
     pub fn set_pc(&mut self, pc: u16) { self.pc = pc }
     pub fn set_next_pc(&mut self) { self.pc = self.pc.wrapping_add(1) }
-    pub fn fetch_opcode(&mut self, bus: &mut Bus) { self.current_instr = self.fetch_pc(bus) }
-    pub fn prefetch_pc(&mut self, bus: &mut Bus) -> u8 { self.peek_addr(bus, self.pc) }
-    pub fn fetch_pc(&mut self, bus: &mut Bus) -> u8 {
-        let res = self.prefetch_pc(bus);
-        self.set_next_pc();
-        res
-    }
 
     // Getters for the internal registers
     pub fn get_m(&self) -> u8 { self.m }
@@ -207,14 +199,19 @@ impl Reg {
     pub fn get_absolute(&self) -> u16 { ((self.n as u16) << 8) | (self.m as u16) }
 
     // Setters for the internal registers
-    fn set_m(&mut self, data: u8, overflow: bool) {
+    pub fn set_m(&mut self, data: u8, overflow: bool) {
         self.m = data;
         self.internal_overflow = overflow;
     }
 
+    pub fn set_n(&mut self, data: u8) { self.n = data; }
+
     pub fn set_inc_n(&mut self, data: i8) { self.n = self.n.wrapping_add(data as u8) }
     pub fn set_inc_s(&mut self, data: i8) { self.s = self.s.wrapping_add(data as u8) }
 
+    pub fn set_current_instr(&mut self, current_instr: u8) { self.current_instr = current_instr }
+
+    // Writers for internal registers
     pub fn write_inc_m(&mut self, data: u8) {
         let (data, overflow) = self.m.overflowing_add(data);
         self.set_m(data, overflow);
@@ -246,21 +243,11 @@ impl Reg {
         self.pc = (self.pc & 0xff00) | ((new_pcl as u16) & 0x00ff);
     }
 
-    pub fn prefetch_into_m(&mut self, bus: &mut Bus) {
-        let data = self.peek_pc(bus);
-        self.set_m(data, false)
-    }
-
-    pub fn fetch_into_m(&mut self, bus: &mut Bus) -> u8 {
-        self.prefetch_into_m(bus);
-        self.set_next_pc();
-        self.m
-    }
-
-    pub fn fetch_into_n(&mut self, bus: &mut Bus) -> u8 {
-        self.n = self.peek_pc(bus);
-        self.set_next_pc();
-        self.n
+    // Setter for address bus
+    pub fn addr_bus(&mut self, addr: u16, data: u8) -> u8 {
+        self.addr_bus = addr;
+        self.data_bus = data;
+        self.data_bus
     }
 
     // Fixes PC based on the internal overflow flag
@@ -289,66 +276,6 @@ impl Reg {
         self.addr_bus = addr;
         self.data_bus = data;
         bus.write(addr, data);
-    }
-
-    // Read from register as an address to the external bus
-    pub fn peek_m(&mut self, bus: &mut Bus) -> u8 {
-        self.peek_addr(bus, self.m as u16)
-    }
-
-    pub fn peek_at_m(&mut self, bus: &mut Bus, addr: u16) -> u8 {
-        let data = self.peek_addr(bus, addr);
-        self.write_m(data);
-        self.m
-    }
-
-    pub fn peek_m_offset(&mut self, bus: &mut Bus, offset: i8) -> u8 {
-        self.peek_addr(bus, (self.m.wrapping_add(offset as u8)) as u16)
-    }
-
-    pub fn peek_m_to_self(&mut self, bus: &mut Bus) {
-        let data = self.peek_addr(bus, self.m as u16);
-        self.write_m(data)
-    }
-
-    pub fn peek_n_to_self(&mut self, bus: &mut Bus) {
-        let data = self.peek_addr(bus, self.n as u16);
-        self.write_n(data)
-    }
-
-    pub fn peek_m_to_n(&mut self, bus: &mut Bus) {
-        let data = self.peek_addr(bus, self.m as u16);
-        self.write_n(data)
-    }
-
-    pub fn peek_absolute(&mut self, bus: &mut Bus) -> u8 {
-        self.peek_addr(bus, self.get_absolute())
-    }
-
-    pub fn peek_absolute_to_q(&mut self, bus: &mut Bus) {
-        let data = self.peek_absolute(bus);
-        self.write_q(data)
-    }
-
-    // Write from register as an address to the external bus
-    pub fn poke_n_to_m(&mut self, bus: &mut Bus) {
-        self.poke_addr(bus, self.m as u16, self.n)
-    }
-
-    pub fn poke_q_to_absolute(&mut self, bus: &mut Bus) {
-        self.poke_addr(bus, self.get_absolute(), self.get_q())
-    }
-
-    // Pushes a value onto the stack
-    pub fn poke_at_stack(&mut self, bus: &mut Bus, data: u8) {
-        let addr = self.get_stack_addr();
-        self.poke_addr(bus, addr, data);
-    }
-
-    // Pull a value from the stack
-    pub fn peek_at_stack(&mut self, bus: &mut Bus) -> u8 {
-        let addr = self.get_stack_addr();
-        self.peek_addr(bus, addr)
     }
 }
 

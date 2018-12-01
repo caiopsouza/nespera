@@ -1,7 +1,6 @@
 use std::ops::Range;
 
 use crate::cpu::bus::Bus;
-use crate::cpu::Cpu;
 
 const EIGHT_KBYTES_IN_BYTES: usize = 8192;
 const SIXTEEN_KBYTES_IN_BYTES: usize = 2 * EIGHT_KBYTES_IN_BYTES;
@@ -46,13 +45,12 @@ impl INes {
     pub fn chr_rom(&self) -> &[u8] {
         &self.data[self.chr_rom.clone()]
     }
-}
 
-// Convert into Memory
-impl Into<Cpu> for INes {
-    fn into(self) -> Cpu {
-        let addr_bus = Bus::with_rom(self.prg_rom());
-        Cpu::new(addr_bus)
+    // Transform the file into a Bus
+    pub fn into_bus(self) -> Bus {
+        let mut bus = Bus::new();
+        bus.rom.copy_from_slice(self.prg_rom());
+        bus
     }
 }
 
@@ -104,7 +102,7 @@ mod tests {
     #[test]
     fn memory() {
         let rom = load_test();
-        let bus = &mut Bus::with_rom(rom.prg_rom());
+        let mut bus = rom.into_bus();
         assert_eq!(bus.read(0xC000), 0x4C);
     }
 }

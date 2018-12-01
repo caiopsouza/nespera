@@ -8,7 +8,7 @@ const ROM_CAPACITY: usize = 0x4000;
 const APU_CAPACITY: usize = 0x0018;
 const PPU_CAPACITY: usize = 0x0008;
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct Bus {
     pub ram: [u8; RAM_CAPACITY],
     pub rom: [u8; ROM_CAPACITY],
@@ -20,7 +20,7 @@ pub struct Bus {
 }
 
 impl Bus {
-    fn setup() -> Self {
+    pub fn new() -> Self {
         let mut ppu = [0; PPU_CAPACITY];
         ppu[2] = 0b10000000; // V blank
 
@@ -33,8 +33,8 @@ impl Bus {
         }
     }
 
-    pub fn new(mem: Vec<u8>) -> Self {
-        let mut res = Self::setup();
+    pub fn with_mem(mem: Vec<u8>) -> Self {
+        let mut res = Self::new();
 
         let ram_len = RAM_CAPACITY.min(mem.len());
         res.ram[..ram_len].copy_from_slice(&mem[..ram_len]);
@@ -42,12 +42,6 @@ impl Bus {
         let rom_len = ROM_CAPACITY.min(mem.len());
         res.rom[..rom_len].copy_from_slice(&mem[..rom_len]);
 
-        res
-    }
-
-    pub fn with_rom(rom: &[u8]) -> Self {
-        let mut res = Self::setup();
-        res.rom.copy_from_slice(rom);
         res
     }
 

@@ -5,7 +5,8 @@ use nespera::loader::ines::INes;
 fn nestest() {
     let log = include_str!("../tests/resources/nestest.log");
     let rom = Vec::<u8>::from(&include_bytes!("../tests/resources/nestest.nes")[..]);
-    let mut cpu: Cpu = INes::new(rom).unwrap().into();
+    let bus = &mut INes::new(rom).unwrap().into_bus();
+    let mut cpu = Cpu::new(bus);
 
     // Starting point where the ROM won't access the PPU
     cpu.reg.set_pc(0xc000);
