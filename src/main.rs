@@ -8,6 +8,9 @@ fn main() {
     let rom = Vec::<u8>::from(&include_bytes!("../tests/resources/nestest.nes")[..]);
     let mut cpu: Cpu = INes::new(rom).unwrap().into();
 
+    // Starting point where the ROM won't access the PPU
+    cpu.reg.set_pc(0xc000);
+
     for (line, text) in log.split("\r\n").enumerate() {
         let line = line + 1;
 
@@ -22,8 +25,8 @@ fn main() {
 
         println!("{:04} | {:02x}, {:02x}, {:02x} | {:03} | {:?}", line,
                  cpu.reg.peek_addr(&mut cpu.bus, cpu.reg.get_pc() as u16),
-                 cpu.reg.peek_addr(&mut cpu.bus, (cpu.reg.get_pc() + 1) as u16),
-                 cpu.reg.peek_addr(&mut cpu.bus, (cpu.reg.get_pc() + 2) as u16),
+                 cpu.reg.peek_addr(&mut cpu.bus, (cpu.reg.get_pc().wrapping_add(1)) as u16),
+                 cpu.reg.peek_addr(&mut cpu.bus, (cpu.reg.get_pc().wrapping_add(2)) as u16),
                  ppu_cycle,
                  cpu.reg);
 

@@ -33,13 +33,13 @@ pub struct Reg {
     internal_overflow: bool,
 
     // Current instruction being executed.
-    // Should work the similarly to Instruction Register (IR).
+    // Should work the same as the Instruction Register (IR).
     current_instr: u8,
 
     // Current cycle of the instruction.
     cycle: u8,
 
-    // Data bus. Every transfer should pass though here.
+    // Data bus. Almost every transfer should pass through here.
     data_bus: u8,
 
     // Address bus. Every write request should write the address here.
@@ -92,7 +92,7 @@ impl Reg {
             a: 0,
             x: 0,
             y: 0,
-            pc: 0xc000,
+            pc: 0xfffc,
             p: flags::INTERRUPT_DISABLE | flags::UNUSED,
             s: 0xfd,
             m: 0,
@@ -189,6 +189,7 @@ impl Reg {
     pub fn get_pcl(&self) -> u8 { self.pc as u8 }
     pub fn get_pch(&self) -> u8 { (self.pc >> 8) as u8 }
     pub fn peek_pc(&mut self, bus: &mut Bus) -> u8 { self.peek_addr(bus, self.pc) }
+    pub fn set_pc(&mut self, pc: u16) { self.pc = pc }
     pub fn set_next_pc(&mut self) { self.pc = self.pc.wrapping_add(1) }
     pub fn fetch_opcode(&mut self, bus: &mut Bus) { self.current_instr = self.fetch_pc(bus) }
     pub fn prefetch_pc(&mut self, bus: &mut Bus) -> u8 { self.peek_addr(bus, self.pc) }
@@ -232,17 +233,16 @@ impl Reg {
     // PCL and PCH are represented as a single 16 bit register to ease working with it by other parts.
     // Some bit manipulation is necessary here to write into PCL.
     pub fn write_inc_pcl(&mut self, data: i8) {
-        // Transform into PCL then into an i16 for signed arithmetic.
+        // Transform into PCL then into an i16 for signed manipulation.
         let pcl = self.pc as u8 as i16;
-
         let data = data as i16;
 
         let new_pcl = pcl + data;
 
-        // Overflows if any bit is set in the high part of the new PCL
+        // Overflows if any bit is set in the high part of the new PCL.
         self.internal_overflow = (new_pcl as u16 & 0xff00) != 0;
 
-        // Clear old PCL and set the new one
+        // Clear old PCL and set the new one.
         self.pc = (self.pc & 0xff00) | ((new_pcl as u16) & 0x00ff);
     }
 

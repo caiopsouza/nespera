@@ -36,8 +36,19 @@ impl fmt::Display for Cpu {
 }
 
 impl Cpu {
-    pub fn new(bus: Bus) -> Self {
-        Self { reg: Reg::new(), clock: 0, bus }
+    pub fn new(mut bus: Bus) -> Self {
+        let mut reg = Reg::new();
+
+        // Reads PC from the Reset Vector
+        let pcl = reg.fetch_pc(&mut bus);
+        let pch = reg.fetch_pc(&mut bus);
+        reg.write_pcl_pch(pcl, pch);
+
+        Self {
+            reg,
+            clock: 0,
+            bus,
+        }
     }
 
     pub fn get_clock(&self) -> u32 { self.clock }
