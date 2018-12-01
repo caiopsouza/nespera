@@ -50,7 +50,8 @@ impl<'a> Cpu<'a> {
 
         // Last cycle fetches the opcode.
         if self.reg.get_cycle() == cycle::LAST {
-            self.fetch_opcode();
+            let pc = self.fetch_pc();
+            self.reg.set_current_instr(pc);
             self.reg.set_next_cycle();
             return;
         }

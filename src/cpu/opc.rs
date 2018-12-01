@@ -26,7 +26,8 @@ impl<'a> Cpu<'a> {
     }
 
     fn push(&mut self, data: u8) {
-        self.poke_at_stack(data);
+        let addr = self.reg.get_stack_addr();
+        self.poke(addr, data);
         self.reg.set_inc_s(-1);
     }
     fn pull(&mut self) -> u8 {
@@ -36,30 +37,21 @@ impl<'a> Cpu<'a> {
     }
 
     // Internal registers
-    pub fn prefetch_into_m(&mut self) -> u8 {
+    fn fetch_into_m(&mut self) {
         let data = self.peek_pc();
         self.reg.set_m(data, false);
-        data
-    }
-
-    pub fn fetch_into_m(&mut self) {
-        self.prefetch_into_m();
         self.reg.set_next_pc()
     }
 
-    pub fn fetch_into_n(&mut self) {
+    fn fetch_into_n(&mut self) {
         let n = self.peek_pc();
         self.reg.set_n(n);
         self.reg.set_next_pc()
     }
 
     // PC
-    pub fn peek_pc(&mut self) -> u8 { self.peek(self.reg.get_pc()) }
-    pub fn fetch_opcode(&mut self) {
-        let pc = self.fetch_pc();
-        self.reg.set_current_instr(pc)
-    }
-    pub fn prefetch_pc(&mut self) -> u8 { self.peek(self.reg.get_pc()) }
+    fn peek_pc(&mut self) -> u8 { self.peek(self.reg.get_pc()) }
+    fn prefetch_pc(&mut self) -> u8 { self.peek(self.reg.get_pc()) }
     pub fn fetch_pc(&mut self) -> u8 {
         let res = self.prefetch_pc();
         self.reg.set_next_pc();
@@ -67,61 +59,51 @@ impl<'a> Cpu<'a> {
     }
 
     // Read from register as an address to the external bus
-    pub fn peek_m(&mut self) -> u8 {
+    fn peek_m(&mut self) -> u8 {
         self.peek(self.reg.get_m() as u16)
     }
 
-    pub fn peek_at_m(&mut self, addr: u16) -> u8 {
+    fn peek_at_m(&mut self, addr: u16) -> u8 {
         let data = self.peek(addr);
         self.reg.write_m(data);
         data
     }
 
-    pub fn peek_m_offset(&mut self, offset: i8) -> u8 {
-        self.peek((self.reg.get_m().wrapping_add(offset as u8)) as u16)
-    }
-
-    pub fn peek_m_to_self(&mut self) {
+    fn peek_m_to_self(&mut self) {
         let data = self.peek(self.reg.get_m() as u16);
         self.reg.write_m(data)
     }
 
-    pub fn peek_n_to_self(&mut self) {
+    fn peek_n_to_self(&mut self) {
         let data = self.peek(self.reg.get_n() as u16);
         self.reg.write_n(data)
     }
 
-    pub fn peek_m_to_n(&mut self) {
+    fn peek_m_to_n(&mut self) {
         let data = self.peek(self.reg.get_m() as u16);
         self.reg.write_n(data)
     }
 
-    pub fn peek_absolute(&mut self) -> u8 {
+    fn peek_absolute(&mut self) -> u8 {
         self.peek(self.reg.get_absolute())
     }
 
-    pub fn peek_absolute_to_q(&mut self) {
+    fn peek_absolute_to_q(&mut self) {
         let data = self.peek_absolute();
         self.reg.write_q(data)
     }
 
     // Write from register as an address to the external bus
-    pub fn poke_n_to_m(&mut self) {
+    fn poke_n_to_m(&mut self) {
         self.poke(self.reg.get_m() as u16, self.reg.get_n())
     }
 
-    pub fn poke_q_to_absolute(&mut self) {
+    fn poke_q_to_absolute(&mut self) {
         self.poke(self.reg.get_absolute(), self.reg.get_q())
     }
 
-    // Pushes a value onto the stack
-    pub fn poke_at_stack(&mut self, data: u8) {
-        let addr = self.reg.get_stack_addr();
-        self.poke(addr, data);
-    }
-
     // Pull a value from the stack
-    pub fn peek_at_stack(&mut self) -> u8 {
+    fn peek_at_stack(&mut self) -> u8 {
         let addr = self.reg.get_stack_addr();
         self.peek(addr)
     }
@@ -133,7 +115,8 @@ impl<'a> Cpu<'a> {
     // region Interrupts
 
     // Kil opcode.
-    // 2    PC     R  read next instruction byte (and throw it away). revert cycle to the first one so it won't advance.
+    // 2    PC     read next instruction byte (and throw it away).
+    // 3    PC     revert cycle to the first one so it won't advance.
     pub fn kil(&mut self) {
         match self.reg.get_cycle() {
             cycle::T2 => { self.peek_pc(); }
@@ -143,12 +126,12 @@ impl<'a> Cpu<'a> {
     }
 
     // Break execution and load the interrupt vector
-    // 2    PC     R  read next instruction byte (and throw it away), increment PC
-    // 3  $0100,S  W  push PCH on stack (with B flag set), decrement S
-    // 4  $0100,S  W  push PCL on stack, decrement S
-    // 5  $0100,S  W  push P on stack, decrement S
-    // 6   $FFFE   R  fetch PCL
-    // 7   $FFFF   R  fetch PCH
+    // 2    PC     read next instruction byte (and throw it away), increment PC
+    // 3  $0100,S  push PCH on stack (with B flag set), decrement S
+    // 4  $0100,S  push PCL on stack, decrement S
+    // 5  $0100,S  push P on stack, decrement S
+    // 6   $FFFE   fetch PCL
+    // 7   $FFFF   fetch PCH
     pub fn brk(&mut self) {
         match self.reg.get_cycle() {
             cycle::T2 => { self.fetch_pc(); }
@@ -250,6 +233,7 @@ impl<'a> Cpu<'a> {
     }
 
     pub fn php(&mut self, addr: u16) {
+        // Break Command and Unused are always set when pushing
         let data = self.reg.get_p() | flags::BREAK_COMMAND | flags::UNUSED;
         self.poke(addr, data.into());
     }
@@ -304,11 +288,12 @@ impl<'a> Cpu<'a> {
     // endregion
 
     // region Arithmetic
-    pub fn adc(&mut self, value: u8) {
-        let res = self.reg.get_a() as u16 + value as u16 + self.reg.get_p().get_carry() as u16;
 
+    pub fn adc(&mut self, value: u8) {
         let a = self.reg.get_a();
         let p = self.reg.get_p_mut();
+
+        let res = a as u16 + value as u16 + p.get_carry() as u16;
 
         p.change_zero_negative(res as u8);
 
@@ -520,8 +505,8 @@ impl<'a> Cpu<'a> {
     // region Jump
 
     // Jump to absolute address
-    // 2    PC     R  fetch low address byte, increment PC
-    // 3    PC     R  copy low address byte to PCL, fetch high address byte to PCH
+    // 2    PC     fetch low address byte, increment PC
+    // 3    PC     copy low address byte to PCL, fetch high address byte to PCH
     pub fn jmp_absolute(&mut self) {
         match self.reg.get_cycle() {
             cycle::T2 => { self.fetch_into_m(); }
@@ -536,10 +521,10 @@ impl<'a> Cpu<'a> {
     }
 
     // Jump to indirect address
-    // 2     PC      R  fetch pointer address low, increment PC
-    // 3     PC      R  fetch pointer address high, increment PC
-    // 4   pointer   R  fetch low address to latch
-    // 5  pointer+1* R  fetch PCH, copy latch to PCL
+    // 2     PC      fetch pointer address low, increment PC
+    // 3     PC      fetch pointer address high, increment PC
+    // 4   pointer   fetch low address to latch
+    // 5  pointer+1* fetch PCH, copy latch to PCL
     pub fn jmp_indirect(&mut self) {
         match self.reg.get_cycle() {
             cycle::T2 => { self.fetch_into_m(); }
@@ -557,11 +542,11 @@ impl<'a> Cpu<'a> {
     }
 
     // Jump to Subroutine
-    // 2    PC     R  fetch low address byte, increment PC
-    // 3  $0100,S  R  Internal operation
-    // 4  $0100,S  W  push PCH on stack, decrement S
-    // 5  $0100,S  W  push PCL on stack, decrement S
-    // 6    PC     R  copy low address byte to PCL, fetch high address byte to PCH
+    // 2    PC     fetch low address byte, increment PC
+    // 3  $0100,S  Internal operation
+    // 4  $0100,S  push PCH on stack, decrement S
+    // 5  $0100,S  push PCL on stack, decrement S
+    // 6    PC     copy low address byte to PCL, fetch high address byte to PCH
     pub fn jsr(&mut self) {
         match self.reg.get_cycle() {
             cycle::T2 => { self.fetch_into_m(); }
@@ -580,11 +565,11 @@ impl<'a> Cpu<'a> {
     }
 
     // Return from Interrupt
-    // 2    PC     R  read next instruction byte (and throw it away)
-    // 3  $0100,S  R  increment S
-    // 4  $0100,S  R  pull P from stack, increment S
-    // 5  $0100,S  R  pull PCL from stack, increment S
-    // 6  $0100,S  R  pull PCH from stack
+    // 2    PC     read next instruction byte (and throw it away)
+    // 3  $0100,S  increment S
+    // 4  $0100,S  pull P from stack, increment S
+    // 5  $0100,S  pull PCL from stack, increment S
+    // 6  $0100,S  pull PCH from stack
     pub fn rti(&mut self) {
         match self.reg.get_cycle() {
             cycle::T2 => { self.prefetch_pc(); }
@@ -608,11 +593,11 @@ impl<'a> Cpu<'a> {
     }
 
     // Return from subroutine
-    // 2    PC     R  read next instruction byte (and throw it away)
-    // 3  $0100,S  R  increment S
-    // 4  $0100,S  R  pull PCL from stack, increment S
-    // 5  $0100,S  R  pull PCH from stack
-    // 6    PC     R  increment PC
+    // 2    PC     read next instruction byte (and throw it away)
+    // 3  $0100,S  increment S
+    // 4  $0100,S  pull PCL from stack, increment S
+    // 5  $0100,S  pull PCH from stack
+    // 6    PC     increment PC
     pub fn rts(&mut self) {
         match self.reg.get_cycle() {
             cycle::T2 => { self.prefetch_pc(); }
@@ -649,6 +634,7 @@ impl<'a> Cpu<'a> {
     // endregion
 
     // region Status flags
+    
     pub fn clc(&mut self, _value: ()) { self.reg.get_p_mut().clear(flags::CARRY) }
     pub fn cld(&mut self, _value: ()) { self.reg.get_p_mut().clear(flags::DECIMAL_MODE) }
     pub fn cli(&mut self, _value: ()) { self.reg.get_p_mut().clear(flags::INTERRUPT_DISABLE) }
@@ -664,8 +650,10 @@ impl<'a> Cpu<'a> {
     // region Addressing Mode
 
     // region Write
-    // 2    PC     R  read next instruction byte (and throw it away)
-    // 3  $0100,S  W  push register on stack, decrement S
+
+    // Stack
+    // 2    PC     read next instruction byte (and throw it away)
+    // 3  $0100,S  push register on stack, decrement S
     pub fn w_stack(&mut self) -> Option<u16> {
         match self.reg.get_cycle() {
             cycle::T2 => {
@@ -682,8 +670,8 @@ impl<'a> Cpu<'a> {
     }
 
     // Zero page
-    // 2    PC     R  fetch address, increment PC
-    // 3  address  R  read from effective address
+    // 2    PC     fetch address, increment PC
+    // 3  address  read from effective address
     pub fn w_zero_page(&mut self) -> Option<u16> {
         match self.reg.get_cycle() {
             cycle::T2 => {
@@ -699,9 +687,9 @@ impl<'a> Cpu<'a> {
     }
 
     // Zero page indexed
-    // 2     PC      R  fetch address, increment PC
-    // 3   address   R  read from address, add index register to it
-    // 4  address+I* R  read from effective address
+    // 2     PC      fetch address, increment PC
+    // 3   address   read from address, add index register to it
+    // 4  address+I* read from effective address
     fn w_zero_page_indexed(&mut self, index: u8) -> Option<u16> {
         match self.reg.get_cycle() {
             cycle::T2 => {
