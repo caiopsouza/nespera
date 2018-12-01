@@ -59,7 +59,7 @@ impl Bus {
     fn map(&mut self, addr: u16) -> &mut u8 {
         unsafe {
             match addr {
-                0x0000...0x1fff => self.ram.get_unchecked_mut(addr as usize % RAM_CAPACITY),
+                0x0000...0x1fff => self.ram.get_unchecked_mut((addr - 0x0000) as usize % RAM_CAPACITY),
                 0x2000...0x3FFF => self.ppu.get_unchecked_mut((addr - 0x2000) as usize % PPU_CAPACITY),
                 0x8000...0xFFFF => self.rom.get_unchecked_mut((addr - 0x8000) as usize % ROM_CAPACITY),
                 0x4000...0x4017 => self.apu.get_unchecked_mut((addr - 0x4000) as usize % ROM_CAPACITY),

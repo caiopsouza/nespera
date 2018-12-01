@@ -141,9 +141,11 @@ impl<'a> Cpu<'a> {
                 let vector = if self.bus.nmi { 0xfa } else { 0xfe };
                 self.reg.set_m(vector, false);
 
-                let addr = self.reg.get_stack_addr();
-                self.php(addr);
-                self.reg.set_inc_s(-1);
+                let mut p = self.reg.get_p() | flags::BREAK_COMMAND | flags::UNUSED;
+                // IRQ or NMI clear then B flag
+                if self.bus.irq || self.bus.nmi { p.clear(flags::BREAK_COMMAND) }
+
+                self.push(p.into())
             }
             cycle::T6 => {
                 // NMI won't affect the I flag.
