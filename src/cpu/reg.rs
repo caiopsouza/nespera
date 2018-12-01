@@ -1,6 +1,5 @@
 use std::fmt;
 
-use crate::cpu::bus::Bus;
 use crate::cpu::cycle;
 use crate::cpu::flags;
 use crate::cpu::flags::Flags;
@@ -263,20 +262,6 @@ impl Reg {
     // Buses' getters
     pub fn get_data_bus(&self) -> u8 { self.data_bus }
     pub fn get_addr_bus(&self) -> u16 { self.addr_bus }
-
-    // Reads an address at the specified external bus
-    pub fn peek_addr(&mut self, bus: &mut Bus, addr: u16) -> u8 {
-        self.addr_bus = addr;
-        self.data_bus = bus.read(addr);
-        self.data_bus
-    }
-
-    // Write an address at the specified external bus
-    pub fn poke_addr(&mut self, bus: &mut Bus, addr: u16, data: u8) {
-        self.addr_bus = addr;
-        self.data_bus = data;
-        bus.write(addr, data);
-    }
 }
 
 // Unsafe setters. These should be used only for debug and testing.

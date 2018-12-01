@@ -20,7 +20,10 @@ impl<'a> Cpu<'a> {
     fn peek(&mut self, addr: u16) -> u8 {
         self.reg.addr_bus(addr, self.bus.read(addr))
     }
-    fn poke(&mut self, addr: u16, data: u8) { self.reg.poke_addr(&mut self.bus, addr, data) }
+    fn poke(&mut self, addr: u16, data: u8) {
+        self.reg.addr_bus(addr, self.bus.read(addr));
+        self.bus.write(addr, data);
+    }
 
     fn push(&mut self, data: u8) {
         self.poke_at_stack(data);
