@@ -11,8 +11,12 @@ const PPU_CAPACITY: usize = 0x0008;
 // General communication between all parts of the NES
 #[derive(Clone)]
 pub struct Bus {
+    // Interrupts
     pub reset: bool,
+    pub nmi: bool,
+    pub irq: bool,
 
+    // Memory mapped areas
     pub ram: [u8; RAM_CAPACITY],
     pub rom: [u8; ROM_CAPACITY],
     pub apu: [u8; APU_CAPACITY],
@@ -29,6 +33,8 @@ impl Bus {
 
         Self {
             reset: true,
+            nmi: false,
+            irq: false,
             ram: [0; RAM_CAPACITY],
             ppu,
             rom: [0; ROM_CAPACITY],
@@ -59,7 +65,7 @@ impl Bus {
                 0x4000...0x4017 => self.apu.get_unchecked_mut((addr - 0x4000) as usize % ROM_CAPACITY),
                 _ => {
                     eprintln!("Warning: access to bus area not mapped.");
-                    self.dummy = 0;
+                    self.dummy = 0; // Always read zero, so it's reset here.
                     &mut self.dummy
                 }
             }

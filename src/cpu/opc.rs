@@ -113,34 +113,6 @@ impl<'a> Cpu<'a> {
 
     // region Interrupts
 
-    // Reset subroutine. Load the reset vector.
-    // Reset is a read cycle, so nothing is written to the bus even if it were supposed to.
-    // 2    PC     read next instruction byte (and throw it away), increment PC
-    // 3  $0100,S  Write disabled: should push PCH on stack (with B flag set), decrement S
-    // 4  $0100,S  Write disabled: should push PCL on stack, decrement S
-    // 5  $0100,S  Write disabled: should push P on stack, decrement S
-    // 6   $FFFE   fetch PCL
-    // 7   $FFFF   fetch PCH
-    pub fn reset(&mut self) {
-        match self.reg.get_cycle() {
-            cycle::T2 => { self.fetch_pc(); }
-            cycle::T3 => { self.push_write_disabled(self.reg.get_pch()); }
-            cycle::T4 => { self.push_write_disabled(self.reg.get_pcl()); }
-            cycle::T5 => { self.push_write_disabled(0); }
-            cycle::T6 => {
-                let pcl = self.peek(0xfffc);
-                self.reg.write_pcl(pcl);
-            }
-            cycle::T7 => {
-                let pcl = self.peek(0xfffd);
-                self.reg.write_pch(pcl);
-                self.bus.reset = false;
-                self.finish();
-            }
-            _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
-        }
-    }
-
     // Kil opcode.
     // 2    PC     read next instruction byte (and throw it away).
     // 3    PC     revert cycle to the first one so it won't advance.
@@ -165,16 +137,59 @@ impl<'a> Cpu<'a> {
             cycle::T3 => { self.push(self.reg.get_pch()); }
             cycle::T4 => { self.push(self.reg.get_pcl()); }
             cycle::T5 => {
-                let p = self.reg.get_p() | flags::BREAK_COMMAND | flags::UNUSED;
-                self.push(p.into());
+                // Choose the interrupt vector.
+                let vector = if self.bus.nmi { 0xfa } else { 0xfe };
+                self.reg.set_m(vector, false);
+
+                let addr = self.reg.get_stack_addr();
+                self.php(addr);
+                self.reg.set_inc_s(-1);
             }
             cycle::T6 => {
-                let pcl = self.peek(0xfffe);
+                // NMI won't affect the I flag.
+                if !self.bus.nmi { self.reg.get_p_mut().set(flags::INTERRUPT_DISABLE); }
+
+                let vector = self.reg.get_m();
+                let pcl = self.peek(0xff00 | vector as u16);
                 self.reg.write_pcl(pcl);
             }
             cycle::T7 => {
-                let pcl = self.peek(0xffff);
+                let vector = self.reg.get_m() + 1;
+                let pch = self.peek(0xff00 | vector as u16);
+                self.reg.write_pch(pch);
+
+                // Clear the interrupt flags
+                self.bus.nmi = false;
+                self.bus.irq = false;
+
+                self.finish();
+            }
+            _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
+        }
+    }
+
+    // Reset subroutine. Load the reset vector.
+    // Reset is a read cycle, so nothing is written to the bus even if it were supposed to.
+    // 2    PC     read next instruction byte (and throw it away), increment PC
+    // 3  $0100,S  Write disabled: should push PCH on stack (with B flag set), decrement S
+    // 4  $0100,S  Write disabled: should push PCL on stack, decrement S
+    // 5  $0100,S  Write disabled: should push P on stack, decrement S
+    // 6   $FFFE   fetch PCL
+    // 7   $FFFF   fetch PCH
+    pub fn rst(&mut self) {
+        match self.reg.get_cycle() {
+            cycle::T2 => { self.fetch_pc(); }
+            cycle::T3 => { self.push_write_disabled(self.reg.get_pch()); }
+            cycle::T4 => { self.push_write_disabled(self.reg.get_pcl()); }
+            cycle::T5 => { self.push_write_disabled(0); }
+            cycle::T6 => {
+                let pcl = self.peek(0xfffc);
+                self.reg.write_pcl(pcl);
+            }
+            cycle::T7 => {
+                let pcl = self.peek(0xfffd);
                 self.reg.write_pch(pcl);
+                self.bus.reset = false;
                 self.finish();
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),

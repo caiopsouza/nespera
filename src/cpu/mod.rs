@@ -61,7 +61,7 @@ impl<'a> Cpu<'a> {
 
         // Reset subroutine. Will clear the flag when finished.
         if self.bus.reset {
-            run!(reset);
+            run!(rst);
             return;
         }
 
@@ -70,6 +70,12 @@ impl<'a> Cpu<'a> {
             let pc = self.fetch_pc();
             self.reg.set_current_instr(pc);
             self.reg.set_next_cycle();
+
+            // If interrupted, change the instruction to BRK.
+            if self.bus.nmi || (self.bus.irq && !self.reg.get_p().get_interrupt_disable()) {
+                self.reg.set_current_instr(0x00);
+            }
+
             return;
         }
 
@@ -341,7 +347,7 @@ impl<'a> Cpu<'a> {
         }
     }
 
-    pub fn reset_routine(&mut self) {
+    pub fn reset(&mut self) {
         while self.bus.reset { self.step(); }
     }
 }
@@ -354,7 +360,7 @@ mod tests {
         let bus = &mut Bus::with_mem(bus);
 
         let mut cpu = Cpu::new(bus);
-        cpu.reset_routine();
+        cpu.reset();
         setup(&mut cpu);
 
         let bus = &mut cpu.bus.clone();
