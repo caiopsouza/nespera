@@ -46,7 +46,7 @@ impl INes {
     // Transform the file into a Bus
     pub fn into_bus(self) -> Bus {
         let mut bus = Bus::new();
-        bus.rom.copy_from_slice(self.prg_rom());
+        bus.cpu.rom.copy_from_slice(self.prg_rom());
         bus
     }
 }

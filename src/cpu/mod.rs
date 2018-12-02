@@ -343,7 +343,9 @@ impl<'a> Cpu<'a> {
     pub fn step_instruction(&mut self) {
         loop {
             self.step();
-            if self.reg.get_cycle() == cycle::LAST { break; }
+            if self.reg.get_cycle() == cycle::LAST
+                || self.reg.get_current_instr() == 0x22 // KIL
+                { break; }
         }
     }
 

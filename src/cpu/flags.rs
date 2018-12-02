@@ -1,5 +1,7 @@
 use std::ops;
 
+use crate::utils::bits;
+
 // Bit for each flag
 pub const CARRY: Flags = Flags(0b00000001);
 pub const ZERO: Flags = Flags(0b00000010);
@@ -22,7 +24,7 @@ impl Flags {
     }
 
     pub fn copy(&mut self, other: Flags, mask: Flags) {
-        self.0 = (self.0 & !mask.0) | (other.0 & mask.0)
+        self.0 = bits::copy(self.0, other.0, mask.0)
     }
 
     pub fn contains(&self, flags: Flags) -> bool {
@@ -55,7 +57,7 @@ impl Flags {
 
         // Negative has the same bit as the 7th of the difference
         let diff = value.wrapping_sub(other);
-        self.change(NEGATIVE, (diff & 0b10000000) != 0);
+        self.change(NEGATIVE, (diff & 0b1000_0000) != 0);
     }
 }
 

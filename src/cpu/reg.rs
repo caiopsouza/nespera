@@ -82,9 +82,6 @@ impl fmt::Display for Reg {
 //
 // - fetch: Reads from PC and advances it
 // - prefetch: Reads from PC and keeps its state
-//
-// - peek: Reads from the address bus.
-// - write: Write into the address bus.
 impl Reg {
     pub fn new() -> Self {
         Self {

@@ -10,22 +10,22 @@ impl<'a> Cpu<'a> {
     // First cycle is always fetching the opcode
     fn finish(&mut self) { self.reg.set_next_to_last_cycle() }
 
-    fn peek(&mut self, addr: u16) -> u8 {
+    fn read(&mut self, addr: u16) -> u8 {
         self.reg.addr_bus(addr, self.bus.read(addr))
     }
-    fn poke(&mut self, addr: u16, data: u8) {
+    fn write(&mut self, addr: u16, data: u8) {
         self.reg.addr_bus(addr, self.bus.read(addr));
         self.bus.write(addr, data);
     }
 
     fn push(&mut self, data: u8) {
         let addr = self.reg.get_stack_addr();
-        self.poke(addr, data);
+        self.write(addr, data);
         self.reg.set_inc_s(-1);
     }
 
     fn pull(&mut self) -> u8 {
-        let res = self.peek_at_stack();
+        let res = self.read_stack();
         self.reg.set_inc_s(1); // Should be pre decremented, so I do it later here.
         res
     }
@@ -37,20 +37,20 @@ impl<'a> Cpu<'a> {
 
     // Internal registers
     fn fetch_into_m(&mut self) {
-        let data = self.peek_pc();
+        let data = self.read_pc();
         self.reg.set_m(data, false);
         self.reg.set_next_pc()
     }
 
     fn fetch_into_n(&mut self) {
-        let n = self.peek_pc();
+        let n = self.read_pc();
         self.reg.set_n(n);
         self.reg.set_next_pc()
     }
 
     // PC
-    fn peek_pc(&mut self) -> u8 { self.peek(self.reg.get_pc()) }
-    fn prefetch_pc(&mut self) -> u8 { self.peek(self.reg.get_pc()) }
+    fn read_pc(&mut self) -> u8 { self.read(self.reg.get_pc()) }
+    fn prefetch_pc(&mut self) -> u8 { self.read(self.reg.get_pc()) }
     pub fn fetch_pc(&mut self) -> u8 {
         let res = self.prefetch_pc();
         self.reg.set_next_pc();
@@ -58,53 +58,53 @@ impl<'a> Cpu<'a> {
     }
 
     // Read from register as an address to the external bus
-    fn peek_m(&mut self) -> u8 {
-        self.peek(self.reg.get_m() as u16)
+    fn read_m(&mut self) -> u8 {
+        self.read(self.reg.get_m() as u16)
     }
 
-    fn peek_at_m(&mut self, addr: u16) -> u8 {
-        let data = self.peek(addr);
+    fn read_at_m(&mut self, addr: u16) -> u8 {
+        let data = self.read(addr);
         self.reg.write_m(data);
         data
     }
 
-    fn peek_m_to_self(&mut self) {
-        let data = self.peek(self.reg.get_m() as u16);
+    fn read_m_to_self(&mut self) {
+        let data = self.read(self.reg.get_m() as u16);
         self.reg.write_m(data)
     }
 
-    fn peek_n_to_self(&mut self) {
-        let data = self.peek(self.reg.get_n() as u16);
+    fn read_n_to_self(&mut self) {
+        let data = self.read(self.reg.get_n() as u16);
         self.reg.write_n(data)
     }
 
-    fn peek_m_to_n(&mut self) {
-        let data = self.peek(self.reg.get_m() as u16);
+    fn read_m_to_n(&mut self) {
+        let data = self.read(self.reg.get_m() as u16);
         self.reg.write_n(data)
     }
 
-    fn peek_absolute(&mut self) -> u8 {
-        self.peek(self.reg.get_absolute())
+    fn read_absolute(&mut self) -> u8 {
+        self.read(self.reg.get_absolute())
     }
 
-    fn peek_absolute_to_q(&mut self) {
-        let data = self.peek_absolute();
+    fn read_absolute_to_q(&mut self) {
+        let data = self.read_absolute();
         self.reg.write_q(data)
     }
 
     // Write from register as an address to the external bus
-    fn poke_n_to_m(&mut self) {
-        self.poke(self.reg.get_m() as u16, self.reg.get_n())
+    fn write_n_to_m(&mut self) {
+        self.write(self.reg.get_m() as u16, self.reg.get_n())
     }
 
-    fn poke_q_to_absolute(&mut self) {
-        self.poke(self.reg.get_absolute(), self.reg.get_q())
+    fn write_q_to_absolute(&mut self) {
+        self.write(self.reg.get_absolute(), self.reg.get_q())
     }
 
     // Pull a value from the stack
-    fn peek_at_stack(&mut self) -> u8 {
+    fn read_stack(&mut self) -> u8 {
         let addr = self.reg.get_stack_addr();
-        self.peek(addr)
+        self.read(addr)
     }
 
     // endregion
@@ -118,7 +118,7 @@ impl<'a> Cpu<'a> {
     // 3    PC     revert cycle to the first one so it won't advance.
     pub fn kil(&mut self) {
         match self.reg.get_cycle() {
-            cycle::T2 => { self.peek_pc(); }
+            cycle::T2 => { self.read_pc(); }
             cycle::T3 => { self.reg.set_first_cycle(); }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -152,12 +152,12 @@ impl<'a> Cpu<'a> {
                 if !self.bus.nmi { self.reg.get_p_mut().set(flags::INTERRUPT_DISABLE); }
 
                 let vector = self.reg.get_m();
-                let pcl = self.peek(0xff00 | vector as u16);
+                let pcl = self.read(0xff00 | vector as u16);
                 self.reg.write_pcl(pcl);
             }
             cycle::T7 => {
                 let vector = self.reg.get_m() + 1;
-                let pch = self.peek(0xff00 | vector as u16);
+                let pch = self.read(0xff00 | vector as u16);
                 self.reg.write_pch(pch);
 
                 // Clear the interrupt flags
@@ -185,11 +185,11 @@ impl<'a> Cpu<'a> {
             cycle::T4 => { self.push_write_disabled(self.reg.get_pcl()); }
             cycle::T5 => { self.push_write_disabled(0); }
             cycle::T6 => {
-                let pcl = self.peek(0xfffc);
+                let pcl = self.read(0xfffc);
                 self.reg.write_pcl(pcl);
             }
             cycle::T7 => {
-                let pcl = self.peek(0xfffd);
+                let pcl = self.read(0xfffd);
                 self.reg.write_pch(pcl);
                 self.bus.reset = false;
                 self.finish();
@@ -222,15 +222,15 @@ impl<'a> Cpu<'a> {
     // region Store
     pub fn sta(&mut self, addr: u16) {
         let data = self.reg.get_a();
-        self.poke(addr, data)
+        self.write(addr, data)
     }
     pub fn stx(&mut self, addr: u16) {
         let data = self.reg.get_x();
-        self.poke(addr, data)
+        self.write(addr, data)
     }
     pub fn sty(&mut self, addr: u16) {
         let data = self.reg.get_y();
-        self.poke(addr, data)
+        self.write(addr, data)
     }
 
     // endregion
@@ -273,13 +273,13 @@ impl<'a> Cpu<'a> {
 
     pub fn pha(&mut self, addr: u16) {
         let data = self.reg.get_a();
-        self.poke(addr, data);
+        self.write(addr, data);
     }
 
     pub fn php(&mut self, addr: u16) {
         // Break Command and Unused are always set when pushing
         let data = self.reg.get_p() | flags::BREAK_COMMAND | flags::UNUSED;
-        self.poke(addr, data.into());
+        self.write(addr, data.into());
     }
 
     pub fn pla(&mut self, data: u8) {
@@ -326,7 +326,7 @@ impl<'a> Cpu<'a> {
 
     pub fn sax(&mut self, addr: u16) {
         let data = self.reg.get_a() & self.reg.get_x();
-        self.poke(addr, data);
+        self.write(addr, data);
     }
 
     // endregion
@@ -383,7 +383,7 @@ impl<'a> Cpu<'a> {
     pub fn dcp(&mut self, (addr, data): (u16, u8)) {
         let source = self.reg.get_a();
         let data = data.wrapping_sub(1);
-        self.poke(addr, data);
+        self.write(addr, data);
         self.reg.get_p_mut().change_cmp(source, data)
     }
 
@@ -394,7 +394,7 @@ impl<'a> Cpu<'a> {
     pub fn inc(&mut self, (addr, data): (u16, u8)) {
         let data = data.wrapping_add(1);
         self.reg.get_p_mut().change_zero_negative(data);
-        self.poke(addr, data)
+        self.write(addr, data)
     }
 
     pub fn inx(&mut self, _value: ()) {
@@ -410,7 +410,7 @@ impl<'a> Cpu<'a> {
     pub fn isc(&mut self, (addr, data): (u16, u8)) {
         let data = data.wrapping_add(1);
         self.sbc(data);
-        self.poke(addr, data);
+        self.write(addr, data);
     }
 
     // endregion
@@ -420,7 +420,7 @@ impl<'a> Cpu<'a> {
     pub fn dec(&mut self, (addr, data): (u16, u8)) {
         let data = data.wrapping_sub(1);
         self.reg.get_p_mut().change_zero_negative(data);
-        self.poke(addr, data)
+        self.write(addr, data)
     }
 
     pub fn dex(&mut self, _value: ()) {
@@ -443,7 +443,7 @@ impl<'a> Cpu<'a> {
         p.change(flags::CARRY, condition);
         p.change_zero_negative(res);
 
-        self.poke(addr, res);
+        self.write(addr, res);
     }
 
     pub fn asl(&mut self, (addr, data): (u16, u8)) -> u8 {
@@ -573,11 +573,11 @@ impl<'a> Cpu<'a> {
         match self.reg.get_cycle() {
             cycle::T2 => { self.fetch_into_m(); }
             cycle::T3 => { self.fetch_into_n(); }
-            cycle::T4 => { self.peek_absolute_to_q(); }
+            cycle::T4 => { self.read_absolute_to_q(); }
             cycle::T5 => {
                 let pcl = self.reg.get_q();
                 self.reg.write_inc_m(1);
-                self.peek_absolute_to_q();
+                self.read_absolute_to_q();
                 self.reg.write_pcl_pch(pcl, self.reg.get_q());
                 self.finish();
             }
@@ -628,7 +628,7 @@ impl<'a> Cpu<'a> {
                 self.reg.write_pcl(pcl);
             }
             cycle::T6 => {
-                let pch = self.peek_at_stack();
+                let pch = self.read_stack();
                 self.reg.write_pch(pch);
                 self.finish();
             }
@@ -651,7 +651,7 @@ impl<'a> Cpu<'a> {
                 self.reg.write_pcl(pcl);
             }
             cycle::T5 => {
-                let pch = self.peek_at_stack();
+                let pch = self.read_stack();
                 self.reg.write_pch(pch);
             }
             cycle::T6 => {
@@ -701,7 +701,7 @@ impl<'a> Cpu<'a> {
     pub fn w_stack(&mut self) -> Option<u16> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.peek_pc();
+                self.read_pc();
                 Option::None
             }
             cycle::T3 => {
@@ -741,7 +741,7 @@ impl<'a> Cpu<'a> {
                 Option::None
             }
             cycle::T3 => {
-                self.peek_m();
+                self.read_m();
                 self.reg.write_inc_m(index);
                 Option::None
             }
@@ -837,17 +837,17 @@ impl<'a> Cpu<'a> {
                 Option::None
             }
             cycle::T3 => {
-                self.peek_m();
+                self.read_m();
                 self.reg.write_inc_m_by_x();
                 self.reg.write_n(self.reg.get_m().wrapping_add(1));
                 Option::None
             }
             cycle::T4 => {
-                self.peek_m_to_self();
+                self.read_m_to_self();
                 Option::None
             }
             cycle::T5 => {
-                self.peek_n_to_self();
+                self.read_n_to_self();
                 Option::None
             }
             cycle::T6 => {
@@ -872,11 +872,11 @@ impl<'a> Cpu<'a> {
                 Option::None
             }
             cycle::T3 => {
-                self.peek_m_to_self();
+                self.read_m_to_self();
                 Option::None
             }
             cycle::T4 => {
-                self.peek_n_to_self();
+                self.read_n_to_self();
                 self.reg.write_inc_m_by_y();
                 Option::None
             }
@@ -902,7 +902,7 @@ impl<'a> Cpu<'a> {
     pub fn implied(&mut self) -> Option<()> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.peek_pc();
+                self.read_pc();
                 self.finish();
                 Option::Some(())
             }
@@ -915,7 +915,7 @@ impl<'a> Cpu<'a> {
     pub fn accumulator(&mut self) -> Option<u8> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.peek_pc();
+                self.read_pc();
                 self.finish();
                 Option::Some(self.reg.read_a())
             }
@@ -942,7 +942,7 @@ impl<'a> Cpu<'a> {
     pub fn r_stack(&mut self) -> Option<u8> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.peek_pc();
+                self.read_pc();
                 Option::None
             }
             cycle::T3 => {
@@ -951,7 +951,7 @@ impl<'a> Cpu<'a> {
             }
             cycle::T4 => {
                 self.finish();
-                Option::Some(self.peek_at_stack())
+                Option::Some(self.read_stack())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -960,25 +960,25 @@ impl<'a> Cpu<'a> {
     // Zero Page
     pub fn r_zero_page(&mut self) -> Option<u8> {
         let addr = self.w_zero_page()?;
-        Option::Some(self.peek_at_m(addr))
+        Option::Some(self.read_at_m(addr))
     }
 
     pub fn r_zero_page_x(&mut self) -> Option<u8> {
         let index = self.reg.get_x();
         let addr = self.w_zero_page_indexed(index)?;
-        Option::Some(self.peek_at_m(addr))
+        Option::Some(self.read_at_m(addr))
     }
 
     pub fn r_zero_page_y(&mut self) -> Option<u8> {
         let index = self.reg.get_y();
         let addr = self.w_zero_page_indexed(index)?;
-        Option::Some(self.peek_at_m(addr))
+        Option::Some(self.read_at_m(addr))
     }
 
     // Absolute
     pub fn r_absolute(&mut self) -> Option<u8> {
         let addr = self.w_absolute()?;
-        Option::Some(self.peek_at_m(addr))
+        Option::Some(self.read_at_m(addr))
     }
 
     // Absolute indexed
@@ -998,7 +998,7 @@ impl<'a> Cpu<'a> {
                 Option::None
             }
             cycle::T4 => {
-                let value = self.peek_absolute();
+                let value = self.read_absolute();
                 self.reg.set_fix_carry_n();
 
                 if !self.reg.get_internal_overflow() { self.finish() }
@@ -1007,7 +1007,7 @@ impl<'a> Cpu<'a> {
             }
             cycle::T5 => {
                 self.finish();
-                Option::Some(self.peek_absolute())
+                Option::Some(self.read_absolute())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1026,7 +1026,7 @@ impl<'a> Cpu<'a> {
     // Indexed indirect by X
     pub fn r_indirect_x(&mut self) -> Option<u8> {
         let addr = self.w_indirect_x()?;
-        Option::Some(self.peek(addr))
+        Option::Some(self.read(addr))
     }
 
     // Indirect indexed by Y. Writing requires the 6th cycle.
@@ -1043,16 +1043,16 @@ impl<'a> Cpu<'a> {
                 Option::None
             }
             cycle::T3 => {
-                self.peek_m_to_self();
+                self.read_m_to_self();
                 Option::None
             }
             cycle::T4 => {
-                self.peek_n_to_self();
+                self.read_n_to_self();
                 self.reg.write_inc_m_by_y();
                 Option::None
             }
             cycle::T5 => {
-                let value = self.peek_absolute();
+                let value = self.read_absolute();
                 self.reg.set_fix_carry_n();
 
                 if !self.reg.get_internal_overflow() { self.finish() }
@@ -1061,7 +1061,7 @@ impl<'a> Cpu<'a> {
             }
             cycle::T6 => {
                 self.finish();
-                Option::Some(self.peek_absolute())
+                Option::Some(self.read_absolute())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1110,11 +1110,11 @@ impl<'a> Cpu<'a> {
                 Option::None
             }
             cycle::T3 => {
-                self.peek_m_to_n();
+                self.read_m_to_n();
                 Option::None
             }
             cycle::T4 => {
-                self.poke_n_to_m();
+                self.write_n_to_m();
                 Option::None
             }
             cycle::T5 => {
@@ -1138,16 +1138,16 @@ impl<'a> Cpu<'a> {
                 Option::None
             }
             cycle::T3 => {
-                self.peek_m();
+                self.read_m();
                 self.reg.write_inc_m(index);
                 Option::None
             }
             cycle::T4 => {
-                self.peek_m_to_n();
+                self.read_m_to_n();
                 Option::None
             }
             cycle::T5 => {
-                self.poke_n_to_m();
+                self.write_n_to_m();
                 Option::None
             }
             cycle::T6 => {
@@ -1185,11 +1185,11 @@ impl<'a> Cpu<'a> {
                 Option::None
             }
             cycle::T4 => {
-                self.peek_absolute_to_q();
+                self.read_absolute_to_q();
                 Option::None
             }
             cycle::T5 => {
-                self.poke_q_to_absolute();
+                self.write_q_to_absolute();
                 Option::None
             }
             cycle::T6 => {
@@ -1219,16 +1219,16 @@ impl<'a> Cpu<'a> {
                 Option::None
             }
             cycle::T4 => {
-                self.peek_absolute();
+                self.read_absolute();
                 self.reg.set_fix_carry_n();
                 Option::None
             }
             cycle::T5 => {
-                self.peek_absolute_to_q();
+                self.read_absolute_to_q();
                 Option::None
             }
             cycle::T6 => {
-                self.poke_q_to_absolute();
+                self.write_q_to_absolute();
                 Option::None
             }
             cycle::T7 => {
@@ -1264,25 +1264,25 @@ impl<'a> Cpu<'a> {
                 Option::None
             }
             cycle::T3 => {
-                self.peek_m();
+                self.read_m();
                 self.reg.write_inc_m_by_x();
                 self.reg.write_n(self.reg.get_m().wrapping_add(1));
                 Option::None
             }
             cycle::T4 => {
-                self.peek_m_to_self();
+                self.read_m_to_self();
                 Option::None
             }
             cycle::T5 => {
-                self.peek_n_to_self();
+                self.read_n_to_self();
                 Option::None
             }
             cycle::T6 => {
-                self.peek_absolute_to_q();
+                self.read_absolute_to_q();
                 Option::None
             }
             cycle::T7 => {
-                self.poke_q_to_absolute();
+                self.write_q_to_absolute();
                 Option::None
             }
             cycle::T8 => {
@@ -1309,26 +1309,26 @@ impl<'a> Cpu<'a> {
                 Option::None
             }
             cycle::T3 => {
-                self.peek_m_to_self();
+                self.read_m_to_self();
                 Option::None
             }
             cycle::T4 => {
-                self.peek_n_to_self();
+                self.read_n_to_self();
                 self.reg.write_inc_m_by_y();
                 Option::None
             }
             cycle::T5 => {
-                self.peek_absolute();
+                self.read_absolute();
                 self.reg.set_fix_carry_n();
 
                 Option::None
             }
             cycle::T6 => {
-                self.peek_absolute_to_q();
+                self.read_absolute_to_q();
                 Option::None
             }
             cycle::T7 => {
-                self.poke_q_to_absolute();
+                self.write_q_to_absolute();
                 Option::None
             }
             cycle::T8 => {
