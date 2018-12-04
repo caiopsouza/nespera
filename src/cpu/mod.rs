@@ -34,7 +34,11 @@ impl<'a> fmt::Display for Cpu<'a> {
 
 impl<'a> Cpu<'a> {
     pub fn new(bus: &'a mut Bus) -> Self {
-        let mut res = Self { reg: Reg::new(), clock: 0, bus };
+        let mut res = Self {
+            reg: Reg::new(),
+            clock: 0,
+            bus,
+        };
         res.reset();
         res
     }
@@ -59,11 +63,11 @@ impl<'a> Cpu<'a> {
             }}
         }
 
+        // Transfer OAM. Will clear the flag when finished.
+        if self.bus.ppu.oam_transfer { return run!(oam); }
+
         // Reset subroutine. Will clear the flag when finished.
-        if self.bus.reset {
-            run!(rst);
-            return;
-        }
+        if self.bus.reset { return run!(rst); }
 
         // Last cycle fetches the opcode.
         if self.reg.get_cycle() == cycle::LAST {
@@ -352,6 +356,22 @@ impl<'a> Cpu<'a> {
     pub fn reset(&mut self) {
         while self.bus.reset { self.step(); }
     }
+
+    // Run the instruction passed.
+    // This has horrible side effects and should be used only for testing.
+    pub fn run(&mut self, code: Vec<u8>) {
+        let pc = self.reg.get_pc();
+
+        // Copy into memory at PC
+        for (i, &data) in code.iter().enumerate() {
+            self.bus.write(pc + (i as u16), data)
+        }
+
+        self.step_instruction()
+    }
+
+    // Run a full cycle of the OAM DMA
+    pub fn run_oam_dma(&mut self) { self.step_instruction() }
 }
 
 #[cfg(test)]

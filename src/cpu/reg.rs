@@ -36,7 +36,7 @@ pub struct Reg {
     current_instr: u8,
 
     // Current cycle of the instruction.
-    cycle: u8,
+    cycle: u16,
 
     // Data bus. Almost every transfer should pass through here.
     data_bus: u8,
@@ -175,7 +175,7 @@ impl Reg {
     pub fn get_current_instr(&self) -> u8 { self.current_instr }
 
     // Cycle
-    pub fn get_cycle(&self) -> u8 { self.cycle }
+    pub fn get_cycle(&self) -> u16 { self.cycle }
     pub fn set_next_cycle(&mut self) { self.cycle += 1; }
     pub fn set_first_cycle(&mut self) { self.cycle = cycle::FIRST }
     pub fn set_next_to_last_cycle(&mut self) { self.cycle = cycle::NEX_TO_LAST }
@@ -195,22 +195,21 @@ impl Reg {
     pub fn get_absolute(&self) -> u16 { ((self.n as u16) << 8) | (self.m as u16) }
 
     // Setters for the internal registers
-    pub fn set_m(&mut self, data: u8, overflow: bool) {
-        self.m = data;
-        self.internal_overflow = overflow;
-    }
-
-    pub fn set_n(&mut self, data: u8) { self.n = data; }
+    pub fn set_m(&mut self, data: u8) { self.m = data }
+    pub fn set_n(&mut self, data: u8) { self.n = data }
 
     pub fn set_inc_n(&mut self, data: i8) { self.n = self.n.wrapping_add(data as u8) }
     pub fn set_inc_s(&mut self, data: i8) { self.s = self.s.wrapping_add(data as u8) }
+
+    pub fn set_internal_overflow(&mut self, value: bool) { self.internal_overflow = value }
 
     pub fn set_current_instr(&mut self, current_instr: u8) { self.current_instr = current_instr }
 
     // Writers for internal registers
     pub fn write_inc_m(&mut self, data: u8) {
         let (data, overflow) = self.m.overflowing_add(data);
-        self.set_m(data, overflow);
+        self.set_m(data);
+        self.internal_overflow = overflow;
     }
 
     pub fn write_inc_m_by_x(&mut self) {
@@ -270,7 +269,7 @@ impl Reg {
     pub fn s_p(&mut self, data: u8) { self.p = Flags::from(data) }
     pub fn s_pc(&mut self, data: u16) { self.pc = data }
     pub fn s_s(&mut self, data: u8) { self.s = data }
-    pub fn s_t(&mut self, data: u8) { self.cycle = data }
+    pub fn s_t(&mut self, data: u16) { self.cycle = data }
     pub fn s_c(&mut self, data: bool) { if data { self.p |= flags::CARRY } else { self.p &= !flags::CARRY } }
     pub fn s_z(&mut self, data: bool) { if data { self.p |= flags::ZERO; } else { self.p &= !flags::ZERO } }
     pub fn s_i(&mut self, data: bool) { if data { self.p |= flags::INTERRUPT_DISABLE; } else { self.p &= !flags::INTERRUPT_DISABLE } }

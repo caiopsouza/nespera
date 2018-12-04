@@ -1,4 +1,5 @@
 use std::ops::Range;
+
 use crate::bus::Bus;
 
 const EIGHT_KBYTES_IN_BYTES: usize = 8192;
@@ -47,6 +48,7 @@ impl INes {
     pub fn into_bus(self) -> Bus {
         let mut bus = Bus::new();
         bus.cpu.rom.copy_from_slice(self.prg_rom());
+        bus.ppu.ram[..0x2000].copy_from_slice(self.chr_rom());
         bus
     }
 }

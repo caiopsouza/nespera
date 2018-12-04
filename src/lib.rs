@@ -2,6 +2,7 @@
 #![feature(self_struct_ctor)]
 #![feature(trait_alias)]
 
+pub mod asm;
 pub mod bus;
 pub mod cpu;
 pub mod loader;

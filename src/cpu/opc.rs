@@ -1,6 +1,7 @@
 use crate::cpu::Cpu;
 use crate::cpu::cycle;
 use crate::cpu::flags;
+use crate::utils::bits;
 
 impl<'a> Cpu<'a> {
     // region Miscellaneous
@@ -14,7 +15,7 @@ impl<'a> Cpu<'a> {
         self.reg.addr_bus(addr, self.bus.read(addr))
     }
     fn write(&mut self, addr: u16, data: u8) {
-        self.reg.addr_bus(addr, self.bus.read(addr));
+        self.reg.addr_bus(addr, data);
         self.bus.write(addr, data);
     }
 
@@ -38,7 +39,8 @@ impl<'a> Cpu<'a> {
     // Internal registers
     fn fetch_into_m(&mut self) {
         let data = self.read_pc();
-        self.reg.set_m(data, false);
+        self.reg.set_m(data);
+        self.reg.set_internal_overflow(false);
         self.reg.set_next_pc()
     }
 
@@ -139,7 +141,8 @@ impl<'a> Cpu<'a> {
             cycle::T5 => {
                 // Choose the interrupt vector.
                 let vector = if self.bus.nmi { 0xfa } else { 0xfe };
-                self.reg.set_m(vector, false);
+                self.reg.set_m(vector);
+                self.reg.set_internal_overflow(false);
 
                 let mut p = self.reg.get_p() | flags::BREAK_COMMAND | flags::UNUSED;
                 // IRQ or NMI clear then B flag
@@ -255,6 +258,30 @@ impl<'a> Cpu<'a> {
     pub fn tya(&mut self, _value: ()) {
         let value = self.reg.get_y();
         self.reg.write_a(value);
+    }
+
+    pub fn oam(&mut self) {
+        let cycle = self.reg.get_cycle();
+        let index = (cycle / 2) as u8;
+
+        let ppu = &self.bus.ppu;
+
+        if cycle % 2 == 1 {
+            // Read cycle
+            let addr = bits::word(ppu.oam_source, index);
+            let data = self.bus.read(addr);
+            self.reg.set_m(data);
+        } else {
+            // Write cycle
+            let addr = bits::word(ppu.oam_dest, index);
+            let data = self.reg.get_m();
+            self.bus.write(addr, data);
+
+            if index == 255 {
+                self.bus.ppu.oam_transfer = false;
+                self.finish();
+            }
+        }
     }
 
     // endregion

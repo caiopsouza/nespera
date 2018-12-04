@@ -5,24 +5,24 @@ use pretty_hex::*;
 use crate::utils::bits;
 
 // PPU registers
-const PPU_CTRL: u16 = 0x2000;
-const PPU_MASK: u16 = 0x2001;
-const PPU_STATUS: u16 = 0x2002;
-// const OAM_ADDR: u16 = 0x2003;
-const OAM_DATA: u16 = 0x2004;
-const PPU_SCROLL: u16 = 0x2005;
-const PPU_ADDR: u16 = 0x2006;
-const PPU_DATA: u16 = 0x2007;
-const OAM_DMA: u16 = 0x4014;
+pub const PPU_CTRL: u16 = 0x2000;
+pub const PPU_MASK: u16 = 0x2001;
+pub const PPU_STATUS: u16 = 0x2002;
+pub const OAM_ADDR: u16 = 0x2003;
+pub const OAM_DATA: u16 = 0x2004;
+pub const PPU_SCROLL: u16 = 0x2005;
+pub const PPU_ADDR: u16 = 0x2006;
+pub const PPU_DATA: u16 = 0x2007;
+pub const OAM_DMA: u16 = 0x4014;
 
 // Memory capacity
 const RAM_CAPACITY: usize = 0x0800;
 const ROM_CAPACITY: usize = 0x4000;
 const APU_CAPACITY: usize = 0x0018;
 
-// PPU capacity. Ends with the pallet
-const PALLET_SIZE: usize = 0x0020;
-const PALLET_START_POS: usize = 0x3f00;
+// PPU capacity. Ends with the palette.
+const PALETTE_SIZE: usize = 0x0020;
+const PALETTE_START_POS: usize = 0x3f00;
 const PPU_CAPACITY: usize = 0x4000;
 const PPU_RAM_SIZE: u16 = 0x4000;
 
@@ -33,37 +33,50 @@ pub struct CpuData {
     pub rom: [u8; ROM_CAPACITY],
 }
 
-// Configuration flags
-#[derive(Debug, Clone, PartialEq)]
-enum AddrPos { High, Low }
-
 // Information about the PPU registers decoded from writing to them
 #[derive(Clone)]
 pub struct PpuData {
-    // Internal PPU bus. Any read or write to its registers should fill it.
-    latch: u8,
-
     // PPUCTRL
-    control: u8,
+    pub ram_increment: u16,
+    pub generate_nmi_at_vblank: bool,
 
     // PPUMASK
-    mask: u8,
+    pub greyscale: bool,
+    pub show_background_in_lef: bool,
+    pub show_sprites_in_leftmost: bool,
+    pub show_background: bool,
+    pub show_sprites: bool,
+    pub emphasize_red: bool,
+    pub emphasize_green: bool,
+    pub emphasize_blue: bool,
 
     // PPUSTATUS
-    status: u8,
+    pub status: u8,
 
     // PPUADDR
-    addr: u8,
+    pub addr: u8,
 
     // PPUDATA
-    data: u8,
+    pub data: u8,
+
+    // OAMADDR
+    pub oam_transfer: bool,
+    pub oam_dest: u8,
+    pub oam_source: u8,
+
+    // Internal PPU bus. Any read or write to its registers should fill it.
+    pub latch: u8,
+
+    // Internal registers
+    // 15 bits. Current VRAM address.
+    pub v: u16,
+
+    // 1 bit. Write toggle.
+    pub w: bool,
 
     // RAM
-    ram: [u8; PPU_CAPACITY],
-    ram_buffer: u8,
-    ram_increment: u16,
-    ram_addr_pos: AddrPos,
-    ram_addr: u16,
+    pub ram: [u8; PPU_CAPACITY],
+    pub ram_buffer: u8,
 }
 
 impl PpuData {
@@ -76,32 +89,33 @@ impl PpuData {
 
     // Write to the address register
     pub fn write_addr(&mut self, addr: u8) {
-        if self.ram_addr_pos == AddrPos::Low {
-            self.ram_addr = bits::set_low(self.ram_addr, addr);
-            self.ram_addr_pos = AddrPos::High;
+        if self.w {
+            self.v = bits::set_low(self.v, addr);
         } else {
-            self.ram_addr = bits::set_high(self.ram_addr, addr);
-            self.ram_addr_pos = AddrPos::Low;
+            self.v = bits::set_high(self.v, addr);
         }
 
-        self.ram_addr %= PPU_RAM_SIZE as u16;
+        self.w = !self.w;
+
+        // 15 bits only
+        self.v &= 0b0111_1111_1111_1111;
     }
 
-    // Check if an addres refers to the pallet region of memory
-    fn is_pallet(&self) -> bool { self.ram_addr as usize >= PALLET_START_POS }
+    // Check if an address refers to the palette region of memory
+    fn is_palette(&self) -> bool { self.v as usize >= PALETTE_START_POS }
 
     // Increment the RAM address as specified by PPUCTRL
     fn inc_ram_addr(&mut self) {
-        self.ram_addr = (self.ram_addr + self.ram_increment) % PPU_RAM_SIZE
+        self.v = (self.v + self.ram_increment) % PPU_RAM_SIZE
     }
 
     // Get the RAM address as an index to the internal array
     fn get_addr(&self) -> usize {
-        let mut addr = self.ram_addr as usize;
+        let mut addr = self.v as usize;
 
-        // Pallet is mirrored
-        if self.is_pallet() {
-            addr = ((addr - PALLET_START_POS) % PALLET_SIZE) + PALLET_START_POS
+        // Palette is mirrored
+        if self.is_palette() {
+            addr = ((addr - PALETTE_START_POS) % PALETTE_SIZE) + PALETTE_START_POS
         }
 
         addr
@@ -111,8 +125,8 @@ impl PpuData {
     pub fn read_data(&mut self) -> u8 {
         let data = unsafe { *self.ram.get_unchecked(self.get_addr()) };
 
-        // Pallet data is read immediately
-        let res = if self.is_pallet() {
+        // Palette data is read immediately
+        let res = if self.is_palette() {
             self.ram_buffer = data;
             data
         } else {
@@ -132,6 +146,21 @@ impl PpuData {
 
         self.inc_ram_addr()
     }
+
+    // Vertical blank flags
+    pub fn vblank_set(&mut self) { self.status = bits::set(self.status, 7) }
+    pub fn vblank_clear(&mut self) { self.status = bits::clear(self.status, 7) }
+
+    // Sprite 0 hit flags
+    pub fn sprite0_hit_set(&mut self) { self.status = bits::set(self.status, 6) }
+    pub fn sprite0_hit_clear(&mut self) { self.status = bits::clear(self.status, 6) }
+
+    // Sprite overflow flags
+    pub fn overflow_set(&mut self) { self.status = bits::set(self.status, 5) }
+    pub fn overflow_clear(&mut self) { self.status = bits::clear(self.status, 5) }
+
+    // Reset OAMADDR
+    pub fn oam_addr_reset(&mut self) { self.oam_dest = 0 }
 }
 
 // General communication between all parts of the NES
@@ -144,8 +173,8 @@ pub struct Bus {
 
     // Data
     pub cpu: CpuData,
-    ppu: PpuData,
-    apu: [u8; APU_CAPACITY],
+    pub ppu: PpuData,
+    pub apu: [u8; APU_CAPACITY],
 }
 
 impl Bus {
@@ -163,17 +192,33 @@ impl Bus {
             ppu: PpuData {
                 latch: 0,
 
-                control: 0,
-                mask: 0,
-                status: 0b10000000, // V blank
+                // PPUCTRL
+                ram_increment: 1,
+                generate_nmi_at_vblank: false,
+
+                // PPUMASK
+                greyscale: false,
+                show_background_in_lef: false,
+                show_sprites_in_leftmost: false,
+                show_background: false,
+                show_sprites: false,
+                emphasize_red: false,
+                emphasize_green: false,
+                emphasize_blue: false,
+
+                status: 0,
                 addr: 0,
                 data: 0,
 
+                oam_transfer: false,
+                oam_dest: 0,
+                oam_source: 0,
+
+                v: 0,
+                w: false,
+
                 ram: [0; PPU_CAPACITY],
                 ram_buffer: 0,
-                ram_increment: 1,
-                ram_addr_pos: AddrPos::High,
-                ram_addr: 0,
             },
 
             apu: [0; APU_CAPACITY],
@@ -190,6 +235,12 @@ impl Bus {
         res.cpu.rom[..rom_len].copy_from_slice(&mem[..rom_len]);
 
         res
+    }
+
+    // Vblank has started
+    pub fn start_vblank(&mut self) {
+        self.ppu.status = bits::set(self.ppu.status, 7);
+        if self.ppu.generate_nmi_at_vblank { self.nmi = true }
     }
 
     // Read an address
@@ -211,15 +262,26 @@ impl Bus {
                 // PPU
                 0x2000...0x3FFF => {
                     let addr = PpuData::addr_decode(addr);
+                    let ppu = &mut self.ppu;
 
                     // Reading from the PPU will fill the latch.
                     self.ppu.latch = match addr {
                         OAM_DATA => { unimplemented!("Unable to read OAMDATA") }
 
-                        PPU_DATA => self.ppu.read_data(),
+                        PPU_DATA => ppu.read_data(),
 
-                        // PPU status has some unused bits, so fill in from the latch.
-                        PPU_STATUS => { bits::copy(self.ppu.status, self.ppu.latch, 0b0001_1111) }
+                        PPU_STATUS => {
+                            // Reading the status resets the write toggle.
+                            ppu.w = false;
+
+                            // PPU status has some unused bits, so fill in from the latch.
+                            let res = bits::copy(ppu.status, ppu.latch, 0b0001_1111);
+
+                            // Vertical blank is cleared after reading
+                            ppu.vblank_clear();
+
+                            res
+                        }
 
                         // The rest are write only, so the result is whatever is on the latch.
                         _ => self.ppu.latch,
@@ -255,9 +317,10 @@ impl Bus {
                 // PPU
                 0x2000...0x3FFF => {
                     let addr = PpuData::addr_decode(addr);
+                    let ppu = &mut self.ppu;
 
                     // Every write passes through the latch
-                    self.ppu.latch = data;
+                    ppu.latch = data;
 
                     match addr {
                         //match addr {
@@ -271,22 +334,41 @@ impl Bus {
                         // |+-------- PPU master/slave select (0: read backdrop from EXT pins; 1: output color on EXT pins)
                         // +--------- Generate an NMI at the start of the vertical blanking interval (0: off; 1: on)
                         //}
-                        PPU_CTRL => { self.ppu.ram_increment = if bits::is_set(data, 2) { 32 } else { 1 }; }
+                        PPU_CTRL => {
+                            ppu.ram_increment = if bits::is_set(data, 2) { 32 } else { 1 };
+                            ppu.generate_nmi_at_vblank = bits::is_set(data, 7);
+                        }
 
-                        PPU_MASK | PPU_SCROLL => {}
+                        PPU_MASK => {
+                            ppu.greyscale = bits::is_set(data, 0);
+                            ppu.show_background_in_lef = bits::is_set(data, 1);
+                            ppu.show_sprites_in_leftmost = bits::is_set(data, 2);
+                            ppu.show_background = bits::is_set(data, 3);
+                            ppu.show_sprites = bits::is_set(data, 4);
+                            ppu.emphasize_red = bits::is_set(data, 5);
+                            ppu.emphasize_green = bits::is_set(data, 6);
+                            ppu.emphasize_blue = bits::is_set(data, 7);
+                        }
 
-                        PPU_ADDR => self.ppu.write_addr(data),
+                        PPU_SCROLL => {}
 
-                        PPU_DATA => self.ppu.write_data(data),
+                        PPU_ADDR => ppu.write_addr(data),
 
-                        _ => panic!("write ppu | addr: {:04x}, data: {:02x}", addr, data),
+                        PPU_DATA => ppu.write_data(data),
+
+                        OAM_ADDR => ppu.oam_dest = data,
+
+                        _ => {}
                     }
                 }
 
-                // Areas not mapped.
-                _ => {
-                    panic!("Warning: attempt to write to bus area not mapped.");
+                OAM_DMA => {
+                    self.ppu.oam_transfer = true;
+                    self.ppu.oam_source = data;
                 }
+
+                // Areas not mapped.
+                _ => { panic!("Warning: attempt to write to bus area not mapped."); }
             }
         }
     }
