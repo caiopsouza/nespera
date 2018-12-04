@@ -3,6 +3,7 @@ use std::fmt;
 use crate::cpu::cycle;
 use crate::cpu::flags;
 use crate::cpu::flags::Flags;
+use crate::utils::bits;
 
 // Registers
 #[derive(Clone, PartialEq)]
@@ -159,8 +160,8 @@ impl Reg {
 
     // Data bus shouldn't change here because this pass though it own bus (ADL and ADH)
     pub fn write_pc(&mut self, data: u16) { self.pc = data; }
-    pub fn write_pcl(&mut self, pcl: u8) { self.pc = (self.pc & 0xff00) | (pcl as u16); }
-    pub fn write_pch(&mut self, pch: u8) { self.pc = (self.pc & 0x00ff) | ((pch as u16) << 8); }
+    pub fn write_pcl(&mut self, pcl: u8) { self.pc = bits::set_low(self.pc, pcl) }
+    pub fn write_pch(&mut self, pch: u8) { self.pc = bits::set_high(self.pc, pch) }
     pub fn write_pcl_pch(&mut self, pcl: u8, pch: u8) { self.pc = (pcl as u16) | ((pch as u16) << 8); }
 
     pub fn write_bit_test(&mut self, data: u8) {

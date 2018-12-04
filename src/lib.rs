@@ -1,6 +1,5 @@
 #![feature(nll)]
 #![feature(self_struct_ctor)]
-#![feature(trait_alias)]
 
 pub mod asm;
 pub mod bus;

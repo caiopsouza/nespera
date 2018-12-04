@@ -5,3 +5,5 @@ Cargo.lock
 # Idea
 .idea
 nespera.iml
+
+/tests/resources/roms/*

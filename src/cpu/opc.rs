@@ -119,6 +119,7 @@ impl<'a> Cpu<'a> {
     // 2    PC     read next instruction byte (and throw it away).
     // 3    PC     revert cycle to the first one so it won't advance.
     pub fn kil(&mut self) {
+        println!("Warning: Program killed.");
         match self.reg.get_cycle() {
             cycle::T2 => { self.read_pc(); }
             cycle::T3 => { self.reg.set_first_cycle(); }
@@ -127,12 +128,12 @@ impl<'a> Cpu<'a> {
     }
 
     // Break execution and load the interrupt vector
-    // 2    PC     read next instruction byte (and throw it away), increment PC
-    // 3  $0100,S  push PCH on stack (with B flag set), decrement S
-    // 4  $0100,S  push PCL on stack, decrement S
-    // 5  $0100,S  push P on stack, decrement S
-    // 6   $FFFE   fetch PCL
-    // 7   $FFFF   fetch PCH
+    // 2      PC      read next instruction byte (and throw it away), increment PC
+    // 3    $0100,S   push PCH on stack (with B flag set), decrement S
+    // 4    $0100,S   push PCL on stack, decrement S
+    // 5    $0100,S   push P on stack, decrement S
+    // 6     $FFXX    fetch PCL
+    // 7   $FF(XX+1)  fetch PCH
     pub fn brk(&mut self) {
         match self.reg.get_cycle() {
             cycle::T2 => { self.fetch_pc(); }

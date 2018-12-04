@@ -143,6 +143,7 @@ impl PpuData {
     pub fn write_data(&mut self, data: u8) {
         let addr = self.get_addr();
         unsafe { *self.ram.get_unchecked_mut(addr) = data; }
+        println!("{:04x} {:02x}", addr, data);
 
         self.inc_ram_addr()
     }
@@ -239,7 +240,7 @@ impl Bus {
 
     // Vblank has started
     pub fn start_vblank(&mut self) {
-        self.ppu.status = bits::set(self.ppu.status, 7);
+        self.ppu.vblank_set();
         if self.ppu.generate_nmi_at_vblank { self.nmi = true }
     }
 
@@ -266,8 +267,6 @@ impl Bus {
 
                     // Reading from the PPU will fill the latch.
                     self.ppu.latch = match addr {
-                        OAM_DATA => { unimplemented!("Unable to read OAMDATA") }
-
                         PPU_DATA => ppu.read_data(),
 
                         PPU_STATUS => {
@@ -283,8 +282,10 @@ impl Bus {
                             res
                         }
 
-                        // The rest are write only, so the result is whatever is on the latch.
-                        _ => self.ppu.latch,
+                        _ => {
+                            println!("Warning: attempt to read ppu area not mapped: {:04X}.", addr);
+                            self.ppu.latch
+                        }
                     };
 
                     self.ppu.latch
@@ -292,8 +293,7 @@ impl Bus {
 
                 // Areas not mapped.
                 _ => {
-                    panic!("Warning: attempt to read bus area not mapped.");
-                    // 0
+                    unimplemented!("Warning: attempt to read bus area not mapped {:04X}.", addr);
                 }
             }
         }
@@ -358,7 +358,7 @@ impl Bus {
 
                         OAM_ADDR => ppu.oam_dest = data,
 
-                        _ => {}
+                        _ => { panic!("Warning: attempt to write to ppu area not mapped: {:04X}.", addr); }
                     }
                 }
 
@@ -372,8 +372,6 @@ impl Bus {
             }
         }
     }
-
-    // Peek and poke should not have side effects besides changing the data on poke
 }
 
 impl fmt::Debug for Bus {
