@@ -1,14 +1,18 @@
-extern crate nespera;
+use std::cell::RefCell;
+use std::rc::Rc;
 
+use nespera::bus::Bus;
 use nespera::cpu::Cpu;
-use nespera::loader::ines::INes;
+use nespera::mapper::Cartridge;
 
 fn main() {
-    let rom = Vec::<u8>::from(&include_bytes!("../tests/resources/nestest.nes")[..]);
+    env_logger::init();
 
-    let bus = &mut INes::new(rom).unwrap().into_bus();
-    let mut cpu = Cpu::new(bus);
-    cpu.reset();
+    let file = include_bytes!("../tests/resources/cpu/nestest.nes")[..].to_owned();
+    let cartridge = Cartridge::new(file).unwrap();
+    let bus = Rc::new(RefCell::new(Bus::with_cartridge(cartridge)));
+    let mut _cpu = Cpu::new(bus);
+    /*cpu.reset();
 
     for frame in 0.. {
         for scanline in 0..=261 {
@@ -35,5 +39,5 @@ fn main() {
             println!();
             println!("{}", cpu);
         }
-    }
+    }*/
 }

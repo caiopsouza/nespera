@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::fmt;
+use std::rc::Rc;
 
 use crate::bus::Bus;
 use crate::cpu::reg::Reg;
@@ -8,32 +10,19 @@ pub mod flags;
 pub mod opc;
 pub mod reg;
 
-#[derive(PartialEq)]
-pub struct Cpu<'a> {
+pub struct Cpu {
     // Registers
     pub reg: Reg,
 
     // Address Bus
-    pub bus: &'a mut Bus,
+    pub bus: Rc<RefCell<Bus>>,
 
     // Number of cycles since the CPU has been turned on.
     clock: u32,
 }
 
-impl<'a> fmt::Debug for Cpu<'a> {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "Cpu | clock: {}, [ {:?} ]", self.clock, self.reg)
-    }
-}
-
-impl<'a> fmt::Display for Cpu<'a> {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(formatter, "{:?}\n{}", self, self.bus)
-    }
-}
-
-impl<'a> Cpu<'a> {
-    pub fn new(bus: &'a mut Bus) -> Self {
+impl Cpu {
+    pub fn new(bus: Rc<RefCell<Bus>>) -> Self {
         let mut res = Self {
             reg: Reg::new(),
             clock: 0,
@@ -64,10 +53,10 @@ impl<'a> Cpu<'a> {
         }
 
         // Transfer OAM. Will clear the flag when finished.
-        if self.bus.ppu.oam_transfer { return run!(oam); }
+        if self.bus.borrow().ppu.oam_transfer { return run!(oam); }
 
         // Reset subroutine. Will clear the flag when finished.
-        if self.bus.reset { return run!(rst); }
+        if self.bus.borrow().reset { return run!(rst); }
 
         // Last cycle fetches the opcode.
         if self.reg.get_cycle() == cycle::LAST {
@@ -76,7 +65,7 @@ impl<'a> Cpu<'a> {
             self.reg.set_next_cycle();
 
             // If interrupted, change the instruction to BRK.
-            if self.bus.nmi || (self.bus.irq && !self.reg.get_p().get_interrupt_disable()) {
+            if self.bus.borrow().nmi || (self.bus.borrow().irq && !self.reg.get_p().get_interrupt_disable()) {
                 self.reg.set_current_instr(0x00);
             }
 
@@ -340,7 +329,6 @@ impl<'a> Cpu<'a> {
             0xFD => run!(sbc, r_absolute_x),    /*bytes: 3 cycles: 4* A___P=>A___P R_ absx Sbc, AbsoluteX   */
             0xFE => run!(inc, rw_absolute_x),   /*bytes: 3 cycles: 7  _____=>____P RW absx Inc, AbsoluteX   */
             0xFF => run!(isc, rw_absolute_x),   /*bytes: 3 cycles: 7  A___P=>A___P RW absx Isc, AbsoluteX   */
-            _ => unreachable!("Opcode not implemented: {:2X}", self.reg.get_current_instr())
         }
     }
 
@@ -354,7 +342,7 @@ impl<'a> Cpu<'a> {
     }
 
     pub fn reset(&mut self) {
-        while self.bus.reset { self.step(); }
+        while self.bus.borrow().reset { self.step(); }
     }
 
     // Run the instruction passed.
@@ -364,7 +352,7 @@ impl<'a> Cpu<'a> {
 
         // Copy into memory at PC
         for (i, &data) in code.iter().enumerate() {
-            self.bus.write(pc + (i as u16), data)
+            self.bus.borrow_mut().write(pc + (i as u16), data)
         }
 
         self.step_instruction()
@@ -374,22 +362,35 @@ impl<'a> Cpu<'a> {
     pub fn run_oam_dma(&mut self) { self.step_instruction() }
 }
 
+impl fmt::Debug for Cpu {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "Cpu | clock: {}, [ {:?} ]", self.clock, self.reg)
+    }
+}
+
+impl fmt::Display for Cpu {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(formatter, "{:?}\n{}", self, self.bus.borrow())
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use super::*;
 
     fn run(bus: Vec<u8>, size: i16, clock: u32, setup: fn(&mut Cpu), result: fn(&mut Cpu)) {
-        let bus = &mut Bus::with_mem(bus);
-
-        let mut cpu = Cpu::new(bus);
+        let bus = Bus::with_mem(bus);
+        let bus_ref = Rc::new(RefCell::<Bus>::new(bus));
+        let mut cpu = Cpu::new(bus_ref.clone());
         cpu.reset();
         setup(&mut cpu);
 
-        let bus = &mut cpu.bus.clone();
         let mut check = Cpu {
             reg: cpu.reg.clone(),
             clock: clock + 6, // Account for reset routine
-            bus,
+            bus: bus_ref.clone(),
         };
 
         // Force PC to zero
@@ -411,13 +412,14 @@ mod tests {
 
         result(&mut check);
 
-        assert_eq!(check, cpu, "\n\n{}", cpu);
+        assert_eq!(check.clock, cpu.clock, "\n\n{}", cpu);
+        assert_eq!(check.reg, cpu.reg, "\n\n{}", cpu);
     }
 
     fn as_is(_: &mut Cpu) {}
 
     #[test]
-    #[should_panic(expected = "CPU couldn't finish.")]
+    #[should_panic(expected = "Kil opcode finished running. Aborting program.")]
     fn kil() { run(vec![0x02], 0, 0, as_is, as_is); }
 
     #[test]
@@ -427,9 +429,9 @@ mod tests {
             |cpu| {
                 cpu.reg.s_pc(0x00);
                 cpu.reg.s_s(0xfa);
-                cpu.bus.write(0x01fd, 0x00);
-                cpu.bus.write(0x01fc, 0x02);
-                cpu.bus.write(0x01fb, 0x34);
+                cpu.bus.borrow_mut().write(0x01fd, 0x00);
+                cpu.bus.borrow_mut().write(0x01fc, 0x02);
+                cpu.bus.borrow_mut().write(0x01fb, 0x34);
             },
         );
     }

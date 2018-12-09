@@ -1,9 +1,11 @@
 #![feature(nll)]
-#![feature(self_struct_ctor)]
+#![feature(box_syntax)]
 
-pub mod asm;
+extern crate env_logger;
+#[macro_use]
+extern crate log;
+
 pub mod bus;
 pub mod cpu;
-pub mod loader;
-pub mod ppu;
+pub mod mapper;
 pub mod utils;

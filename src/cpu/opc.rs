@@ -3,7 +3,7 @@ use crate::cpu::cycle;
 use crate::cpu::flags;
 use crate::utils::bits;
 
-impl<'a> Cpu<'a> {
+impl Cpu {
     // region Miscellaneous
 
     // Set current cycle to the last one.
@@ -12,11 +12,11 @@ impl<'a> Cpu<'a> {
     fn finish(&mut self) { self.reg.set_next_to_last_cycle() }
 
     fn read(&mut self, addr: u16) -> u8 {
-        self.reg.addr_bus(addr, self.bus.read(addr))
+        self.reg.addr_bus(addr, self.bus.borrow_mut().read(addr))
     }
     fn write(&mut self, addr: u16, data: u8) {
         self.reg.addr_bus(addr, data);
-        self.bus.write(addr, data);
+        self.bus.borrow_mut().write(addr, data);
     }
 
     fn push(&mut self, data: u8) {
@@ -119,10 +119,12 @@ impl<'a> Cpu<'a> {
     // 2    PC     read next instruction byte (and throw it away).
     // 3    PC     revert cycle to the first one so it won't advance.
     pub fn kil(&mut self) {
-        println!("Warning: Program killed.");
         match self.reg.get_cycle() {
             cycle::T2 => { self.read_pc(); }
-            cycle::T3 => { self.reg.set_first_cycle(); }
+            cycle::T3 => {
+                self.reg.set_first_cycle();
+                panic!("Kil opcode finished running. Aborting program.");
+            }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
     }
@@ -141,19 +143,25 @@ impl<'a> Cpu<'a> {
             cycle::T4 => { self.push(self.reg.get_pcl()); }
             cycle::T5 => {
                 // Choose the interrupt vector.
-                let vector = if self.bus.nmi { 0xfa } else { 0xfe };
+                let vector = if self.bus.borrow().nmi { 0xfa } else { 0xfe };
                 self.reg.set_m(vector);
                 self.reg.set_internal_overflow(false);
 
                 let mut p = self.reg.get_p() | flags::BREAK_COMMAND | flags::UNUSED;
-                // IRQ or NMI clear then B flag
-                if self.bus.irq || self.bus.nmi { p.clear(flags::BREAK_COMMAND) }
+                // IRQ or NMI clear the B flag
+                {
+                    let bus = self.bus.borrow();
+                    if bus.irq || bus.nmi { p.clear(flags::BREAK_COMMAND) }
+                }
 
                 self.push(p.into())
             }
             cycle::T6 => {
                 // NMI won't affect the I flag.
-                if !self.bus.nmi { self.reg.get_p_mut().set(flags::INTERRUPT_DISABLE); }
+                {
+                    let bus = self.bus.borrow();
+                    if !bus.nmi { self.reg.get_p_mut().set(flags::INTERRUPT_DISABLE); }
+                }
 
                 let vector = self.reg.get_m();
                 let pcl = self.read(0xff00 | vector as u16);
@@ -165,8 +173,11 @@ impl<'a> Cpu<'a> {
                 self.reg.write_pch(pch);
 
                 // Clear the interrupt flags
-                self.bus.nmi = false;
-                self.bus.irq = false;
+                {
+                    let mut bus = self.bus.borrow_mut();
+                    bus.nmi = false;
+                    bus.irq = false;
+                }
 
                 self.finish();
             }
@@ -195,7 +206,7 @@ impl<'a> Cpu<'a> {
             cycle::T7 => {
                 let pcl = self.read(0xfffd);
                 self.reg.write_pch(pcl);
-                self.bus.reset = false;
+                self.bus.borrow_mut().reset = false;
                 self.finish();
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
@@ -265,21 +276,23 @@ impl<'a> Cpu<'a> {
         let cycle = self.reg.get_cycle();
         let index = (cycle / 2) as u8;
 
-        let ppu = &self.bus.ppu;
-
         if cycle % 2 == 1 {
             // Read cycle
-            let addr = bits::word(ppu.oam_source, index);
-            let data = self.bus.read(addr);
+            let mut bus = self.bus.borrow_mut();
+            let addr = bits::word(bus.ppu.oam_source, index);
+            let data = bus.read(addr);
             self.reg.set_m(data);
         } else {
             // Write cycle
-            let addr = bits::word(ppu.oam_dest, index);
-            let data = self.reg.get_m();
-            self.bus.write(addr, data);
+            {
+                let mut bus = self.bus.borrow_mut();
+                let addr = bits::word(bus.ppu.oam_dest, index);
+                let data = self.reg.get_m();
+                bus.write(addr, data);
+            }
 
             if index == 255 {
-                self.bus.ppu.oam_transfer = false;
+                self.bus.borrow_mut().ppu.oam_transfer = false;
                 self.finish();
             }
         }
