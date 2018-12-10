@@ -1,4 +1,7 @@
+use std::fmt;
 use std::ops::Range;
+
+use pretty_hex::PrettyHex;
 
 use crate::mapper::Location;
 use crate::mapper::Mapper;
@@ -19,7 +22,7 @@ pub struct Cartridge {
     file: Vec<u8>,
     prg_rom: Range<usize>,
     chr_rom: Range<usize>,
-    prg_ram: Vec<u8>,
+    pub prg_ram: Vec<u8>,
     mapper: Box<Mapper>,
 }
 
@@ -37,13 +40,15 @@ impl Cartridge {
         let chr_rom = chr_rom_start_byte..chr_rom_start_byte + file[0x05] as usize * EIGHT_KBYTES;
         file.get(chr_rom.clone()).ok_or(CartridgeLoadError::UnableToReadChrRom)?;
 
-        Ok(Self {
-            file,
-            prg_rom,
-            chr_rom,
-            prg_ram: vec![0; EIGHT_KBYTES],
-            mapper: box Mapper000::new(),
-        })
+        Ok(
+            Self {
+                file,
+                prg_rom,
+                chr_rom,
+                prg_ram: vec![0; EIGHT_KBYTES],
+                mapper: box Mapper000::new(),
+            }
+        )
     }
 
     pub fn empty() -> Self {
@@ -151,5 +156,11 @@ mod tests {
     fn chr_rom_end() {
         let rom = load_test();
         assert_eq!(rom.chr_rom.end, 0x6010);
+    }
+}
+
+impl fmt::Debug for Cartridge {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(formatter, "PRG RAM | {:?}", (&self.prg_ram[..]).hex_dump())
     }
 }

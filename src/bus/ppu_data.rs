@@ -10,7 +10,7 @@ const PPU_MASK: u16 = 0x2001;
 const PPU_STATUS: u16 = 0x2002;
 const OAM_ADDR: u16 = 0x2003;
 const OAM_DATA: u16 = 0x2004;
-const PPU_SCROLL: u16 = 0x2005;
+// const PPU_SCROLL: u16 = 0x2005;
 const PPU_ADDR: u16 = 0x2006;
 const PPU_DATA: u16 = 0x2007;
 pub const OAM_DMA: u16 = 0x4014;
@@ -124,10 +124,13 @@ impl PpuData {
                 };
 
                 self.inc_ram_addr();
+
+                trace!("Reading from PPUDATA: 0x{:04x}", res);
                 res
             }
 
             PPU_STATUS => {
+
                 // Reading the status resets the write toggle.
                 self.w = false;
 
@@ -137,11 +140,12 @@ impl PpuData {
                 // Vertical blank is cleared after reading
                 self.vblank_clear();
 
+                trace!("Reading from PPUSTATUS: 0x{:04x}", res);
                 res
             }
 
             _ => {
-                error!("Reading from PPU area not mapped. Addr 0x{:04x}.", addr);
+                warn!("Reading from write only PPU area. Addr 0x{:04x}.", addr);
                 self.latch
             }
         };
@@ -169,11 +173,15 @@ impl PpuData {
             // +--------- Generate an NMI at the start of the vertical blanking interval (0: off; 1: on)
             //}
             PPU_CTRL => {
+                warn!("Writing into PPUCTRL is not completely implemented: 0x{:02x}", data);
+
                 self.ram_increment = if bits::is_set(data, 2) { 32 } else { 1 };
                 self.generate_nmi_at_vblank = bits::is_set(data, 7);
             }
 
             PPU_MASK => {
+                trace!("Writing into PPUMASK: 0x{:02x}", data);
+
                 self.greyscale = bits::is_set(data, 0);
                 self.show_background_in_lef = bits::is_set(data, 1);
                 self.show_sprites_in_leftmost = bits::is_set(data, 2);
@@ -184,9 +192,9 @@ impl PpuData {
                 self.emphasize_blue = bits::is_set(data, 7);
             }
 
-            PPU_SCROLL => {}
-
             PPU_ADDR => {
+                trace!("Writing into PPUADDR: 0x{:04x}", data);
+
                 if self.w {
                     self.v = bits::set_low(self.v, data);
                 } else {
@@ -200,26 +208,35 @@ impl PpuData {
             }
 
             PPU_DATA => {
+                trace!("Writing into PPUDATA: 0x{:04x}", data);
+
                 let addr = self.get_addr();
                 unsafe { *self.ram.get_unchecked_mut(addr) = data; }
 
                 self.inc_ram_addr()
             }
 
-            OAM_ADDR => self.oam_dest = data,
+            OAM_ADDR => {
+                trace!("Writing into OAMADDR: 0x{:04x}", data);
+                self.oam_dest = data;
+            }
 
             OAM_DATA => {
+                trace!("Writing into OAMDATA: 0x{:04x}", data);
+
                 unsafe { *self.oam.get_unchecked_mut(self.oam_dest as usize) = data; }
                 self.oam_dest = self.oam_dest.wrapping_add(1);
             }
 
             OAM_DMA => {
+                trace!("Writing into OAMDMA: 0x{:04x}", data);
+
                 self.oam_transfer = true;
                 self.oam_source = data;
             }
 
             _ => {
-                error!("Writing to PPU area not mapped. Addr {:#04x}. Data {:#02x}.", addr, data);
+                warn!("Writing to PPU area not mapped. Addr 0x{:04x}. Data 0x{:02x}.", addr, data);
             }
         }
     }
@@ -252,8 +269,15 @@ impl PpuData {
     }
 
     // Vertical blank flags
-    pub fn vblank_set(&mut self) { self.status = bits::set(self.status, 7) }
-    pub fn vblank_clear(&mut self) { self.status = bits::clear(self.status, 7) }
+    pub fn vblank_set(&mut self) {
+        trace!("VBlank set");
+        self.status = bits::set(self.status, 7)
+    }
+
+    pub fn vblank_clear(&mut self) {
+        trace!("VBlank clear");
+        self.status = bits::clear(self.status, 7)
+    }
 }
 
 impl fmt::Debug for PpuData {

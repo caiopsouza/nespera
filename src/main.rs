@@ -1,43 +1,27 @@
-use std::cell::RefCell;
-use std::rc::Rc;
+use env_logger::Builder;
+use env_logger::Env;
 
-use nespera::bus::Bus;
-use nespera::cpu::Cpu;
-use nespera::mapper::Cartridge;
+use nespera::console::Console;
+
+fn wait_until_running(console: &mut Console) {
+    console.run_until_memory_is(0x6000, 0x80)
+}
+
+fn wait_until_ask_for_reset(console: &mut Console) {
+    console.run_until_memory_is(0x6000, 0x81)
+}
 
 fn main() {
-    env_logger::init();
+    Builder::from_env(Env::default().default_filter_or("debug")).init();
 
-    let file = include_bytes!("../tests/resources/cpu/nestest.nes")[..].to_owned();
-    let cartridge = Cartridge::new(file).unwrap();
-    let bus = Rc::new(RefCell::new(Bus::with_cartridge(cartridge)));
-    let mut _cpu = Cpu::new(bus);
-    /*cpu.reset();
+    let file = include_bytes!("../tests/resources/cpu/cpu_reset/registers.nes")[..].to_owned();
+    let console = &mut Console::new(file);
 
-    for frame in 0.. {
-        for scanline in 0..=261 {
-            for dot in 0..=340 {
-                // Every third PPU cycle, run one cycle of the CPU
-                if (scanline * 261 + dot) % 3 == 0 { cpu.step() }
-
-                // Vblank
-                if scanline == 241 && dot == 1 { cpu.bus.start_vblank() }
-                if scanline == 261 && dot == 1 { cpu.bus.ppu.vblank_clear() }
-            }
-        }
-
-        // Render the frame
-        if frame == 100 {
-            println!("frame: {}", frame);
-            for y in 0..30 {
-                for x in 0..32 {
-                    let dot = cpu.bus.ppu.ram[0x2000 + y * 32 + x];
-                    print!("{:02x} ", dot);
-                }
-                println!();
-            }
-            println!();
-            println!("{}", cpu);
-        }
-    }*/
+    wait_until_running(console);
+    wait_until_ask_for_reset(console);
+    //console.run_until_memory_is(0x1fff, 0xb4);
+    console.run_frames(5);
+    console.cpu.reset();
+    console.run_frames(5);
+    println!("{}", console.cpu);
 }

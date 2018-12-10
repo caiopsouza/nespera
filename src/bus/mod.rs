@@ -67,7 +67,11 @@ impl Bus {
     pub fn read(&mut self, addr: u16) -> u8 {
         unsafe {
             match addr {
-                0x0000...0x1fff => self.cpu.read_ram(addr),
+                0x0000...0x1fff => {
+                    let res = self.cpu.read_ram(addr);
+                    trace!("Reading from CPU RAM: 0x{:04x}, 0x{:02x}", addr, res);
+                    res
+                }
 
                 0x2000...0x3fff => self.ppu.read(addr),
 
@@ -88,9 +92,25 @@ impl Bus {
         }
     }
 
+    // Read the address as a zero terminated string. Used mostly for testing.
+    pub fn read_string(&mut self, addr: u16) -> String {
+        let mut res = String::new();
+        let mut addr = addr;
+        loop {
+            let ch = self.read(addr);
+            if ch == 0 { break; }
+            res.push(ch as char);
+            addr += 1;
+        }
+        res
+    }
+
     pub fn write(&mut self, addr: u16, data: u8) {
         match addr {
-            0x0000...0x1fff => self.cpu.write_ram(addr, data),
+            0x0000...0x1fff => {
+                trace!("Writing into CPU RAM: 0x{:04x}, 0x{:02x}", addr, data);
+                self.cpu.write_ram(addr, data);
+            }
 
             ppu_data::OAM_DMA => self.ppu.write(addr, data),
 
@@ -113,6 +133,7 @@ impl fmt::Debug for Bus {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         writeln!(formatter, "{:?}", self.cpu)?;
         writeln!(formatter, "{:?}", self.ppu)?;
+        writeln!(formatter, "{:?}", self.cartridge)?;
         write!(formatter, "APU | {:?}", (&self.apu[..]).hex_dump())
     }
 }

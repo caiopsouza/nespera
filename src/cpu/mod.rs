@@ -19,6 +19,10 @@ pub struct Cpu {
 
     // Number of cycles since the CPU has been turned on.
     clock: u32,
+
+    // Flags to indicate internal operations
+    oam_transferring: bool,
+    resetting: bool,
 }
 
 impl Cpu {
@@ -27,6 +31,8 @@ impl Cpu {
             reg: Reg::new(),
             clock: 0,
             bus,
+            oam_transferring: false,
+            resetting: false,
         };
         res.reset();
         res
@@ -52,25 +58,30 @@ impl Cpu {
             }}
         }
 
-        // Transfer OAM. Will clear the flag when finished.
-        if self.bus.borrow().ppu.oam_transfer { return run!(oam); }
-
-        // Reset subroutine. Will clear the flag when finished.
-        if self.bus.borrow().reset { return run!(rst); }
-
         // Last cycle fetches the opcode.
-        if self.reg.get_cycle() == cycle::LAST {
+        if self.reg.is_last_cycle() {
             let pc = self.fetch_pc();
             self.reg.set_current_instr(pc);
             self.reg.set_next_cycle();
 
-            // If interrupted, change the instruction to BRK.
-            if self.bus.borrow().nmi || (self.bus.borrow().irq && !self.reg.get_p().get_interrupt_disable()) {
+            let bus = self.bus.borrow();
+            if self.bus.borrow().reset {
+                self.resetting = true
+            } else if bus.ppu.oam_transfer {
+                self.oam_transferring = true
+            } else if bus.nmi || (bus.irq && !self.reg.get_p().get_interrupt_disable()) {
+                // If interrupted, change the instruction to BRK.
                 self.reg.set_current_instr(0x00);
             }
 
             return;
         }
+
+        // Transfer OAM. Will clear the flag when finished.
+        if self.oam_transferring { return run!(oam); }
+
+        // Reset subroutine. Will clear the flag when finished.
+        if self.resetting { return run!(rst); }
 
         match self.reg.get_current_instr() {
             0x00 => run!(brk),                  /*bytes: 0 cycles: 7  _____=>_____ __      Brk, Implied     */
@@ -341,7 +352,16 @@ impl Cpu {
         }
     }
 
+    // Step until a condition is met
+    pub fn step_until(&mut self, condition: fn(&Cpu) -> bool) {
+        loop {
+            self.step();
+            if condition(&self) { break; }
+        }
+    }
+
     pub fn reset(&mut self) {
+        self.bus.borrow_mut().reset = true;
         while self.bus.borrow().reset { self.step(); }
     }
 
@@ -364,7 +384,7 @@ impl Cpu {
 
 impl fmt::Debug for Cpu {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "Cpu | clock: {}, [ {:?} ]", self.clock, self.reg)
+        write!(formatter, "Cpu | clock: {:>6}, [ {:?} ]", self.clock, self.reg)
     }
 }
 
@@ -384,13 +404,14 @@ mod tests {
         let bus = Bus::with_mem(bus);
         let bus_ref = Rc::new(RefCell::<Bus>::new(bus));
         let mut cpu = Cpu::new(bus_ref.clone());
-        cpu.reset();
         setup(&mut cpu);
 
         let mut check = Cpu {
             reg: cpu.reg.clone(),
-            clock: clock + 6, // Account for reset routine
+            clock: clock + 7, // Account for reset routine
             bus: bus_ref.clone(),
+            oam_transferring: false,
+            resetting: false,
         };
 
         // Force PC to zero

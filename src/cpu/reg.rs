@@ -97,7 +97,7 @@ impl Reg {
             q: 0,
             internal_overflow: false,
             current_instr: 0x00, // BRK. But will actually execute a reset as dictated by the bus
-            cycle: cycle::FIRST,
+            cycle: cycle::LAST,
             data_bus: 0,
             addr_bus: 0,
         }
@@ -177,6 +177,7 @@ impl Reg {
 
     // Cycle
     pub fn get_cycle(&self) -> u16 { self.cycle }
+    pub fn is_last_cycle(&self) -> bool { self.cycle == cycle::LAST }
     pub fn set_next_cycle(&mut self) { self.cycle += 1; }
     pub fn set_first_cycle(&mut self) { self.cycle = cycle::FIRST }
     pub fn set_next_to_last_cycle(&mut self) { self.cycle = cycle::NEX_TO_LAST }
@@ -199,8 +200,25 @@ impl Reg {
     pub fn set_m(&mut self, data: u8) { self.m = data }
     pub fn set_n(&mut self, data: u8) { self.n = data }
 
-    pub fn set_inc_n(&mut self, data: i8) { self.n = self.n.wrapping_add(data as u8) }
-    pub fn set_inc_s(&mut self, data: i8) { self.s = self.s.wrapping_add(data as u8) }
+    pub fn set_inc_n(&mut self, data: i8) { self.n = self.n.wrapping_add(data as u8); }
+
+    pub fn set_inc_s(&mut self, data: i8) {
+        if !cfg!(debug_assertions) {
+            self.s = self.s.wrapping_add(data as u8)
+        } else {
+            if data < 0 {
+                let data = -data as u8;
+                let (s, overflow) = self.s.overflowing_sub(data as u8);
+                self.s = s;
+                if overflow { warn!("S overflowed when subtracting {}.", data) }
+            } else {
+                let data = data as u8;
+                let (s, overflow) = self.s.overflowing_add(data as u8);
+                self.s = s;
+                if overflow { warn!("S overflowed when adding {}.", data) }
+            }
+        }
+    }
 
     pub fn set_internal_overflow(&mut self, value: bool) { self.internal_overflow = value }
 

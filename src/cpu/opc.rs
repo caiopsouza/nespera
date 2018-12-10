@@ -196,9 +196,9 @@ impl Cpu {
     pub fn rst(&mut self) {
         match self.reg.get_cycle() {
             cycle::T2 => { self.fetch_pc(); }
-            cycle::T3 => { self.push_write_disabled(self.reg.get_pch()); }
-            cycle::T4 => { self.push_write_disabled(self.reg.get_pcl()); }
-            cycle::T5 => { self.push_write_disabled(0); }
+            cycle::T3 => self.push_write_disabled(self.reg.get_pch()),
+            cycle::T4 => self.push_write_disabled(self.reg.get_pcl()),
+            cycle::T5 => self.push_write_disabled(0),
             cycle::T6 => {
                 let pcl = self.read(0xfffc);
                 self.reg.write_pcl(pcl);
@@ -206,6 +206,7 @@ impl Cpu {
             cycle::T7 => {
                 let pcl = self.read(0xfffd);
                 self.reg.write_pch(pcl);
+                self.resetting = false;
                 self.bus.borrow_mut().reset = false;
                 self.finish();
             }
@@ -292,6 +293,7 @@ impl Cpu {
             }
 
             if index == 255 {
+                self.oam_transferring = false;
                 self.bus.borrow_mut().ppu.oam_transfer = false;
                 self.finish();
             }

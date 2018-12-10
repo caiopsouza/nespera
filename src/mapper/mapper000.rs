@@ -20,7 +20,6 @@ impl Mapper for Mapper000 {
     fn write(&self, addr: u16) -> Location {
         match addr {
             0x6000...0x7fff => Location::PrgRam(addr - 0x6000),
-            0x8000...0xffff => Location::PrgRom(addr - 0x8000),
             _ => {
                 error!("Attempt to write to address {:#04x} from Mapper 000.", addr);
                 Location::Nowhere
