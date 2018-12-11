@@ -155,7 +155,7 @@ impl Cpu {
                 self.reg.set_internal_overflow(reg::InternalOverflow::None);
 
                 let mut p = self.reg.get_p() | flags::BREAK_COMMAND | flags::UNUSED;
-                // IRQ or NMI clear the B flag
+                // IRQ or NMI clear the Break flag
                 {
                     let bus = self.bus.borrow();
                     if bus.irq || bus.nmi { p.clear(flags::BREAK_COMMAND) }
@@ -358,7 +358,7 @@ impl Cpu {
     pub fn php(&mut self, addr: u16) {
         // Break Command and Unused are always set when pushing
         let data = self.reg.get_p() | flags::BREAK_COMMAND | flags::UNUSED;
-        let data: u8 = data.into();
+        let data = data.as_u8();
         trace!(target: "opcode", "php, addr: 0x{:04x}, data: 0x{:02x}", addr, data);
         self.write(addr, data);
     }
@@ -884,7 +884,7 @@ impl Cpu {
             cycle::T3 => {
                 self.reg.set_inc_s(-1);
                 self.finish();
-                Option::Some(self.reg.get_stack_addr().wrapping_add(1))
+                Option::Some(self.reg.get_next_stack_addr())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }

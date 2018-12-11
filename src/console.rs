@@ -26,7 +26,7 @@ impl Console {
         let cpu = Cpu::new(bus.clone());
         let instr_pc = cpu.reg.get_pc();
 
-        Self { bus, cpu, instr_pc, clock: 0, frame: 1, scanline: 0, cycle: 0 }
+        Self { bus, cpu, instr_pc, clock: 0, frame: 0, scanline: 0, cycle: 0 }
     }
 
     // Logs the current console status for comparing with Nintendulator.

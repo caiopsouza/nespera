@@ -18,15 +18,15 @@ fn run_blargg(file: Vec<u8>, res: &'static str, log: &mut impl FnMut(&Console, S
 fn main() {
     Builder::from_env(Env::default().default_filter_or("error")).init();
 
-    let log = include_str!("../tests/resources/cpu/instr_test/03-immediate.log");
+    let log = include_str!("../tests/resources/cpu/instr_test/11-stack.log");
     let mut log = log.split("\r\n").enumerate();
-    let file = include_bytes!("../tests/resources/cpu/instr_test/03-immediate.nes")[..].to_owned();
+    let file = include_bytes!("../tests/resources/cpu/instr_test/11-stack.nes")[..].to_owned();
     let console = run_blargg(file,
-                             "03-immediate",
+                             "11-stack",
                              &mut |console, actual| {
                                  let (line, log) = log.next().unwrap();
                                  let expected = format!("{} {}", &log[0..8], &log[48..]);
-                                 assert_eq!(actual, expected, "\nat line {}\n{}", line + 1, console.cpu);
+                                 assert_eq!(actual, expected, "\nat line {}\n{}", line, console.cpu);
                              });
 
     println!("{}", console.cpu);

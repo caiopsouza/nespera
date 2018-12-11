@@ -123,6 +123,7 @@ impl Reg {
     pub fn get_y(&self) -> u8 { self.y }
     pub fn get_s(&self) -> u8 { self.s }
     pub fn get_stack_addr(&self) -> u16 { self.s as u16 + 0x100 }
+    pub fn get_next_stack_addr(&self) -> u16 { self.s.wrapping_add(1) as u16 + 0x100 }
 
     pub fn get_p(&self) -> Flags { self.p }
     pub fn get_p_mut(&mut self) -> &mut Flags { &mut self.p }

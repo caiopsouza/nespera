@@ -3,14 +3,14 @@ use std::ops;
 use crate::utils::bits;
 
 // Bit for each flag
-pub const CARRY: Flags = Flags(0b00000001);
-pub const ZERO: Flags = Flags(0b00000010);
-pub const INTERRUPT_DISABLE: Flags = Flags(0b00000100);
-pub const DECIMAL_MODE: Flags = Flags(0b00001000);
-pub const BREAK_COMMAND: Flags = Flags(0b00010000);
-pub const UNUSED: Flags = Flags(0b00100000);
-pub const OVERFLOW: Flags = Flags(0b01000000);
-pub const NEGATIVE: Flags = Flags(0b10000000);
+pub const CARRY: Flags = Flags(0b0000_0001);
+pub const ZERO: Flags = Flags(0b0000_0010);
+pub const INTERRUPT_DISABLE: Flags = Flags(0b0000_0100);
+pub const DECIMAL_MODE: Flags = Flags(0b0000_1000);
+pub const BREAK_COMMAND: Flags = Flags(0b0001_0000);
+pub const UNUSED: Flags = Flags(0b0010_0000);
+pub const OVERFLOW: Flags = Flags(0b0100_0000);
+pub const NEGATIVE: Flags = Flags(0b1000_0000);
 
 pub const LEAST_BIT: u8 = 0b10000000;
 
