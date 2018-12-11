@@ -19,6 +19,8 @@ pub const LEAST_BIT: u8 = 0b10000000;
 pub struct Flags(pub u8);
 
 impl Flags {
+    pub fn as_u8(self) -> u8 { self.0 }
+
     pub fn change(&mut self, other: Flags, condition: bool) {
         self.0 = if condition { self.0 | other.0 } else { self.0 & !other.0 }
     }
@@ -34,6 +36,14 @@ impl Flags {
     // Set and clear
     pub fn set(&mut self, flags: Flags) { self.copy(flags, flags) }
     pub fn clear(&mut self, flags: Flags) { self.copy(!flags, flags) }
+
+    pub fn toggle(&mut self, other: Flags) {
+        if self.contains(other) {
+            self.clear(other)
+        } else {
+            self.set(other)
+        }
+    }
 
     // Getter
     pub fn get_carry(&self) -> bool { self.contains(CARRY) }

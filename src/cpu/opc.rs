@@ -1,6 +1,7 @@
 use crate::cpu::Cpu;
 use crate::cpu::cycle;
 use crate::cpu::flags;
+use crate::cpu::reg;
 use crate::utils::bits;
 
 impl Cpu {
@@ -40,7 +41,7 @@ impl Cpu {
     fn fetch_into_m(&mut self) {
         let data = self.read_pc();
         self.reg.set_m(data);
-        self.reg.set_internal_overflow(false);
+        self.reg.set_internal_overflow(reg::InternalOverflow::None);
         self.reg.set_next_pc()
     }
 
@@ -120,7 +121,10 @@ impl Cpu {
     // 3    PC     revert cycle to the first one so it won't advance.
     pub fn kil(&mut self) {
         match self.reg.get_cycle() {
-            cycle::T2 => { self.read_pc(); }
+            cycle::T2 => {
+                trace!(target: "opcode", "kil");
+                self.read_pc();
+            }
             cycle::T3 => {
                 self.reg.set_first_cycle();
                 panic!("Kil opcode finished running. Aborting program.");
@@ -138,14 +142,17 @@ impl Cpu {
     // 7   $FF(XX+1)  fetch PCH
     pub fn brk(&mut self) {
         match self.reg.get_cycle() {
-            cycle::T2 => { self.fetch_pc(); }
+            cycle::T2 => {
+                trace!(target: "opcode", "brk");
+                self.fetch_pc();
+            }
             cycle::T3 => { self.push(self.reg.get_pch()); }
             cycle::T4 => { self.push(self.reg.get_pcl()); }
             cycle::T5 => {
                 // Choose the interrupt vector.
                 let vector = if self.bus.borrow().nmi { 0xfa } else { 0xfe };
                 self.reg.set_m(vector);
-                self.reg.set_internal_overflow(false);
+                self.reg.set_internal_overflow(reg::InternalOverflow::None);
 
                 let mut p = self.reg.get_p() | flags::BREAK_COMMAND | flags::UNUSED;
                 // IRQ or NMI clear the B flag
@@ -195,7 +202,10 @@ impl Cpu {
     // 7   $FFFF   fetch PCH
     pub fn rst(&mut self) {
         match self.reg.get_cycle() {
-            cycle::T2 => { self.fetch_pc(); }
+            cycle::T2 => {
+                trace!(target: "opcode", "rst");
+                self.fetch_pc();
+            }
             cycle::T3 => self.push_write_disabled(self.reg.get_pch()),
             cycle::T4 => self.push_write_disabled(self.reg.get_pcl()),
             cycle::T5 => self.push_write_disabled(0),
@@ -218,17 +228,31 @@ impl Cpu {
 
     // region Nop
 
-    pub fn nop(&mut self, _value: ()) {}
-    pub fn dop(&mut self, _value: u8) {}
+    pub fn nop(&mut self, _value: ()) {
+        trace!(target: "opcode", "nop");
+    }
+    pub fn dop(&mut self, value: u8) {
+        trace!(target: "opcode", "dop, data: 0x{:02x}", value);
+    }
 
     // endregion
 
     // region Load
 
-    pub fn lda(&mut self, value: u8) { self.reg.write_a(value) }
-    pub fn ldx(&mut self, value: u8) { self.reg.write_x(value) }
-    pub fn ldy(&mut self, value: u8) { self.reg.write_y(value) }
+    pub fn lda(&mut self, value: u8) {
+        trace!(target: "opcode", "lda, data: 0x{:02x}", value);
+        self.reg.write_a(value)
+    }
+    pub fn ldx(&mut self, value: u8) {
+        trace!(target: "opcode", "ldx, data: 0x{:02x}", value);
+        self.reg.write_x(value)
+    }
+    pub fn ldy(&mut self, value: u8) {
+        trace!(target: "opcode", "ldy, data: 0x{:02x}", value);
+        self.reg.write_y(value)
+    }
     pub fn lax(&mut self, value: u8) {
+        trace!(target: "opcode", "lax, data: 0x{:02x}", value);
         self.reg.write_a(value);
         self.reg.write_x(value);
     }
@@ -237,14 +261,17 @@ impl Cpu {
 
     // region Store
     pub fn sta(&mut self, addr: u16) {
+        trace!(target: "opcode", "sta, addr: 0x{:04x}", addr);
         let data = self.reg.get_a();
         self.write(addr, data)
     }
     pub fn stx(&mut self, addr: u16) {
+        trace!(target: "opcode", "stx, addr: 0x{:04x}", addr);
         let data = self.reg.get_x();
         self.write(addr, data)
     }
     pub fn sty(&mut self, addr: u16) {
+        trace!(target: "opcode", "sty, addr: 0x{:04x}", addr);
         let data = self.reg.get_y();
         self.write(addr, data)
     }
@@ -254,21 +281,25 @@ impl Cpu {
     // region Transfer
 
     pub fn tax(&mut self, _value: ()) {
+        trace!(target: "opcode", "tax");
         let value = self.reg.get_a();
         self.reg.write_x(value);
     }
 
     pub fn tay(&mut self, _value: ()) {
+        trace!(target: "opcode", "tay");
         let value = self.reg.get_a();
         self.reg.write_y(value);
     }
 
     pub fn txa(&mut self, _value: ()) {
+        trace!(target: "opcode", "txa");
         let value = self.reg.get_x();
         self.reg.write_a(value);
     }
 
     pub fn tya(&mut self, _value: ()) {
+        trace!(target: "opcode", "tya");
         let value = self.reg.get_y();
         self.reg.write_a(value);
     }
@@ -276,6 +307,8 @@ impl Cpu {
     pub fn oam(&mut self) {
         let cycle = self.reg.get_cycle();
         let index = (cycle / 2) as u8;
+
+        if cycle == 1 { trace!(target: "opcode", "oam"); }
 
         if cycle % 2 == 1 {
             // Read cycle
@@ -305,31 +338,38 @@ impl Cpu {
     // region Stack
 
     pub fn tsx(&mut self, _value: ()) {
+        trace!(target: "opcode", "tsx");
         let value = self.reg.get_s();
         self.reg.write_x(value);
     }
 
     pub fn txs(&mut self, _value: ()) {
+        trace!(target: "opcode", "txs");
         let value = self.reg.get_x();
         self.reg.write_s(value);
     }
 
     pub fn pha(&mut self, addr: u16) {
         let data = self.reg.get_a();
+        trace!(target: "opcode", "pha, addr: 0x{:04x}, data: 0x{:02x}", addr, data);
         self.write(addr, data);
     }
 
     pub fn php(&mut self, addr: u16) {
         // Break Command and Unused are always set when pushing
         let data = self.reg.get_p() | flags::BREAK_COMMAND | flags::UNUSED;
-        self.write(addr, data.into());
+        let data: u8 = data.into();
+        trace!(target: "opcode", "php, addr: 0x{:04x}, data: 0x{:02x}", addr, data);
+        self.write(addr, data);
     }
 
     pub fn pla(&mut self, data: u8) {
+        trace!(target: "opcode", "pla, data: 0x{:02x}", data);
         self.reg.write_a(data);
     }
 
     pub fn plp(&mut self, data: u8) {
+        trace!(target: "opcode", "plp, data: 0x{:02x}", data);
         // Break Command and Unused are ignored when pulling
         let mut data = flags::Flags(data);
         data.copy(self.reg.get_p(), flags::BREAK_COMMAND | flags::UNUSED);
@@ -341,25 +381,30 @@ impl Cpu {
     // region Logic
 
     pub fn and(&mut self, data: u8) {
+        trace!(target: "opcode", "and, data: 0x{:02x}", data);
         let data = data & self.reg.get_a();
         self.reg.write_a(data);
     }
 
     pub fn eor(&mut self, data: u8) {
+        trace!(target: "opcode", "eor, data: 0x{:02x}", data);
         let data = data ^ self.reg.get_a();
         self.reg.write_a(data);
     }
 
     pub fn ora(&mut self, data: u8) {
+        trace!(target: "opcode", "ora, data: 0x{:02x}", data);
         let data = data | self.reg.get_a();
         self.reg.write_a(data);
     }
 
     pub fn bit(&mut self, data: u8) {
+        trace!(target: "opcode", "bit, data: 0x{:02x}, a: 0x{:02x}", data, self.reg.get_a());
         self.reg.write_bit_test(data);
     }
 
     pub fn anc(&mut self, data: u8) {
+        trace!(target: "opcode", "anc, data: 0x{:02x}", data);
         let data = data & self.reg.get_a();
         self.reg.write_a(data);
 
@@ -367,7 +412,21 @@ impl Cpu {
         p.change(flags::CARRY, p.get_negative())
     }
 
+    pub fn xaa(&mut self, data: u8) {
+        trace!(target: "opcode", "xaa, data: 0x{:02x}", data);
+        let a = self.reg.get_a();
+
+        // XAA has analogic behaviour.
+        // "Magic" defines which bits of A will be used in the result and can vary wildly.
+        // Below values happen over 98% of the time.
+        let magic = if (a & 0x01) != 0 { 0xff } else { 0xfe };
+
+        let data = (a | magic) & self.reg.get_x() & data;
+        self.reg.write_a(data);
+    }
+
     pub fn sax(&mut self, addr: u16) {
+        trace!(target: "opcode", "sax, addr: 0x{:04x}", addr);
         let data = self.reg.get_a() & self.reg.get_x();
         self.write(addr, data);
     }
@@ -376,11 +435,12 @@ impl Cpu {
 
     // region Arithmetic
 
-    pub fn adc(&mut self, value: u8) {
+    pub fn adc(&mut self, data: u8) {
+        trace!(target: "opcode", "adc, data: 0x{:02x}", data);
         let a = self.reg.get_a();
         let p = self.reg.get_p_mut();
 
-        let res = a as u16 + value as u16 + p.get_carry() as u16;
+        let res = a as u16 + data as u16 + p.get_carry() as u16;
 
         p.change_zero_negative(res as u8);
 
@@ -390,7 +450,7 @@ impl Cpu {
         // Overflow happens when the sign of the addends is the same and differs from the sign of the sum
         p.change(
             flags::OVERFLOW,
-            (!(a ^ value) & (a ^ res as u8) & 0x80) != 0,
+            (!(a ^ data) & (a ^ res as u8) & 0x80) != 0,
         );
 
         // Save the result
@@ -409,25 +469,43 @@ impl Cpu {
     // region Comparison
 
     pub fn cmp(&mut self, data: u8) {
+        trace!(target: "opcode", "cmp, data: 0x{:02x}", data);
         let source = self.reg.get_a();
         self.reg.get_p_mut().change_cmp(source, data)
     }
 
     pub fn cpx(&mut self, data: u8) {
+        trace!(target: "opcode", "cpx, data: 0x{:02x}", data);
         let source = self.reg.get_x();
         self.reg.get_p_mut().change_cmp(source, data)
     }
 
     pub fn cpy(&mut self, data: u8) {
+        trace!(target: "opcode", "cpy, data: 0x{:02x}", data);
         let source = self.reg.get_y();
         self.reg.get_p_mut().change_cmp(source, data)
     }
 
     pub fn dcp(&mut self, (addr, data): (u16, u8)) {
+        trace!(target: "opcode", "dcp, addr: 0x{:02x}, data: 0x{:02x}", addr, data);
         let source = self.reg.get_a();
         let data = data.wrapping_sub(1);
         self.write(addr, data);
         self.reg.get_p_mut().change_cmp(source, data)
+    }
+
+    pub fn axs(&mut self, data: u8) {
+        trace!(target: "opcode", "axs, data: 0x{:02x}", data);
+        let v = self.reg.get_p().get_overflow();
+
+        let x = self.reg.get_a() & self.reg.get_x();
+        self.reg.write_x(x.wrapping_sub(data));
+
+        let p = self.reg.get_p_mut();
+        p.change_cmp(x, data);
+
+        // Overflow flag in not affected, so change to the old value.
+        p.change(flags::OVERFLOW, v);
     }
 
     // endregion
@@ -435,22 +513,26 @@ impl Cpu {
     // region Increment
 
     pub fn inc(&mut self, (addr, data): (u16, u8)) {
+        trace!(target: "opcode", "inc, addr: 0x{:02x}, data: 0x{:02x}", addr, data);
         let data = data.wrapping_add(1);
         self.reg.get_p_mut().change_zero_negative(data);
         self.write(addr, data)
     }
 
     pub fn inx(&mut self, _value: ()) {
+        trace!(target: "opcode", "inx");
         let data = self.reg.get_x().wrapping_add(1);
         self.reg.write_x(data)
     }
 
     pub fn iny(&mut self, _value: ()) {
+        trace!(target: "opcode", "iny");
         let data = self.reg.get_y().wrapping_add(1);
         self.reg.write_y(data)
     }
 
     pub fn isc(&mut self, (addr, data): (u16, u8)) {
+        trace!(target: "opcode", "isc, addr: 0x{:02x}, data: 0x{:02x}", addr, data);
         let data = data.wrapping_add(1);
         self.sbc(data);
         self.write(addr, data);
@@ -461,17 +543,20 @@ impl Cpu {
     // region Decrement
 
     pub fn dec(&mut self, (addr, data): (u16, u8)) {
+        trace!(target: "opcode", "dec, addr: 0x{:02x}, data: 0x{:02x}", addr, data);
         let data = data.wrapping_sub(1);
         self.reg.get_p_mut().change_zero_negative(data);
         self.write(addr, data)
     }
 
     pub fn dex(&mut self, _value: ()) {
+        trace!(target: "opcode", "dex");
         let data = self.reg.get_x().wrapping_sub(1);
         self.reg.write_x(data)
     }
 
     pub fn dey(&mut self, _value: ()) {
+        trace!(target: "opcode", "dey");
         let data = self.reg.get_y().wrapping_sub(1);
         self.reg.write_y(data)
     }
@@ -490,6 +575,7 @@ impl Cpu {
     }
 
     pub fn asl(&mut self, (addr, data): (u16, u8)) -> u8 {
+        trace!(target: "opcode", "asl, addr: 0x{:02x}, data: 0x{:02x}", addr, data);
         let res = data << 1;
         self.shift(addr,
                    res,
@@ -498,12 +584,14 @@ impl Cpu {
     }
 
     pub fn asl_acc(&mut self, data: u8) {
+        trace!(target: "opcode", "asl, data: 0x{:02x}", data);
         let p = self.reg.get_p_mut();
         p.change(flags::CARRY, (data & 0b10000000) != 0);
         self.reg.write_a(data << 1);
     }
 
     pub fn lsr(&mut self, (addr, data): (u16, u8)) -> u8 {
+        trace!(target: "opcode", "lsr, addr: 0x{:02x}, data: 0x{:02x}", addr, data);
         let res = data >> 1;
         self.shift(addr,
                    res,
@@ -512,12 +600,14 @@ impl Cpu {
     }
 
     pub fn lsr_acc(&mut self, data: u8) {
+        trace!(target: "opcode", "lsr, data: 0x{:02x}", data);
         let p = self.reg.get_p_mut();
         p.change(flags::CARRY, (data & 0b00000001) != 0);
         self.reg.write_a(data >> 1);
     }
 
     pub fn rol(&mut self, (addr, data): (u16, u8)) -> u8 {
+        trace!(target: "opcode", "rol, addr: 0x{:02x}, data: 0x{:02x}", addr, data);
         let carry = self.reg.get_p().get_carry();
         let res = (data << 1) | (carry as u8);
         self.shift(addr,
@@ -527,6 +617,7 @@ impl Cpu {
     }
 
     pub fn rol_acc(&mut self, data: u8) {
+        trace!(target: "opcode", "rol, data: 0x{:02x}", data);
         let p = self.reg.get_p_mut();
         let carry = p.get_carry();
         p.change(flags::CARRY, (data & 0b10000000) != 0);
@@ -534,6 +625,7 @@ impl Cpu {
     }
 
     pub fn ror(&mut self, (addr, data): (u16, u8)) -> u8 {
+        trace!(target: "opcode", "ror, addr: 0x{:02x}, data: 0x{:02x}", addr, data);
         let carry = self.reg.get_p().get_carry();
         let res = (data >> 1) | ((carry as u8) << 7);
         self.shift(addr,
@@ -543,6 +635,7 @@ impl Cpu {
     }
 
     pub fn ror_acc(&mut self, data: u8) {
+        trace!(target: "opcode", "ror, data: 0x{:02x}", data);
         let p = self.reg.get_p_mut();
         let carry = p.get_carry();
         p.change(flags::CARRY, (data & 0b00000001) != 0);
@@ -550,40 +643,55 @@ impl Cpu {
     }
 
     pub fn slo(&mut self, (addr, data): (u16, u8)) {
+        trace!(target: "opcode", "slo, addr: 0x{:02x}, data: 0x{:02x}", addr, data);
         let data = self.asl((addr, data));
         self.ora(data);
     }
 
     pub fn sre(&mut self, (addr, data): (u16, u8)) {
+        trace!(target: "opcode", "sre, addr: 0x{:02x}, data: 0x{:02x}", addr, data);
         let data = self.lsr((addr, data));
         self.eor(data);
     }
 
     pub fn rla(&mut self, (addr, data): (u16, u8)) {
+        trace!(target: "opcode", "rla, addr: 0x{:02x}, data: 0x{:02x}", addr, data);
         let data = self.rol((addr, data));
         self.and(data);
     }
 
-    pub fn alr(&mut self, (addr, data): (u16, u8)) {
-        let a = self.reg.get_a();
-        self.shift(addr,
-                   (data & a) >> 1,
-                   (data & a & 0b00000001) != 0);
+    pub fn alr(&mut self, data: u8) {
+        trace!(target: "opcode", "alr, data: 0x{:02x}", data);
+        self.and(data);
+        let data = self.reg.get_a();
+        self.lsr_acc(data);
     }
 
     pub fn rra(&mut self, (addr, data): (u16, u8)) {
+        trace!(target: "opcode", "rra, addr: 0x{:02x}, data: 0x{:02x}", addr, data);
         let data = self.ror((addr, data));
         self.adc(data);
     }
 
-    pub fn aar(&mut self, data: u8) {
-        let carry = self.reg.get_p().get_carry();
+    pub fn arr(&mut self, data: u8) {
+        trace!(target: "opcode", "arr, data: 0x{:02x}", data);
         let a = self.reg.get_a();
+        let p = self.reg.get_p_mut();
+        let carry = p.get_carry();
 
-        let value = data & a;
-        let res = (value >> 1) | ((carry as u8) << 7);
+        let value = (data & a) >> 1;
+        let res = value | ((carry as u8) << 7);
 
-        self.reg.get_p_mut().change(flags::CARRY, (data & 0b10000000) != 0);
+        p.toggle(flags::NEGATIVE);
+        p.clear(flags::OVERFLOW | flags::CARRY);
+
+        match value & 0x60 {
+            0x20 => p.set(flags::OVERFLOW),
+            0x40 => p.set(flags::OVERFLOW | flags::CARRY),
+            0x60 => p.set(flags::CARRY),
+            _ => {}
+        }
+
         self.reg.write_a(res);
     }
 
@@ -601,6 +709,7 @@ impl Cpu {
                 self.fetch_into_n();
                 let pc = self.reg.get_absolute();
                 self.reg.write_pc(pc);
+                trace!(target: "opcode", "jmp, addr: 0x{:04x}", self.reg.get_pc());
                 self.finish();
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
@@ -622,6 +731,7 @@ impl Cpu {
                 self.reg.write_inc_m(1);
                 self.read_absolute_to_q();
                 self.reg.write_pcl_pch(pcl, self.reg.get_q());
+                trace!(target: "opcode", "jmp, addr: 0x{:04x}", self.reg.get_pc());
                 self.finish();
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
@@ -646,6 +756,7 @@ impl Cpu {
                 let n = self.reg.get_n();
                 self.reg.write_pcl_pch(m, n);
                 self.finish();
+                trace!(target: "opcode", "jsr, addr: 0x{:04x}", self.reg.get_pc());
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -674,6 +785,7 @@ impl Cpu {
                 let pch = self.read_stack();
                 self.reg.write_pch(pch);
                 self.finish();
+                trace!(target: "opcode", "rti, addr: 0x{:04x}", self.reg.get_pc());
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -700,6 +812,7 @@ impl Cpu {
             cycle::T6 => {
                 self.reg.set_next_pc();
                 self.finish();
+                trace!(target: "opcode", "rts, addr: 0x{:04x}", self.reg.get_pc());
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -709,26 +822,47 @@ impl Cpu {
 
     // region Branch
 
-    pub fn bcs(&mut self) { self.relative(self.reg.get_p().get_carry()) }
-    pub fn bcc(&mut self) { self.relative(!self.reg.get_p().get_carry()) }
-    pub fn beq(&mut self) { self.relative(self.reg.get_p().get_zero()) }
-    pub fn bne(&mut self) { self.relative(!self.reg.get_p().get_zero()) }
-    pub fn bmi(&mut self) { self.relative(self.reg.get_p().get_negative()) }
-    pub fn bpl(&mut self) { self.relative(!self.reg.get_p().get_negative()) }
-    pub fn bvs(&mut self) { self.relative(self.reg.get_p().get_overflow()) }
-    pub fn bvc(&mut self) { self.relative(!self.reg.get_p().get_overflow()) }
+    pub fn bcs(&mut self) { self.relative(self.reg.get_p().get_carry(), "bcs") }
+    pub fn bcc(&mut self) { self.relative(!self.reg.get_p().get_carry(), "bcc") }
+    pub fn beq(&mut self) { self.relative(self.reg.get_p().get_zero(), "beq") }
+    pub fn bne(&mut self) { self.relative(!self.reg.get_p().get_zero(), "bne") }
+    pub fn bmi(&mut self) { self.relative(self.reg.get_p().get_negative(), "bmi") }
+    pub fn bpl(&mut self) { self.relative(!self.reg.get_p().get_negative(), "bpl") }
+    pub fn bvs(&mut self) { self.relative(self.reg.get_p().get_overflow(), "bvs") }
+    pub fn bvc(&mut self) { self.relative(!self.reg.get_p().get_overflow(), "bvc") }
 
     // endregion
 
     // region Status flags
 
-    pub fn clc(&mut self, _value: ()) { self.reg.get_p_mut().clear(flags::CARRY) }
-    pub fn cld(&mut self, _value: ()) { self.reg.get_p_mut().clear(flags::DECIMAL_MODE) }
-    pub fn cli(&mut self, _value: ()) { self.reg.get_p_mut().clear(flags::INTERRUPT_DISABLE) }
-    pub fn clv(&mut self, _value: ()) { self.reg.get_p_mut().clear(flags::OVERFLOW) }
-    pub fn sec(&mut self, _value: ()) { self.reg.get_p_mut().set(flags::CARRY) }
-    pub fn sed(&mut self, _value: ()) { self.reg.get_p_mut().set(flags::DECIMAL_MODE) }
-    pub fn sei(&mut self, _value: ()) { self.reg.get_p_mut().set(flags::INTERRUPT_DISABLE) }
+    pub fn clc(&mut self, _value: ()) {
+        trace!(target: "opcode", "clc");
+        self.reg.get_p_mut().clear(flags::CARRY)
+    }
+    pub fn cld(&mut self, _value: ()) {
+        trace!(target: "opcode", "cld");
+        self.reg.get_p_mut().clear(flags::DECIMAL_MODE)
+    }
+    pub fn cli(&mut self, _value: ()) {
+        trace!(target: "opcode", "cli");
+        self.reg.get_p_mut().clear(flags::INTERRUPT_DISABLE)
+    }
+    pub fn clv(&mut self, _value: ()) {
+        trace!(target: "opcode", "clv");
+        self.reg.get_p_mut().clear(flags::OVERFLOW)
+    }
+    pub fn sec(&mut self, _value: ()) {
+        trace!(target: "opcode", "sec");
+        self.reg.get_p_mut().set(flags::CARRY)
+    }
+    pub fn sed(&mut self, _value: ()) {
+        trace!(target: "opcode", "sed");
+        self.reg.get_p_mut().set(flags::DECIMAL_MODE)
+    }
+    pub fn sei(&mut self, _value: ()) {
+        trace!(target: "opcode", "sei");
+        self.reg.get_p_mut().set(flags::INTERRUPT_DISABLE)
+    }
 
     // endregion
 
@@ -1044,7 +1178,7 @@ impl Cpu {
                 let value = self.read_absolute();
                 self.reg.set_fix_carry_n();
 
-                if !self.reg.get_internal_overflow() { self.finish() }
+                if self.reg.get_internal_overflow() == reg::InternalOverflow::None { self.finish() }
 
                 Option::Some(value)
             }
@@ -1098,7 +1232,7 @@ impl Cpu {
                 let value = self.read_absolute();
                 self.reg.set_fix_carry_n();
 
-                if !self.reg.get_internal_overflow() { self.finish() }
+                if self.reg.get_internal_overflow() == reg::InternalOverflow::None { self.finish() }
 
                 Option::Some(value)
             }
@@ -1114,23 +1248,30 @@ impl Cpu {
     // 2     PC      fetch operand, increment PC. If branch not taken, finish.
     // 3+    PC      Prefetch opcode of next instruction. Add operand to PCL. If there was no overflow, finish.
     // 4+    PC*     Prefetch opcode of next instruction. Fix PCH.
-    pub fn relative(&mut self, branch_taken: bool) {
+    pub fn relative(&mut self, branch_taken: bool, opcode: &'static str) {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.fetch_into_m();
-                if !branch_taken { self.finish() }
+                if !branch_taken {
+                    trace!(target: "opcode", "{}, not taken", opcode);
+                    self.finish();
+                }
             }
             cycle::T3 => {
                 self.prefetch_pc();
 
-                let m = self.reg.get_m();
-                self.reg.write_inc_pcl(m as i8);
+                let m = self.reg.get_m() as i8;
+                self.reg.write_inc_pcl(m);
 
-                if !self.reg.get_internal_overflow() { self.finish() }
+                if self.reg.get_internal_overflow() == reg::InternalOverflow::None {
+                    trace!(target: "opcode", "{}, taken to 0x{:04x} on t3", opcode, self.reg.get_pc());
+                    self.finish();
+                }
             }
             cycle::T4 => {
                 self.prefetch_pc();
                 self.reg.set_fix_carry_pc();
+                trace!(target: "opcode", "{}, taken to 0x{:04x} on t4", opcode, self.reg.get_pc());
                 self.finish()
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),

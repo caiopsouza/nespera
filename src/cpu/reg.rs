@@ -5,6 +5,9 @@ use crate::cpu::flags;
 use crate::cpu::flags::Flags;
 use crate::utils::bits;
 
+#[derive(Copy, Clone, PartialEq)]
+pub enum InternalOverflow { None, Positive, Negative }
+
 // Registers
 #[derive(Clone, PartialEq)]
 pub struct Reg {
@@ -30,7 +33,7 @@ pub struct Reg {
     q: u8,
 
     // Internal operations can overflow. This is saved here to process later.
-    internal_overflow: bool,
+    internal_overflow: InternalOverflow,
 
     // Current instruction being executed.
     // Should work the same as the Instruction Register (IR).
@@ -95,7 +98,7 @@ impl Reg {
             m: 0,
             n: 0,
             q: 0,
-            internal_overflow: false,
+            internal_overflow: InternalOverflow::None,
             current_instr: 0x00, // BRK. But will actually execute a reset as dictated by the bus
             cycle: cycle::LAST,
             data_bus: 0,
@@ -193,7 +196,7 @@ impl Reg {
     pub fn get_m(&self) -> u8 { self.m }
     pub fn get_n(&self) -> u8 { self.n }
     pub fn get_q(&self) -> u8 { self.q }
-    pub fn get_internal_overflow(&self) -> bool { self.internal_overflow }
+    pub fn get_internal_overflow(&self) -> InternalOverflow { self.internal_overflow }
     pub fn get_absolute(&self) -> u16 { ((self.n as u16) << 8) | (self.m as u16) }
 
     // Setters for the internal registers
@@ -220,7 +223,7 @@ impl Reg {
         }
     }
 
-    pub fn set_internal_overflow(&mut self, value: bool) { self.internal_overflow = value }
+    pub fn set_internal_overflow(&mut self, value: InternalOverflow) { self.internal_overflow = value }
 
     pub fn set_current_instr(&mut self, current_instr: u8) { self.current_instr = current_instr }
 
@@ -228,7 +231,7 @@ impl Reg {
     pub fn write_inc_m(&mut self, data: u8) {
         let (data, overflow) = self.m.overflowing_add(data);
         self.set_m(data);
-        self.internal_overflow = overflow;
+        self.internal_overflow = if overflow { InternalOverflow::Positive } else { InternalOverflow::None };
     }
 
     pub fn write_inc_m_by_x(&mut self) {
@@ -251,7 +254,14 @@ impl Reg {
         let new_pcl = pcl + data;
 
         // Overflows if any bit is set in the high part of the new PCL.
-        self.internal_overflow = (new_pcl as u16 & 0xff00) != 0;
+        self.internal_overflow =
+            if (new_pcl as u16 & 0xff00) == 0 {
+                InternalOverflow::None
+            } else if data > 0 {
+                InternalOverflow::Positive
+            } else {
+                InternalOverflow::Negative
+            };
 
         // Clear old PCL and set the new one.
         self.pc = (self.pc & 0xff00) | ((new_pcl as u16) & 0x00ff);
@@ -266,12 +276,20 @@ impl Reg {
 
     // Fixes PC based on the internal overflow flag
     pub fn set_fix_carry_pc(&mut self) {
-        self.pc = self.pc.wrapping_add((self.internal_overflow as u16) << 8);
+        match self.internal_overflow {
+            InternalOverflow::None => {}
+            InternalOverflow::Positive => self.pc = self.pc.wrapping_add(0b1_0000_0000),
+            InternalOverflow::Negative => self.pc = self.pc.wrapping_sub(0b1_0000_0000),
+        }
     }
 
     // Fixes the N register based on the internal overflow flag
     pub fn set_fix_carry_n(&mut self) {
-        self.n = self.n.wrapping_add(self.internal_overflow as u8);
+        match self.internal_overflow {
+            InternalOverflow::None => {}
+            InternalOverflow::Positive => self.n = self.n.wrapping_add(1),
+            InternalOverflow::Negative => self.n = self.n.wrapping_sub(1),
+        }
     }
 
     // Buses' getters
@@ -302,5 +320,5 @@ impl Reg {
     pub fn s_ab(&mut self, data: u16) { self.addr_bus = data }
     pub fn s_oper(&mut self, data: u8) { self.m = data }
     pub fn s_oper_other(&mut self, data: u8) { self.n = data }
-    pub fn s_oper_v(&mut self, data: bool) { self.internal_overflow = data }
+    pub fn s_oper_v(&mut self, data: InternalOverflow) { self.internal_overflow = data }
 }

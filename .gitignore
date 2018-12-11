@@ -7,3 +7,6 @@ Cargo.lock
 nespera.iml
 
 /tests/resources/roms/*
+
+# These are too big, can be easily generated from Nintendulator and serve only during development.
+/tests/resources/cpu/instr_test/*.log

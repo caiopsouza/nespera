@@ -3,25 +3,31 @@ use env_logger::Env;
 
 use nespera::console::Console;
 
-fn wait_until_running(console: &mut Console) {
-    console.run_until_memory_is(0x6000, 0x80)
-}
+fn run_blargg(file: Vec<u8>, res: &'static str, log: &mut impl FnMut(&Console, String)) -> Console {
+    let mut console = Console::new(file);
 
-fn wait_until_ask_for_reset(console: &mut Console) {
-    console.run_until_memory_is(0x6000, 0x81)
+    console.run_until_memory_is_not(0x6000, 0x00, log);
+    console.run_until_memory_is_not(0x6000, 0x80, log);
+
+    let res = format!("{}\n\nPassed\n", res);
+    assert_eq!(console.cpu.bus.borrow_mut().read_string(0x6005), res);
+
+    console
 }
 
 fn main() {
-    Builder::from_env(Env::default().default_filter_or("debug")).init();
+    Builder::from_env(Env::default().default_filter_or("error")).init();
 
-    let file = include_bytes!("../tests/resources/cpu/cpu_reset/registers.nes")[..].to_owned();
-    let console = &mut Console::new(file);
+    let log = include_str!("../tests/resources/cpu/instr_test/03-immediate.log");
+    let mut log = log.split("\r\n").enumerate();
+    let file = include_bytes!("../tests/resources/cpu/instr_test/03-immediate.nes")[..].to_owned();
+    let console = run_blargg(file,
+                             "03-immediate",
+                             &mut |console, actual| {
+                                 let (line, log) = log.next().unwrap();
+                                 let expected = format!("{} {}", &log[0..8], &log[48..]);
+                                 assert_eq!(actual, expected, "\nat line {}\n{}", line + 1, console.cpu);
+                             });
 
-    wait_until_running(console);
-    wait_until_ask_for_reset(console);
-    //console.run_until_memory_is(0x1fff, 0xb4);
-    console.run_frames(5);
-    console.cpu.reset();
-    console.run_frames(5);
     println!("{}", console.cpu);
 }

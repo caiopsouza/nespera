@@ -127,7 +127,7 @@ impl Cpu {
             0x28 => run!(plp, r_stack),         /*bytes: 1 cycles: 4  ___S_=>___SP __      Plp, Implied     */
             0x29 => run!(and, immediate),       /*bytes: 2 cycles: 2  A____=>A___P __      And, Immediate   */
             0x2A => run!(rol_acc, accumulator), /*bytes: 1 cycles: 2  A___P=>A___P __      Rol, Accumulator */
-            0x2B => run!(anc, r_zero_page),     /*bytes: 2 cycles: 2  A____=>____P __      Anc, ZeroPage    */
+            0x2B => run!(anc, immediate),       /*bytes: 2 cycles: 2  A____=>____P __      Anc, Immediate   */
             0x2C => run!(bit, r_absolute),      /*bytes: 3 cycles: 4  A____=>____P R_ abs  Bit, Absolute    */
             0x2D => run!(and, r_absolute),      /*bytes: 3 cycles: 4  A____=>A___P R_ abs  And, Absolute    */
             0x2E => run!(rol, rw_absolute),     /*bytes: 3 cycles: 6  ____P=>____P RW abs  Rol, Absolute    */
@@ -159,7 +159,7 @@ impl Cpu {
             0x48 => run!(pha, w_stack),         /*bytes: 1 cycles: 3  A__S_=>___S_ _W      Pha, Implied     */
             0x49 => run!(eor, immediate),       /*bytes: 2 cycles: 2  A____=>A___P __      Eor, Immediate   */
             0x4A => run!(lsr_acc, accumulator), /*bytes: 1 cycles: 2  A____=>A___P __      Lsr, Implied     */
-            0x4B => run!(alr, rw_absolute),     /*bytes: 2 cycles: 2  A____=>A___P __      Alr, Immediate   */
+            0x4B => run!(alr, immediate),       /*bytes: 2 cycles: 2  A____=>A___P __      Alr, Immediate   */
             0x4C => run!(jmp_absolute),         /*bytes: X cycles: 3  _____=>_____ __      Jmp, Absolute    */
             0x4D => run!(eor, r_absolute),      /*bytes: 3 cycles: 4  A____=>A___P R_ abs  Eor, Absolute    */
             0x4E => run!(lsr, rw_absolute),     /*bytes: 3 cycles: 6  _____=>____P RW abs  Lsr, Absolute    */
@@ -191,7 +191,7 @@ impl Cpu {
             0x68 => run!(pla, r_stack),         /*bytes: 1 cycles: 4  ___S_=>A__SP __      Pla, Implied     */
             0x69 => run!(adc, immediate),       /*bytes: 2 cycles: 2  A___P=>A___P __      Adc, Immediate   */
             0x6A => run!(ror_acc, accumulator), /*bytes: 1 cycles: 2  A___P=>A___P __      Ror, Accumulator */
-            0x6B => run!(aar, immediate),       /*bytes: 2 cycles: 2  A___P=>A___P __      Arr, Immediate   */
+            0x6B => run!(arr, immediate),       /*bytes: 2 cycles: 2  A___P=>A___P __      Arr, Immediate   */
             0x6C => run!(jmp_indirect),         /*bytes: X cycles: 5  _____=>_____ __      Jmp, Indirect    */
             0x6D => run!(adc, r_absolute),      /*bytes: 3 cycles: 4  A___P=>A___P R_ abs  Adc, Absolute    */
             0x6E => run!(ror, rw_absolute),     /*bytes: 3 cycles: 6  ____P=>____P RW abs  Ror, Absolute    */
@@ -223,7 +223,7 @@ impl Cpu {
             0x88 => run!(dey, implied),         /*bytes: 1 cycles: 2  __Y__=>__Y_P __      Dey, Implied     */
             0x89 => run!(dop, immediate),       /*bytes: 2 cycles: 2  _____=>_____ __      Nop, Immediate   */
             0x8A => run!(txa, implied),         /*bytes: 1 cycles: 2  _X___=>A___P __      Txa, Implied     */
-            0x8B => unimplemented!(),           /*bytes: 2 cycles: 2  _____=>A___P __      Xaa, Immediate   */
+            0x8B => run!(xaa, immediate),       /*bytes: 2 cycles: 2  _____=>A___P __      Xaa, Immediate   */
             0x8C => run!(sty, w_absolute),      /*bytes: 3 cycles: 4  __Y__=>_____ _W abs  Sty, Absolute    */
             0x8D => run!(sta, w_absolute),      /*bytes: 3 cycles: 4  A____=>_____ _W abs  Sta, Absolute    */
             0x8E => run!(stx, w_absolute),      /*bytes: 3 cycles: 4  _X___=>_____ _W abs  Stx, Absolute    */
@@ -287,7 +287,7 @@ impl Cpu {
             0xC8 => run!(iny, implied),         /*bytes: 1 cycles: 2  __Y__=>__Y_P __      Iny, Implied     */
             0xC9 => run!(cmp, immediate),       /*bytes: 2 cycles: 2  A____=>____P __      Cmp, Immediate   */
             0xCA => run!(dex, implied),         /*bytes: 1 cycles: 2  _X___=>_X__P __      Dex, Implied     */
-            0xCB => unimplemented!(),           /*bytes: 2 cycles: 2  _____=>_X__P __      Axs, Immediate   */
+            0xCB => run!(axs, immediate),       /*bytes: 2 cycles: 2  _____=>_X__P __      Axs, Immediate   */
             0xCC => run!(cpy, r_absolute),      /*bytes: 3 cycles: 4  __Y__=>____P R_ abs  Cpy, Absolute    */
             0xCD => run!(cmp, r_absolute),      /*bytes: 3 cycles: 4  A____=>____P R_ abs  Cmp, Absolute    */
             0xCE => run!(dec, rw_absolute),     /*bytes: 3 cycles: 6  _____=>____P RW abs  Dec, Absolute    */

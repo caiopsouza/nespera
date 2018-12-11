@@ -136,11 +136,11 @@ impl PpuData {
 
                 // PPU status has some unused bits, so fill in from the latch.
                 let res = bits::copy(self.status, self.latch, 0b0001_1111);
+                trace!("Reading from PPUSTATUS: 0x{:04x}", res);
 
-                // Vertical blank is cleared after reading
+                // Vertical blank is cleared after reading status
                 self.vblank_clear();
 
-                trace!("Reading from PPUSTATUS: 0x{:04x}", res);
                 res
             }
 
@@ -270,12 +270,12 @@ impl PpuData {
 
     // Vertical blank flags
     pub fn vblank_set(&mut self) {
-        trace!("VBlank set");
+        trace!("vblank set");
         self.status = bits::set(self.status, 7)
     }
 
     pub fn vblank_clear(&mut self) {
-        trace!("VBlank clear");
+        trace!("vblank clear");
         self.status = bits::clear(self.status, 7)
     }
 }
