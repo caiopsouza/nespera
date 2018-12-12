@@ -68,11 +68,13 @@ impl Cartridge {
         }
     }
 
-    pub fn read(&self, addr: u16) -> u8 {
-        let location = self.mapper.read(addr);
+    fn read(&self, location: Location) -> u8 {
         unsafe {
             match location {
-                Location::Nowhere => { 0 }
+                Location::Nowhere(addr) => {
+                    error!("Mapper attempted to read from nowhere in CPU at address {:#04x}. Defaulting to zero.", addr);
+                    0
+                }
 
                 Location::PrgRam(addr) => {
                     *self.prg_ram.get_unchecked(addr as usize % self.prg_ram.len())
@@ -91,31 +93,43 @@ impl Cartridge {
         }
     }
 
-    pub fn write(&mut self, addr: u16, data: u8) {
-        let location = self.mapper.write(addr);
-
+    pub fn write(&mut self, location: Location, data: u8) {
         unsafe {
             match location {
-                Location::Nowhere => {}
+                Location::Nowhere(addr) => {
+                    error!("Mapper attempted to write into nowhere in CPU at address {:#04x}.", addr);
+                }
 
                 Location::PrgRam(addr) => {
                     let prg_ram_len = self.prg_ram.len();
                     *self.prg_ram.get_unchecked_mut(addr as usize % prg_ram_len) = data
                 }
 
-                Location::PrgRom(addr) => {
-                    let prg_rom = self.file.get_unchecked_mut(self.prg_rom.clone());
-                    let prg_rom_len = self.prg_ram.len();
-                    *prg_rom.get_unchecked_mut(addr as usize % prg_rom_len) = data
-                }
-
-                Location::ChrRom(addr) => {
-                    let chr_rom = self.file.get_unchecked_mut(self.chr_rom.clone());
-                    let chr_rom_len = self.prg_ram.len();
-                    *chr_rom.get_unchecked_mut(addr as usize % chr_rom_len) = data
+                Location::PrgRom(_) | Location::ChrRom(_) => {
+                    error!("Mapper attempted to write into read only memory in CPU at location {:#04x?}", location)
                 }
             }
         }
+    }
+
+    pub fn read_cpu(&self, addr: u16) -> u8 {
+        let location = self.mapper.read_cpu(addr);
+        self.read(location)
+    }
+
+    pub fn write_cpu(&mut self, addr: u16, data: u8) {
+        let location = self.mapper.write_cpu(addr);
+        self.write(location, data)
+    }
+
+    pub fn read_ppu(&self, addr: u16) -> u8 {
+        let location = self.mapper.read_ppu(addr);
+        self.read(location)
+    }
+
+    pub fn write_ppu(&mut self, addr: u16, data: u8) {
+        let location = self.mapper.write_ppu(addr);
+        self.write(location, data)
     }
 }
 
@@ -143,19 +157,19 @@ mod tests {
     #[test]
     fn prg_rom_start() {
         let rom = load_test();
-        assert_eq!(rom.read(0x8000), 0x4c);
+        assert_eq!(rom.read_cpu(0x8000), 0x4c);
     }
 
     #[test]
     fn prg_rom_end() {
         let rom = load_test();
-        assert_eq!(rom.read(0x8000 + 0x3fff), 0xc5);
+        assert_eq!(rom.read_cpu(0x8000 + 0x3fff), 0xc5);
     }
 
     #[test]
     fn prg_chr_start() {
         let rom = load_test();
-        assert_eq!(rom.read(0x8000 + 0x3fff), 0xc5);
+        assert_eq!(rom.read_cpu(0x8000 + 0x3fff), 0xc5);
         assert_eq!(rom.chr_rom.start, 0x4010);
     }
 

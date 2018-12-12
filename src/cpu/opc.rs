@@ -13,11 +13,11 @@ impl Cpu {
     fn finish(&mut self) { self.reg.set_next_to_last_cycle() }
 
     fn read(&mut self, addr: u16) -> u8 {
-        self.reg.addr_bus(addr, self.bus.borrow_mut().read(addr))
+        self.reg.addr_bus(addr, self.bus.borrow_mut().read_cpu(addr))
     }
     fn write(&mut self, addr: u16, data: u8) {
         self.reg.addr_bus(addr, data);
-        self.bus.borrow_mut().write(addr, data);
+        self.bus.borrow_mut().write_cpu(addr, data);
     }
 
     fn push(&mut self, data: u8) {
@@ -314,7 +314,7 @@ impl Cpu {
             // Read cycle
             let mut bus = self.bus.borrow_mut();
             let addr = bits::word(bus.ppu.oam_source, index);
-            let data = bus.read(addr);
+            let data = bus.read_cpu(addr);
             self.reg.set_m(data);
         } else {
             // Write cycle
@@ -322,7 +322,7 @@ impl Cpu {
                 let mut bus = self.bus.borrow_mut();
                 let addr = bits::word(bus.ppu.oam_dest, index);
                 let data = self.reg.get_m();
-                bus.write(addr, data);
+                bus.write_cpu(addr, data);
             }
 
             if index == 255 {

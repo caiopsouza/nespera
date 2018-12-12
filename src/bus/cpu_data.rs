@@ -12,11 +12,11 @@ pub struct CpuData {
 impl CpuData {
     pub fn new() -> Self { Self { ram: [0; RAM_CAPACITY] } }
 
-    pub fn with_mem(mem: Vec<u8>) -> Self {
+    pub fn with_ram(ram: Vec<u8>) -> Self {
         let mut res = Self::new();
 
-        let ram_len = RAM_CAPACITY.min(mem.len());
-        res.ram[..ram_len].copy_from_slice(&mem[..ram_len]);
+        let ram_len = RAM_CAPACITY.min(ram.len());
+        res.ram[..ram_len].copy_from_slice(&ram[..ram_len]);
 
         res
     }

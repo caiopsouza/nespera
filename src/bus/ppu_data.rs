@@ -16,8 +16,9 @@ const PPU_DATA: u16 = 0x2007;
 pub const OAM_DMA: u16 = 0x4014;
 
 // PPU capacity. Ends with the palette.
-const PALETTE_SIZE: usize = 0x0020;
-const PALETTE_START_POS: usize = 0x3f00;
+pub const PALETTE_CAPACITY: usize = 0x0020;
+pub const PALETTE_START_POS: usize = 0x3f00;
+const PPU_CAPACITY: usize = 0x4000;
 const RAM_CAPACITY: usize = 0x4000;
 const OAM_CAPACITY: usize = 0x0100;
 
@@ -63,6 +64,7 @@ pub struct PpuData {
 
     // RAM
     pub ram: [u8; RAM_CAPACITY],
+    pub palette: [u8; PALETTE_CAPACITY],
     pub oam: [u8; OAM_CAPACITY],
     pub ram_buffer: u8,
 }
@@ -98,14 +100,22 @@ impl PpuData {
             w: false,
 
             ram: [0; RAM_CAPACITY],
+            palette: [0; PALETTE_CAPACITY],
             oam: [0; OAM_CAPACITY],
             ram_buffer: 0,
         }
     }
 
-    // Read value from the PPU internal memory
-    pub fn read(&mut self, addr: u16) -> u8 {
-        let addr = PpuData::addr_decode(addr);
+    // Decode an address from CPU registers to its canonical value
+    fn cpu_addr_decode(addr: u16) -> u16 {
+        const PPU_REGS_CAPACITY: u16 = 0x08;
+        const PPU_REGS_ADDR_START: u16 = 0x2000;
+        (addr - PPU_REGS_ADDR_START) % PPU_REGS_CAPACITY + PPU_REGS_ADDR_START
+    }
+
+    // Read a value from the PPU internal memory using the registers interface
+    pub fn read_register(&mut self, addr: u16) -> u8 {
+        let addr = PpuData::cpu_addr_decode(addr);
 
         // Reading from the PPU will fill the latch.
         self.latch = match addr {
@@ -153,9 +163,9 @@ impl PpuData {
         self.latch
     }
 
-    // Write value into the PPU internal memory
-    pub fn write(&mut self, addr: u16, data: u8) {
-        let addr = PpuData::addr_decode(addr);
+    // Write a value into the PPU internal memory using the registers interface.
+    pub fn write_register(&mut self, addr: u16, data: u8) {
+        let addr = PpuData::cpu_addr_decode(addr);
 
         // Every write passes through the latch
         self.latch = data;
@@ -241,19 +251,12 @@ impl PpuData {
         }
     }
 
-    // Decode an address to its canonical value
-    fn addr_decode(addr: u16) -> u16 {
-        const PPU_REGS_CAPACITY: u16 = 0x08;
-        const PPU_REGS_ADDR_START: u16 = 0x2000;
-        (addr - PPU_REGS_ADDR_START) % PPU_REGS_CAPACITY + PPU_REGS_ADDR_START
-    }
-
     // Check if an address refers to the palette region of memory
     fn is_palette(&self) -> bool { self.v as usize >= PALETTE_START_POS }
 
     // Increment the RAM address as specified by PPUCTRL
     fn inc_ram_addr(&mut self) {
-        self.v = (self.v + self.ram_increment) % (RAM_CAPACITY as u16)
+        self.v = (self.v + self.ram_increment) % (PPU_CAPACITY as u16)
     }
 
     // Get the RAM address as an index to the internal array
@@ -262,7 +265,7 @@ impl PpuData {
 
         // Palette is mirrored
         if self.is_palette() {
-            addr = ((addr - PALETTE_START_POS) % PALETTE_SIZE) + PALETTE_START_POS
+            addr = ((addr - PALETTE_START_POS) % PALETTE_CAPACITY) + PALETTE_START_POS
         }
 
         addr

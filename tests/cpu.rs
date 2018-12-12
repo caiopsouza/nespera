@@ -31,11 +31,11 @@ fn nestest() {
 fn run_blargg(file: Vec<u8>, expected: &'static str) {
     let mut console = Console::new(file);
 
-    console.run_until_memory_is_not(0x6000, 0x00, &mut Console::dismiss_log);
-    console.run_until_memory_is_not(0x6000, 0x80, &mut Console::dismiss_log);
+    console.run_until_cpu_memory_is_not(0x6000, 0x00, &mut Console::dismiss_log);
+    console.run_until_cpu_memory_is_not(0x6000, 0x80, &mut Console::dismiss_log);
 
     let expected = format!("{}\n\nPassed\n", expected);
-    let res = console.cpu.bus.borrow_mut().read_string(0x6005);
+    let res = console.cpu.bus.borrow_mut().read_cpu_string(0x6005);
     let debug = format!("{}", console.cpu);
 
     assert_eq!(res, expected, "\n{}\n{}", res, debug);

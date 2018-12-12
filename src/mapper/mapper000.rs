@@ -6,24 +6,34 @@ pub struct Mapper000;
 impl Mapper000 { pub fn new() -> impl Mapper { Self } }
 
 impl Mapper for Mapper000 {
-    fn read(&self, addr: u16) -> Location {
+    fn read_cpu(&self, addr: u16) -> Location {
         match addr {
             0x6000...0x7fff => Location::PrgRam(addr - 0x6000),
             0x8000...0xffff => Location::PrgRom(addr - 0x8000),
-            _ => {
-                error!("Attempt to read address {:#04x} from Mapper 000.", addr);
-                Location::Nowhere
-            }
+            _ => Location::Nowhere(addr),
         }
     }
 
-    fn write(&self, addr: u16) -> Location {
+    fn write_cpu(&self, addr: u16) -> Location {
         match addr {
             0x6000...0x7fff => Location::PrgRam(addr - 0x6000),
-            _ => {
-                error!("Attempt to write to address {:#04x} from Mapper 000.", addr);
-                Location::Nowhere
-            }
+            _ => Location::Nowhere(addr),
+        }
+    }
+
+    fn read_ppu(&self, addr: u16) -> Location {
+        match addr {
+            0x0000...0x1fff => Location::ChrRom(addr),
+            0x2000...0x2fff => Location::PrgRam(addr - 0x2000),
+            _ => Location::Nowhere(addr),
+        }
+    }
+
+    fn write_ppu(&self, addr: u16) -> Location {
+        match addr {
+            0x0000...0x1fff => Location::ChrRom(addr),
+            0x2000...0x2fff => Location::PrgRam(addr - 0x2000),
+            _ => Location::Nowhere(addr),
         }
     }
 }

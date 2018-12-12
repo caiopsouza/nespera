@@ -135,8 +135,8 @@ impl Console {
     }
 
     // Render a frame
-    pub fn render(&mut self) {
-        let mut screen = image::RgbImage::new(256, 240);
+    pub fn render(&mut self) -> image::RgbImage {
+        let mut res = image::RgbImage::new(256, 240);
 
         let bus = self.bus.borrow_mut();
 
@@ -165,20 +165,13 @@ impl Console {
 
                         let x = 8 * tile as u32 + x as u32;
                         let y = 8 * row as u32 + y as u32;
-                        screen.put_pixel(x, y, Self::map_color(dot));
+                        res.put_pixel(x, y, Self::map_color(dot));
                     }
                 }
             }
         }
 
-        if self.render_to_disk != RenderToDisk::Dont {
-            let filename = match self.render_to_disk {
-                RenderToDisk::Frame => { format!("{:06}.png", self.frame) }
-                RenderToDisk::Filename(ref filename) => { filename.clone() }
-                RenderToDisk::Dont => { unimplemented!() }
-            };
-            screen.save(format!("screenshots/{}", filename)).unwrap();
-        }
+        res
     }
 
     // Run until some condition is met
@@ -219,7 +212,16 @@ impl Console {
                     }
                 } else if self.scanline > 260 {
                     trace!("Finished running frame {}.", self.frame);
-                    self.render();
+
+                    // Render image to disk
+                    if self.render_to_disk != RenderToDisk::Dont {
+                        let filename = match self.render_to_disk {
+                            RenderToDisk::Frame => { format!("{:06}.png", self.frame) }
+                            RenderToDisk::Filename(ref filename) => { filename.clone() }
+                            RenderToDisk::Dont => { unimplemented!() }
+                        };
+                        self.render().save(format!("screenshots/{}", filename)).unwrap();
+                    }
 
                     self.scanline = -1;
                     self.frame += 1;
@@ -239,21 +241,21 @@ impl Console {
         }
     }
 
-    pub fn run_until_memory_is(&mut self,
-                               addr: u16,
-                               data: u8,
-                               log: &mut impl FnMut(&Console, String)) {
-        self.run_until(
-            |console| console.bus.borrow_mut().read(addr) == data,
-            log);
-    }
-
-    pub fn run_until_memory_is_not(&mut self,
+    pub fn run_until_cpu_memory_is(&mut self,
                                    addr: u16,
                                    data: u8,
                                    log: &mut impl FnMut(&Console, String)) {
         self.run_until(
-            |console| console.bus.borrow_mut().read(addr) != data,
+            |console| console.bus.borrow_mut().read_cpu(addr) == data,
+            log);
+    }
+
+    pub fn run_until_cpu_memory_is_not(&mut self,
+                                       addr: u16,
+                                       data: u8,
+                                       log: &mut impl FnMut(&Console, String)) {
+        self.run_until(
+            |console| console.bus.borrow_mut().read_cpu(addr) != data,
             log);
     }
 

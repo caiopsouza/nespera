@@ -372,7 +372,7 @@ impl Cpu {
 
         // Copy into memory at PC
         for (i, &data) in code.iter().enumerate() {
-            self.bus.borrow_mut().write(pc + (i as u16), data)
+            self.bus.borrow_mut().write_cpu(pc + (i as u16), data)
         }
 
         self.step_instruction()
@@ -450,9 +450,9 @@ mod tests {
             |cpu| {
                 cpu.reg.s_pc(0x00);
                 cpu.reg.s_s(0xfa);
-                cpu.bus.borrow_mut().write(0x01fd, 0x00);
-                cpu.bus.borrow_mut().write(0x01fc, 0x02);
-                cpu.bus.borrow_mut().write(0x01fb, 0x34);
+                cpu.bus.borrow_mut().write_cpu(0x01fd, 0x00);
+                cpu.bus.borrow_mut().write_cpu(0x01fc, 0x02);
+                cpu.bus.borrow_mut().write_cpu(0x01fb, 0x34);
             },
         );
     }
