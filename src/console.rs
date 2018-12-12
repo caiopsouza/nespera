@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -173,12 +172,12 @@ impl Console {
         }
 
         if self.render_to_disk != RenderToDisk::Dont {
-            let filename: String = match self.render_to_disk {
-                RenderToDisk::Frame => { Cow::from(format!("screenshots/{:06}.png", self.frame)) }
-                RenderToDisk::Filename(ref filename) => { Cow::from(filename) }
+            let filename = match self.render_to_disk {
+                RenderToDisk::Frame => { format!("{:06}.png", self.frame) }
+                RenderToDisk::Filename(ref filename) => { filename.clone() }
                 RenderToDisk::Dont => { unimplemented!() }
-            }.into();
-            screen.save(filename).unwrap();
+            };
+            screen.save(format!("screenshots/{}", filename)).unwrap();
         }
     }
 
