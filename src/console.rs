@@ -18,7 +18,6 @@ pub struct Console {
     pub bus: Rc<RefCell<Bus>>,
     pub cpu: Cpu,
 
-    instr_pc: u16,
     pub render_to_disk: RenderToDisk,
 
     // PPU information
@@ -33,12 +32,10 @@ impl Console {
         let cartridge = Cartridge::new(file).unwrap();
         let bus = Rc::new(RefCell::new(Bus::with_cartridge(cartridge)));
         let cpu = Cpu::new(bus.clone());
-        let instr_pc = cpu.reg.get_pc();
 
         Self {
             bus,
             cpu,
-            instr_pc,
             render_to_disk: RenderToDisk::Dont,
             clock: 0,
             frame: 0,
@@ -49,21 +46,26 @@ impl Console {
 
     // Logs the current console status for comparing with Nintendulator.
     pub fn log(&self) -> String {
+        let reg = &self.cpu.reg;
+
         format!("{:04X}  {:02X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{:>3} SL:{}",
-                self.instr_pc,
-                self.cpu.reg.get_current_instr(),
-                self.cpu.reg.get_a(),
-                self.cpu.reg.get_x(),
-                self.cpu.reg.get_y(),
-                self.cpu.reg.get_p().as_u8(),
-                self.cpu.reg.get_s(),
+                reg.get_pc() - 1,
+                reg.get_current_instr(),
+                reg.get_a(),
+                reg.get_x(),
+                reg.get_y(),
+                reg.get_p().as_u8(),
+                reg.get_s(),
                 self.cycle,
                 self.scanline
         )
     }
+    pub fn format_log(log: &str) -> String {
+        format!("{} {}", &log[..8], &log[48..])
+    }
 
-    // Dismiss a log. Used for callback when the log is not needed
-    pub fn dismiss_log(_: &Console, _: String) {}
+    // Dismiss a log. Used as callback when the log is not needed.
+    pub fn dismiss_log(_: &Console, _: String) -> bool { false }
 
     // Map the color
     pub fn map_color(dot: u8) -> image::Rgb<u8> {
@@ -145,7 +147,7 @@ impl Console {
                 let name = 0x2000 + tile + row * 32;
                 let attr = 0x23c0 + (tile / 2) + (row / 2 * 32);
 
-                let pattern = bus.ppu.ram[name] as usize * 0x10;
+                let pattern = bus.ppu.ram[name] as u16 * 0x10;
                 let palette = bus.ppu.ram[attr];
 
                 // Color mask
@@ -176,8 +178,8 @@ impl Console {
 
     // Run until some condition is met
     pub fn run_until(&mut self,
-                     condition: impl Fn(&Console) -> bool,
-                     log: &mut impl FnMut(&Console, String)) {
+                     mut condition: impl FnMut(&Console) -> bool,
+                     mut log: impl FnMut(&Console, String) -> bool) {
         loop {
             let mut should_finish = false;
 
@@ -185,10 +187,8 @@ impl Console {
             if self.clock % 3 == 0 {
                 self.cpu.step();
 
-                match self.cpu.reg.get_cycle() {
-                    cycle::FIRST => log(&self, self.log()),
-                    cycle::LAST => self.instr_pc = self.cpu.reg.get_pc(),
-                    _ => {}
+                if self.cpu.reg.get_cycle() == cycle::FIRST {
+                    should_finish = log(&self, self.log())
                 }
             }
 
@@ -220,7 +220,7 @@ impl Console {
                             RenderToDisk::Filename(ref filename) => { filename.clone() }
                             RenderToDisk::Dont => { unimplemented!() }
                         };
-                        self.render().save(format!("screenshots/{}", filename)).unwrap();
+                        self.render().save(format!("tests/screenshots/{}", filename)).unwrap();
                     }
 
                     self.scanline = -1;
@@ -244,7 +244,7 @@ impl Console {
     pub fn run_until_cpu_memory_is(&mut self,
                                    addr: u16,
                                    data: u8,
-                                   log: &mut impl FnMut(&Console, String)) {
+                                   log: &mut impl FnMut(&Console, String) -> bool) {
         self.run_until(
             |console| console.bus.borrow_mut().read_cpu(addr) == data,
             log);
@@ -253,7 +253,7 @@ impl Console {
     pub fn run_until_cpu_memory_is_not(&mut self,
                                        addr: u16,
                                        data: u8,
-                                       log: &mut impl FnMut(&Console, String)) {
+                                       log: &mut impl FnMut(&Console, String) -> bool) {
         self.run_until(
             |console| console.bus.borrow_mut().read_cpu(addr) != data,
             log);
@@ -261,7 +261,7 @@ impl Console {
 
     pub fn run_frames(&mut self,
                       frames: u32,
-                      log: &mut impl FnMut(&Console, String)) {
+                      log: &mut impl FnMut(&Console, String) -> bool) {
         if frames == 0 { return; }
 
         let frame = self.frame + frames;

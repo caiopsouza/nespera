@@ -1,11 +1,13 @@
+use std::cmp;
 use std::fmt;
 use std::ops::Range;
 
 use pretty_hex::PrettyHex;
 
-use crate::mapper::Location;
+use crate::mapper::location::Location;
 use crate::mapper::Mapper;
 use crate::mapper::mapper000::Mapper000;
+use crate::utils::bits;
 
 const EIGHT_KBYTES: usize = 0x2000;
 const SIXTEEN_KBYTES: usize = 2 * EIGHT_KBYTES;
@@ -16,13 +18,14 @@ pub enum CartridgeLoadError {
     InvalidHeader,
     UnableToReadPrgRom,
     UnableToReadChrRom,
+    MapperNotImplemented,
 }
 
 pub struct Cartridge {
     file: Vec<u8>,
     prg_rom: Range<usize>,
     chr_rom: Range<usize>,
-    pub prg_ram: Vec<u8>,
+    prg_ram: Vec<u8>,
     mapper: Box<Mapper>,
 }
 
@@ -40,13 +43,30 @@ impl Cartridge {
         let chr_rom = chr_rom_start_byte..chr_rom_start_byte + file[0x05] as usize * EIGHT_KBYTES;
         file.get(chr_rom.clone()).ok_or(CartridgeLoadError::UnableToReadChrRom)?;
 
+        // Mapper.
+        // High nybble of 6 contains the lower nybble of the mapper.
+        // High nybble of 7 contains the higher nybble of the mapper.
+        let mapper = ((file[0x06] & 0b1111_0000) >> 4) | (file[0x07] & 0b1111_0000);
+        let mapper = match mapper {
+            0 => box Mapper000::new(),
+            _ => return Result::Err(CartridgeLoadError::MapperNotImplemented),
+        };
+
+        // PRG RAM is present if bit is not set.
+        let prg_ram_capacity =
+            if bits::is_set(file[0x0a], 4) {
+                0
+            } else {
+                EIGHT_KBYTES * cmp::max(file[0x08] as usize, 1)
+            };
+
         Ok(
             Self {
                 file,
                 prg_rom,
                 chr_rom,
-                prg_ram: vec![0; EIGHT_KBYTES],
-                mapper: box Mapper000::new(),
+                prg_ram: vec![0; prg_ram_capacity],
+                mapper,
             }
         )
     }
@@ -56,80 +76,112 @@ impl Cartridge {
             file: vec![0],
             prg_rom: 0..1,
             chr_rom: 0..1,
-            prg_ram: vec![0; EIGHT_KBYTES],
+            prg_ram: vec![0; 0],
             mapper: box Mapper000::new(),
         }
     }
 
-    pub fn read_chr_rom(&self, addr: usize) -> u8 {
+    pub fn read_prg_rom(&self, addr: u16) -> u8 {
+        unsafe {
+            let prg_rom = self.file.get_unchecked(self.prg_rom.clone());
+            *prg_rom.get_unchecked(addr as usize % prg_rom.len())
+        }
+    }
+
+    pub fn read_chr_rom(&self, addr: u16) -> u8 {
         unsafe {
             let chr_rom = self.file.get_unchecked(self.chr_rom.clone());
-            *chr_rom.get_unchecked(addr % chr_rom.len())
+            *chr_rom.get_unchecked(addr as usize % chr_rom.len())
         }
     }
 
-    fn read(&self, location: Location) -> u8 {
-        unsafe {
-            match location {
-                Location::Nowhere(addr) => {
-                    error!("Mapper attempted to read from nowhere in CPU at address {:#04x}. Defaulting to zero.", addr);
-                    0
-                }
+    pub fn read_prg_ram(&self, addr: u16) -> u8 {
+        if self.prg_ram.len() == 0 {
+            error!("Attempt to read from PRG RAM, but cartridge reports it's not present. Defaulting to zero. 0x{:04x}",
+                   addr);
+            return 0;
+        }
 
-                Location::PrgRam(addr) => {
-                    *self.prg_ram.get_unchecked(addr as usize % self.prg_ram.len())
-                }
+        let index = addr as usize % self.prg_ram.len();
+        unsafe { *self.prg_ram.get_unchecked(index) }
+    }
 
-                Location::PrgRom(addr) => {
-                    let prg_rom = self.file.get_unchecked(self.prg_rom.clone());
-                    *prg_rom.get_unchecked(addr as usize % self.prg_rom.len())
-                }
+    pub fn write_prg_ram(&mut self, addr: u16, data: u8) {
+        if self.prg_ram.len() == 0 {
+            error!("Attempt to write to PRG RAM, but cartridge reports it's not present. Defaulting to zero. 0x{:04x}, 0x{:02x}",
+                   addr, data);
+            return;
+        }
 
-                Location::ChrRom(addr) => {
-                    let chr_rom = self.file.get_unchecked(self.chr_rom.clone());
-                    *chr_rom.get_unchecked(addr as usize % self.chr_rom.len())
+        let index = addr as usize % self.prg_ram.len();
+        unsafe { *self.prg_ram.get_unchecked_mut(index) = data }
+    }
+
+    // Canonize a PPU register from the mirrored area
+    fn canon_ppu_register_addr(addr: u16) -> u16 {
+        const PPU_REG_AMOUNT: u16 = 0x08;
+        const PPU_REGS_ADDR_START: u16 = 0x2000;
+        (addr - PPU_REGS_ADDR_START) % PPU_REG_AMOUNT + PPU_REGS_ADDR_START
+    }
+
+    // Common PRG RAM location
+    fn prg_ram_location(&self, addr: u16) -> Location {
+        match self.prg_ram.len() {
+            0 => Location::Nowhere(addr),
+            _ => Location::PrgRam(addr - 0x6000),
+        }
+    }
+
+    // Common cpu locations
+    fn cpu_location(&self, addr: u16) -> Location {
+        match addr {
+            0x0000...0x1fff => Location::CpuRam(addr),
+
+            0x2000...0x3fff => {
+                let addr = Self::canon_ppu_register_addr(addr);
+                match addr {
+                    0x2000 => Location::PpuCtrl,
+                    0x2001 => Location::PpuMask,
+                    0x2002 => Location::PpuStatus,
+                    0x2003 => Location::OamAddr,
+                    0x2004 => Location::OamData,
+                    0x2005 => Location::PpuScroll,
+                    0x2006 => Location::PpuAddr,
+                    0x2007 => Location::PpuData,
+                    _ => unimplemented!("Canonical PPU register doesn't exist for address 0x{:04x}.", addr),
                 }
+            }
+
+            0x4014 => Location::OamDma,
+
+            0x4000...0x4017 => {
+                warn!("Reading from APU address 0x{:04x}.", addr);
+                Location::Apu(addr - 0x4000)
+            }
+
+            _ => {
+                error!("Reading from area not mapped in CPU. Addr 0x{:04x}.", addr);
+                Location::Nowhere(addr)
             }
         }
     }
 
-    pub fn write(&mut self, location: Location, data: u8) {
-        unsafe {
-            match location {
-                Location::Nowhere(addr) => {
-                    error!("Mapper attempted to write into nowhere in CPU at address {:#04x}.", addr);
-                }
-
-                Location::PrgRam(addr) => {
-                    let prg_ram_len = self.prg_ram.len();
-                    *self.prg_ram.get_unchecked_mut(addr as usize % prg_ram_len) = data
-                }
-
-                Location::PrgRom(_) | Location::ChrRom(_) => {
-                    error!("Mapper attempted to write into read only memory in CPU at location {:#04x?}", location)
-                }
-            }
+    // Location for reading from the CPU
+    pub fn cpu_read_location(&self, addr: u16) -> Location {
+        match addr {
+            0x6000...0x7fff => self.prg_ram_location(addr),
+            0x4020...0xffff => self.mapper.read_cpu(addr),
+            _ => self.cpu_location(addr)
         }
     }
 
-    pub fn read_cpu(&self, addr: u16) -> u8 {
-        let location = self.mapper.read_cpu(addr);
-        self.read(location)
-    }
-
-    pub fn write_cpu(&mut self, addr: u16, data: u8) {
-        let location = self.mapper.write_cpu(addr);
-        self.write(location, data)
-    }
-
-    pub fn read_ppu(&self, addr: u16) -> u8 {
-        let location = self.mapper.read_ppu(addr);
-        self.read(location)
-    }
-
-    pub fn write_ppu(&mut self, addr: u16, data: u8) {
-        let location = self.mapper.write_ppu(addr);
-        self.write(location, data)
+    // Location for writing from the CPU
+    pub fn cpu_write_location(&self, addr: u16) -> Location {
+        match addr {
+            0x6000...0x7fff => self.prg_ram_location(addr),
+            0x4020...0xffff => self.mapper.write_cpu(addr),
+            _ => self.cpu_location(addr)
+        }
     }
 }
 
@@ -156,27 +208,26 @@ mod tests {
 
     #[test]
     fn prg_rom_start() {
-        let rom = load_test();
-        assert_eq!(rom.read_cpu(0x8000), 0x4c);
+        let cartridge = load_test();
+        assert_eq!(cartridge.cpu_read_location(0x8000), Location::PrgRom(0x0000));
     }
 
     #[test]
     fn prg_rom_end() {
-        let rom = load_test();
-        assert_eq!(rom.read_cpu(0x8000 + 0x3fff), 0xc5);
+        let cartridge = load_test();
+        assert_eq!(cartridge.cpu_read_location(0x8000 + 0x3fff), Location::PrgRom(0x3fff));
     }
 
     #[test]
     fn prg_chr_start() {
-        let rom = load_test();
-        assert_eq!(rom.read_cpu(0x8000 + 0x3fff), 0xc5);
-        assert_eq!(rom.chr_rom.start, 0x4010);
+        let cartridge = load_test();
+        assert_eq!(cartridge.chr_rom.start, 0x4010);
     }
 
     #[test]
     fn chr_rom_end() {
-        let rom = load_test();
-        assert_eq!(rom.chr_rom.end, 0x6010);
+        let cartridge = load_test();
+        assert_eq!(cartridge.chr_rom.end, 0x6010);
     }
 }
 

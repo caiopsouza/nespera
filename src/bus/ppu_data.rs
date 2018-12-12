@@ -4,17 +4,6 @@ use pretty_hex::PrettyHex;
 
 use crate::utils::bits;
 
-// PPU registers
-const PPU_CTRL: u16 = 0x2000;
-const PPU_MASK: u16 = 0x2001;
-const PPU_STATUS: u16 = 0x2002;
-const OAM_ADDR: u16 = 0x2003;
-const OAM_DATA: u16 = 0x2004;
-// const PPU_SCROLL: u16 = 0x2005;
-const PPU_ADDR: u16 = 0x2006;
-const PPU_DATA: u16 = 0x2007;
-pub const OAM_DMA: u16 = 0x4014;
-
 // PPU capacity. Ends with the palette.
 pub const PALETTE_CAPACITY: usize = 0x0020;
 pub const PALETTE_START_POS: usize = 0x3f00;
@@ -106,149 +95,121 @@ impl PpuData {
         }
     }
 
-    // Decode an address from CPU registers to its canonical value
-    fn cpu_addr_decode(addr: u16) -> u16 {
-        const PPU_REGS_CAPACITY: u16 = 0x08;
-        const PPU_REGS_ADDR_START: u16 = 0x2000;
-        (addr - PPU_REGS_ADDR_START) % PPU_REGS_CAPACITY + PPU_REGS_ADDR_START
+    // Read PPUDATA
+    pub fn read_data(&mut self) -> u8 {
+        let data = unsafe { *self.ram.get_unchecked(self.get_addr()) };
+
+        // Palette data is read immediately.
+        // Everything else is read into a buffer and the previous contents of the buffer is returned.
+        self.latch = if self.is_palette() {
+            self.ram_buffer = data;
+            data
+        } else {
+            let res = self.ram_buffer;
+            self.ram_buffer = data;
+            res
+        };
+
+        self.inc_ram_addr();
+
+        trace!("Reading from PPUDATA: 0x{:04x}", self.latch);
+        self.latch
     }
 
-    // Read a value from the PPU internal memory using the registers interface
-    pub fn read_register(&mut self, addr: u16) -> u8 {
-        let addr = PpuData::cpu_addr_decode(addr);
+    // Read PPUSTATUS
+    pub fn read_status(&mut self) -> u8 {
+        // Reading the status resets the write toggle.
+        self.w = false;
 
-        // Reading from the PPU will fill the latch.
-        self.latch = match addr {
-            PPU_DATA => {
-                let data = unsafe { *self.ram.get_unchecked(self.get_addr()) };
+        // PPU status has some unused bits, so fill in from the latch.
+        self.latch = bits::copy(self.status, self.latch, 0b0001_1111);
+        trace!("Reading from PPUSTATUS: 0x{:04x}", self.latch);
 
-                // Palette data is read immediately.
-                // Everything else is read into a buffer and the previous contents of the buffer is returned.
-                let res = if self.is_palette() {
-                    self.ram_buffer = data;
-                    data
-                } else {
-                    let res = self.ram_buffer;
-                    self.ram_buffer = data;
-                    res
-                };
-
-                self.inc_ram_addr();
-
-                trace!("Reading from PPUDATA: 0x{:04x}", res);
-                res
-            }
-
-            PPU_STATUS => {
-
-                // Reading the status resets the write toggle.
-                self.w = false;
-
-                // PPU status has some unused bits, so fill in from the latch.
-                let res = bits::copy(self.status, self.latch, 0b0001_1111);
-                trace!("Reading from PPUSTATUS: 0x{:04x}", res);
-
-                // Vertical blank is cleared after reading status
-                self.vblank_clear();
-
-                res
-            }
-
-            _ => {
-                warn!("Reading from write only PPU area. Addr 0x{:04x}.", addr);
-                self.latch
-            }
-        };
+        // Vertical blank is cleared after reading status
+        self.vblank_clear();
 
         self.latch
     }
 
-    // Write a value into the PPU internal memory using the registers interface.
-    pub fn write_register(&mut self, addr: u16, data: u8) {
-        let addr = PpuData::cpu_addr_decode(addr);
+    // Common routine for write operations
+    pub fn write(&mut self, data: u8) { self.latch = data }
 
-        // Every write passes through the latch
-        self.latch = data;
+    // Write PPUCONTROL
+    pub fn write_control(&mut self, data: u8) {
+        warn!("Writing into PPUCTRL is not completely implemented: 0x{:02x}", data);
 
-        match addr {
-            //match addr {
-            // VPHB SINN
-            // |||| ||||
-            // |||| ||++- Base nametable address (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
-            // |||| |+--- VRAM address increment per CPU read/write of PPU_DATA (0: add 1, going across; 1: add 32, going down)
-            // |||| +---- Sprite pattern table address for 8x8 sprites (0: $0000; 1: $1000; ignored in 8x16 mode)
-            // |||+------ Background pattern table address (0: $0000; 1: $1000)
-            // ||+------- Sprite size (0: 8x8 pixels; 1: 8x16 pixels)
-            // |+-------- PPU master/slave select (0: read backdrop from EXT pins; 1: output color on EXT pins)
-            // +--------- Generate an NMI at the start of the vertical blanking interval (0: off; 1: on)
-            //}
-            PPU_CTRL => {
-                warn!("Writing into PPUCTRL is not completely implemented: 0x{:02x}", data);
+        self.write(data);
 
-                self.ram_increment = if bits::is_set(data, 2) { 32 } else { 1 };
-                self.generate_nmi_at_vblank = bits::is_set(data, 7);
-            }
+        self.ram_increment = if bits::is_set(data, 2) { 32 } else { 1 };
+        self.generate_nmi_at_vblank = bits::is_set(data, 7);
+    }
 
-            PPU_MASK => {
-                trace!("Writing into PPUMASK: 0x{:02x}", data);
+    // Write PPUMASK
+    pub fn write_mask(&mut self, data: u8) {
+        self.write(data);
 
-                self.greyscale = bits::is_set(data, 0);
-                self.show_background_in_lef = bits::is_set(data, 1);
-                self.show_sprites_in_leftmost = bits::is_set(data, 2);
-                self.show_background = bits::is_set(data, 3);
-                self.show_sprites = bits::is_set(data, 4);
-                self.emphasize_red = bits::is_set(data, 5);
-                self.emphasize_green = bits::is_set(data, 6);
-                self.emphasize_blue = bits::is_set(data, 7);
-            }
+        self.greyscale = bits::is_set(data, 0);
+        self.show_background_in_lef = bits::is_set(data, 1);
+        self.show_sprites_in_leftmost = bits::is_set(data, 2);
+        self.show_background = bits::is_set(data, 3);
+        self.show_sprites = bits::is_set(data, 4);
+        self.emphasize_red = bits::is_set(data, 5);
+        self.emphasize_green = bits::is_set(data, 6);
+        self.emphasize_blue = bits::is_set(data, 7);
+    }
 
-            PPU_ADDR => {
-                trace!("Writing into PPUADDR: 0x{:02x}", data);
+    // Write PPUSCROLL
+    pub fn write_scroll(&mut self, data: u8) {
+        self.write(data);
+        error!("Writing to PPUSCROLL is not implemented.");
+    }
 
-                if self.w {
-                    self.v = bits::set_low(self.v, data);
-                } else {
-                    self.v = bits::set_high(self.v, data);
-                }
+    // Write PPUADDR
+    pub fn write_addr(&mut self, data: u8) {
+        self.write(data);
 
-                self.w = !self.w;
-
-                // 15 bits only
-                self.v &= 0b0111_1111_1111_1111;
-            }
-
-            PPU_DATA => {
-                trace!("Writing into PPUDATA: 0x{:02x}", data);
-
-                let addr = self.get_addr();
-                unsafe { *self.ram.get_unchecked_mut(addr) = data; }
-
-                self.inc_ram_addr()
-            }
-
-            OAM_ADDR => {
-                trace!("Writing into OAMADDR: 0x{:02x}", data);
-                self.oam_dest = data;
-            }
-
-            OAM_DATA => {
-                trace!("Writing into OAMDATA: 0x{:02x}", data);
-
-                unsafe { *self.oam.get_unchecked_mut(self.oam_dest as usize) = data; }
-                self.oam_dest = self.oam_dest.wrapping_add(1);
-            }
-
-            OAM_DMA => {
-                trace!("Writing into OAMDMA: 0x{:02x}", data);
-
-                self.oam_transfer = true;
-                self.oam_source = data;
-            }
-
-            _ => {
-                warn!("Writing to PPU area not mapped. Addr 0x{:04x}. Data 0x{:02x}.", addr, data);
-            }
+        if self.w {
+            self.v = bits::set_low(self.v, data);
+        } else {
+            self.v = bits::set_high(self.v, data);
         }
+
+        self.w = !self.w;
+
+        // 15 bits only
+        self.v &= 0b0111_1111_1111_1111;
+    }
+
+    // Write PPUDATA
+    pub fn write_data(&mut self, data: u8) {
+        self.write(data);
+
+        let addr = self.get_addr();
+        unsafe { *self.ram.get_unchecked_mut(addr) = data; }
+
+        self.inc_ram_addr()
+    }
+
+    // Write OAMADDR
+    pub fn write_oam_addr(&mut self, data: u8) {
+        self.write(data);
+        self.oam_dest = data;
+    }
+
+    // Write OAMDATA
+    pub fn write_oam_data(&mut self, data: u8) {
+        self.write(data);
+
+        unsafe { *self.oam.get_unchecked_mut(self.oam_dest as usize) = data; }
+        self.oam_dest = self.oam_dest.wrapping_add(1);
+    }
+
+    // Write OAMDMA
+    pub fn write_oam_dma(&mut self, data: u8) {
+        self.write(data);
+
+        self.oam_transfer = true;
+        self.oam_source = data;
     }
 
     // Check if an address refers to the palette region of memory

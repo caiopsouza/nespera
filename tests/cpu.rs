@@ -3,29 +3,27 @@ use nespera::console::Console;
 #[test]
 fn nestest() {
     let log = include_str!("resources/cpu/nestest.log");
+    let mut log = log.split("\r\n").enumerate();
+
     let file = include_bytes!("resources/cpu/nestest.nes")[..].to_owned();
-    let console = Console::new(file);
-    let mut cpu = console.cpu;
-    cpu.set_clock(0);
+    let mut console = Console::new(file);
 
-    // Starting point where the ROM won't access the PPU.
-    cpu.reg.set_pc(0xc000);
+    console.cpu.reg.set_pc(0xc000);
+    console.scanline = 241;
 
-    for (line, text) in log.split("\r\n").enumerate() {
-        let ppu_cycle = (3 * cpu.get_clock()) % 341;
+    console.run_until(|_| false,
+                      |_, actual: String| {
+                          match log.next() {
+                              Some((_, "")) => true,
 
-        let p: u8 = cpu.reg.get_p().into();
-        let res = format!("{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{: >3}",
-                          cpu.reg.get_pc(), cpu.reg.get_a(), cpu.reg.get_x(),
-                          cpu.reg.get_y(), p, cpu.reg.get_s(), ppu_cycle);
+                              Some((line, expected)) => {
+                                  assert_eq!(actual, Console::format_log(expected), "\nat line {}", line);
+                                  false
+                              }
 
-        assert_eq!(res, text, "\nOn line: {}.\n{}", line + 1, cpu);
-
-        cpu.step_instruction();
-    }
-
-    // Return from subroutine
-    assert_eq!(0x60, cpu.reg.get_current_instr(), "\n\n{}", cpu);
+                              None => true,
+                          }
+                      });
 }
 
 fn run_blargg(file: Vec<u8>, expected: &'static str) {

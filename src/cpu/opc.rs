@@ -261,18 +261,18 @@ impl Cpu {
 
     // region Store
     pub fn sta(&mut self, addr: u16) {
-        trace!(target: "opcode", "sta, addr: 0x{:04x}", addr);
         let data = self.reg.get_a();
+        trace!(target: "opcode", "sta, addr: 0x{:04x}, data: 0x{:02x}", addr, data);
         self.write(addr, data)
     }
     pub fn stx(&mut self, addr: u16) {
-        trace!(target: "opcode", "stx, addr: 0x{:04x}", addr);
         let data = self.reg.get_x();
+        trace!(target: "opcode", "stx, addr: 0x{:04x}, data: 0x{:02x}", addr, data);
         self.write(addr, data)
     }
     pub fn sty(&mut self, addr: u16) {
-        trace!(target: "opcode", "sty, addr: 0x{:04x}", addr);
         let data = self.reg.get_y();
+        trace!(target: "opcode", "sty, addr: 0x{:04x}, data: 0x{:02x}", addr, data);
         self.write(addr, data)
     }
 
@@ -426,8 +426,8 @@ impl Cpu {
     }
 
     pub fn sax(&mut self, addr: u16) {
-        trace!(target: "opcode", "sax, addr: 0x{:04x}", addr);
         let data = self.reg.get_a() & self.reg.get_x();
+        trace!(target: "opcode", "sax, addr: 0x{:04x}, data: 0x{:02x}", addr, data);
         self.write(addr, data);
     }
 

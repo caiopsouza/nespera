@@ -1,4 +1,4 @@
-use crate::mapper::Location;
+use crate::mapper::location::Location;
 use crate::mapper::Mapper;
 
 pub struct Mapper000;

@@ -19,13 +19,13 @@ pub fn clear(data: u8, index: u8) -> u8 {
     data & !(1 << index)
 }
 
-// Check if a bit is set
-pub fn is_set(byte: u8, index: u8) -> bool {
-    (byte & (1 << index)) != 0
-}
+// Check a bit
+pub fn is_set(byte: u8, index: u8) -> bool { (byte & (1 << index)) != 0 }
+
+pub fn is_clear(byte: u8, index: u8) -> bool { !bits::is_set(byte, index) }
 
 // Return an array of eight bytes interlacing between high and low.
-pub fn interlace(low: u8, high: u8) -> [u8;8] {
+pub fn interlace(low: u8, high: u8) -> [u8; 8] {
     [
         (((high >> 7) & 0x01) << 1) | ((low >> 7) & 0x01),
         (((high >> 6) & 0x01) << 1) | ((low >> 6) & 0x01),

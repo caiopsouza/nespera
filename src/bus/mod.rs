@@ -7,6 +7,7 @@ use pretty_hex::PrettyHex;
 use crate::bus::cpu_data::CpuData;
 use crate::bus::ppu_data::PpuData;
 use crate::mapper::Cartridge;
+use crate::mapper::location::Location;
 
 mod cpu_data;
 mod ppu_data;
@@ -63,33 +64,147 @@ impl Bus {
         if self.ppu.generate_nmi_at_vblank { self.nmi = true }
     }
 
-    // Read an address on the CPU
-    pub fn read_cpu(&mut self, addr: u16) -> u8 {
-        unsafe {
-            match addr {
-                0x0000...0x1fff => {
-                    let res = self.cpu.read_ram(addr);
-                    trace!("Reading from CPU RAM: 0x{:04x}, 0x{:02x}", addr, res);
-                    res
-                }
+    // Trace reading operations
+    fn trace_read(location: &str, data: u8) -> u8 {
+        trace!("Reading from {}: 0x{:02x}", location, data);
+        data
+    }
+    fn trace_addr_read(location: &str, addr: u16, data: u8) -> u8 {
+        trace!("Reading from {}: 0x{:04x}, 0x{:02x}", location, addr, data);
+        data
+    }
 
-                0x2000...0x3fff => self.ppu.read_register(addr),
+    // Read a value from the location
+    fn read(&mut self, location: Location) -> u8 {
+        match location {
+            Location::Nowhere(addr) => {
+                error!("Attempted to read from nowhere in CPU. Defaulting to zero. 0x{:02x}", addr);
+                0
+            }
 
-                ppu_data::OAM_DMA => self.ppu.read_register(addr),
+            Location::Apu(addr) => {
+                let data = unsafe { *self.apu.get_unchecked(addr as usize % APU_CAPACITY) };
+                Self::trace_addr_read("APU", addr, data)
+            }
 
-                0x4000...0x4017 => {
-                    warn!("Reading from APU address 0x{:4x}.", addr);
-                    *self.apu.get_unchecked((addr - 0x4000) as usize % APU_CAPACITY)
-                }
+            Location::CpuRam(addr) => {
+                Self::trace_addr_read("CPU RAM", addr, self.cpu.read_ram(addr))
+            }
 
-                0x4020...0xffff => self.cartridge.read_cpu(addr),
+            Location::PpuData => {
+                Self::trace_read("PPUDATA", self.ppu.read_data())
+            }
 
-                _ => {
-                    error!("Reading from area not mapped in CPU. Addr 0x{:04x}.", addr);
-                    0
-                }
+            Location::PpuStatus => {
+                Self::trace_read("PPUSTATUS", self.ppu.read_status())
+            }
+
+            Location::OamDma => { unimplemented!() }
+
+            Location::PpuCtrl
+            | Location::PpuMask
+            | Location::OamAddr
+            | Location::OamData
+            | Location::PpuAddr
+            | Location::PpuScroll => {
+                warn!("Reading from write only PPU area: 0x{:04x?}, 0x{:02x}.", location, self.ppu.latch);
+                self.ppu.latch
+            }
+
+            Location::PrgRam(addr) => {
+                Self::trace_addr_read("PRG RAM", addr, self.cartridge.read_prg_ram(addr))
+            }
+
+            Location::PrgRom(addr) => {
+                Self::trace_addr_read("PRG ROM", addr, self.cartridge.read_prg_rom(addr))
+            }
+
+            Location::ChrRom(addr) => {
+                Self::trace_addr_read("CHR ROM", addr, self.cartridge.read_chr_rom(addr))
             }
         }
+    }
+
+    // Trace write operations
+    fn trace_write(location: &str, data: u8) {
+        trace!("Writing to {}: 0x{:02x}", location, data)
+    }
+    fn trace_addr_write(location: &str, addr: u16, data: u8) {
+        trace!("Writing to {}: 0x{:04x}, 0x{:02x}", location, addr, data)
+    }
+
+    // Write a value to the location
+    fn write(&mut self, location: Location, data: u8) {
+        match location {
+            Location::Nowhere(addr) => error!("Attempted to write to nowhere in CPU: 0x{:04x}, 0x{:02x}.", addr, data),
+
+            Location::Apu(addr) => {
+                unsafe { *self.apu.get_unchecked_mut(addr as usize % APU_CAPACITY) = data }
+                Self::trace_addr_write("APU", addr, data)
+            }
+
+            Location::CpuRam(addr) => {
+                Self::trace_addr_write("CPU RAM", addr, data);
+                self.cpu.write_ram(addr, data)
+            }
+
+            Location::PpuCtrl => {
+                self.ppu.write_control(data);
+                Self::trace_write("PPUCTRL", data);
+            }
+
+            Location::PpuMask => {
+                self.ppu.write_mask(data);
+                Self::trace_write("PPUCTRL", data);
+            }
+
+            Location::PpuStatus => {}
+
+            Location::OamAddr => {
+                self.ppu.write_oam_addr(data);
+                Self::trace_write("OAMADDR", data);
+            }
+
+            Location::OamData => {
+                self.ppu.write_oam_data(data);
+                Self::trace_write("OAMDATA", data);
+            }
+
+            Location::PpuAddr => {
+                self.ppu.write_addr(data);
+                Self::trace_write("PPUADDR", data);
+            }
+
+            Location::PpuScroll => {
+                self.ppu.write_scroll(data);
+                Self::trace_write("PPUSCROLL", data);
+            }
+
+            Location::PpuData => {
+                self.ppu.write_data(data);
+                Self::trace_write("PPUDATA", data);
+            }
+
+            Location::OamDma => {
+                self.ppu.write_oam_dma(data);
+                Self::trace_write("OAMDMA", data);
+            }
+
+            Location::PrgRam(addr) => {
+                Self::trace_addr_write("PRG RAM", addr, data);
+                self.cartridge.write_prg_ram(addr, data)
+            }
+
+            Location::PrgRom(addr) | Location::ChrRom(addr) => {
+                error!("Attempted to write to read only memory in cartridge. {:04x?}, {:#02x}", location, data)
+            }
+        }
+    }
+
+    // Read an address on the CPU
+    pub fn read_cpu(&mut self, addr: u16) -> u8 {
+        let location = self.cartridge.cpu_read_location(addr);
+        self.read(location)
     }
 
     // Read the address as a zero terminated string. Used mostly for testing.
@@ -107,26 +222,8 @@ impl Bus {
 
     // Write into an address on the CPU
     pub fn write_cpu(&mut self, addr: u16, data: u8) {
-        match addr {
-            0x0000...0x1fff => {
-                trace!("Writing into CPU RAM: 0x{:04x}, 0x{:02x}", addr, data);
-                self.cpu.write_ram(addr, data);
-            }
-
-            ppu_data::OAM_DMA => self.ppu.write_register(addr, data),
-
-            0x2000...0x3FFF => self.ppu.write_register(addr, data),
-
-            0x4000...0x4017 => {
-                warn!("Writing into APU address: {:#04x}, data: {:#02x}.", addr, data);
-                unsafe { *self.apu.get_unchecked_mut((addr - 0x4000) as usize % APU_CAPACITY) = data; }
-            }
-
-            0x4020...0xffff => self.cartridge.write_cpu(addr, data),
-
-            // Areas not mapped.
-            _ => error!("Writing into area not mapped in CPU. Addr {:#04x}. Data: {:#02x}", addr, data),
-        }
+        let location = self.cartridge.cpu_write_location(addr);
+        self.write(location, data)
     }
 }
 
