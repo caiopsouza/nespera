@@ -31,10 +31,8 @@ fn nestest() {
 fn run_blargg(file: Vec<u8>, expected: &'static str) {
     let mut console = Console::new(file);
 
-    let log = &mut |_console: &Console, _data: String| {};
-
-    console.run_until_memory_is_not(0x6000, 0x00, log);
-    console.run_until_memory_is_not(0x6000, 0x80, log);
+    console.run_until_memory_is_not(0x6000, 0x00, &mut Console::dismiss_log);
+    console.run_until_memory_is_not(0x6000, 0x80, &mut Console::dismiss_log);
 
     let expected = format!("{}\n\nPassed\n", expected);
     let res = console.cpu.bus.borrow_mut().read_string(0x6005);

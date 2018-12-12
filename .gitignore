@@ -6,6 +6,7 @@ Cargo.lock
 .idea
 nespera.iml
 
+/screenshots/*.png
 /tests/resources/roms/*
 
 # These are too big, can be easily generated from Nintendulator and serve only during development.

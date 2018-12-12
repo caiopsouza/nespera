@@ -61,6 +61,13 @@ impl Cartridge {
         }
     }
 
+    pub fn read_chr_rom(&self, addr: usize) -> u8 {
+        unsafe {
+            let chr_rom = self.file.get_unchecked(self.chr_rom.clone());
+            *chr_rom.get_unchecked(addr % chr_rom.len())
+        }
+    }
+
     pub fn read(&self, addr: u16) -> u8 {
         let location = self.mapper.read(addr);
         unsafe {
@@ -161,6 +168,8 @@ mod tests {
 
 impl fmt::Debug for Cartridge {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(formatter, "PRG ROM | {:?}", (&self.file[self.prg_rom.clone()]).hex_dump())?;
+        writeln!(formatter, "CHR ROM | {:?}", (&self.file[self.chr_rom.clone()]).hex_dump())?;
         writeln!(formatter, "PRG RAM | {:?}", (&self.prg_ram[..]).hex_dump())
     }
 }

@@ -193,7 +193,7 @@ impl PpuData {
             }
 
             PPU_ADDR => {
-                trace!("Writing into PPUADDR: 0x{:04x}", data);
+                trace!("Writing into PPUADDR: 0x{:02x}", data);
 
                 if self.w {
                     self.v = bits::set_low(self.v, data);
@@ -208,7 +208,7 @@ impl PpuData {
             }
 
             PPU_DATA => {
-                trace!("Writing into PPUDATA: 0x{:04x}", data);
+                trace!("Writing into PPUDATA: 0x{:02x}", data);
 
                 let addr = self.get_addr();
                 unsafe { *self.ram.get_unchecked_mut(addr) = data; }
@@ -217,19 +217,19 @@ impl PpuData {
             }
 
             OAM_ADDR => {
-                trace!("Writing into OAMADDR: 0x{:04x}", data);
+                trace!("Writing into OAMADDR: 0x{:02x}", data);
                 self.oam_dest = data;
             }
 
             OAM_DATA => {
-                trace!("Writing into OAMDATA: 0x{:04x}", data);
+                trace!("Writing into OAMDATA: 0x{:02x}", data);
 
                 unsafe { *self.oam.get_unchecked_mut(self.oam_dest as usize) = data; }
                 self.oam_dest = self.oam_dest.wrapping_add(1);
             }
 
             OAM_DMA => {
-                trace!("Writing into OAMDMA: 0x{:04x}", data);
+                trace!("Writing into OAMDMA: 0x{:02x}", data);
 
                 self.oam_transfer = true;
                 self.oam_source = data;
