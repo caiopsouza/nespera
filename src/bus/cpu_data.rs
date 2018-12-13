@@ -32,6 +32,6 @@ impl CpuData {
 
 impl fmt::Debug for CpuData {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(formatter, "RAM | {:?}", (&self.ram[..]).hex_dump())
+        write!(formatter, "RAM | {:?}", (&self.ram[..]).hex_dump())
     }
 }

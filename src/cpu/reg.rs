@@ -184,6 +184,7 @@ impl Reg {
     pub fn is_last_cycle(&self) -> bool { self.cycle == cycle::LAST }
     pub fn set_next_cycle(&mut self) { self.cycle += 1; }
     pub fn set_first_cycle(&mut self) { self.cycle = cycle::FIRST }
+    pub fn set_last_cycle(&mut self) { self.cycle = cycle::LAST }
     pub fn set_next_to_last_cycle(&mut self) { self.cycle = cycle::NEX_TO_LAST }
 
     // PC

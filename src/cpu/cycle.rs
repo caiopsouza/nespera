@@ -11,6 +11,8 @@ pub const T5: u16 = 5;
 pub const T6: u16 = 6;
 pub const T7: u16 = 7;
 pub const T8: u16 = 8;
+pub const T9: u16 = 9;
+pub const T10: u16 = 10;
 
 pub const FIRST: u16 = T2;
 pub const LAST: u16 = T1;

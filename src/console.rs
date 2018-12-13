@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::fmt;
 use std::rc::Rc;
 
 use crate::bus::Bus;
@@ -142,13 +143,17 @@ impl Console {
 
         let bus = self.bus.borrow_mut();
 
+        let background_table = bus.ppu.base_nametable_addr as usize;
+        let attribute_table = background_table + 0x03c0;
+        let pattern_table = bus.ppu.background_pattern_table;
+
         for row in 0..30 {
             for tile in 0..32 {
-                let name = 0x2000 + tile + row * 32;
-                let attr = 0x23c0 + (tile / 2) + (row / 2 * 32);
+                let background = background_table + tile + row * 32;
+                let attribute = attribute_table + (tile / 2) + (row / 2 * 32);
 
-                let pattern = bus.ppu.ram[name] as u16 * 0x10;
-                let palette = bus.ppu.ram[attr];
+                let pattern = pattern_table + bus.ppu.ram[background] as u16 * 0x10;
+                let palette = bus.ppu.ram[attribute];
 
                 // Color mask
                 let mask = ((row as u8 & 0x01) << 1) | (tile as u8 & 0x01);
@@ -274,5 +279,31 @@ impl Console {
                     && console.scanline == scanline
                     && console.cycle == cycle,
             log);
+    }
+
+    pub fn run_log(&mut self, log: &str) {
+        let mut log = log.split("\r\n").enumerate();
+
+        self.run_until(|_| false,
+                       |console, actual: String| {
+                           match log.next() {
+                               Some((_, "")) => true,
+
+                               Some((line, expected)) => {
+                                   assert_eq!(actual, Console::format_log(expected), "\nat line {}\n\n{}",
+                                              line, console.cpu);
+                                   false
+                               }
+
+                               None => true,
+                           }
+                       });
+    }
+}
+
+impl fmt::Debug for Console {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(formatter, "{:?}\n", self.cpu)?;
+        write!(formatter, "{:?}\n", self.bus)
     }
 }

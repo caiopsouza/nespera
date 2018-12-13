@@ -14,7 +14,11 @@ const OAM_CAPACITY: usize = 0x0100;
 // Information about the PPU registers decoded from writing to them
 pub struct PpuData {
     // PPUCTRL
+    pub base_nametable_addr: u16,
     pub ram_increment: u16,
+    pub sprite_pattern_table: u16,
+    pub background_pattern_table: u16,
+    pub sprite_size: u8,
     pub generate_nmi_at_vblank: bool,
 
     // PPUMASK
@@ -38,8 +42,8 @@ pub struct PpuData {
 
     // OAMADDR
     pub oam_transfer: bool,
-    pub oam_dest: u8,
-    pub oam_source: u8,
+    pub oam_addr: u8,
+    pub oam_source: u16,
 
     // Internal PPU bus. Any read or write to its registers should fill it.
     pub latch: u8,
@@ -53,18 +57,21 @@ pub struct PpuData {
 
     // RAM
     pub ram: [u8; RAM_CAPACITY],
-    pub palette: [u8; PALETTE_CAPACITY],
     pub oam: [u8; OAM_CAPACITY],
     pub ram_buffer: u8,
 }
 
 impl PpuData {
     pub fn new() -> Self {
-        Self {
+        let mut res = Self {
             latch: 0,
 
             // PPUCTRL
-            ram_increment: 1,
+            base_nametable_addr: 0,
+            ram_increment: 0,
+            sprite_pattern_table: 0,
+            background_pattern_table: 0,
+            sprite_size: 0,
             generate_nmi_at_vblank: false,
 
             // PPUMASK
@@ -82,17 +89,23 @@ impl PpuData {
             data: 0,
 
             oam_transfer: false,
-            oam_dest: 0,
+            oam_addr: 0,
             oam_source: 0,
 
             v: 0,
             w: false,
 
             ram: [0; RAM_CAPACITY],
-            palette: [0; PALETTE_CAPACITY],
             oam: [0; OAM_CAPACITY],
             ram_buffer: 0,
-        }
+        };
+
+        // Set defaults
+        res.write_control(0);
+        res.write_mask(0);
+        res.write_scroll(0);
+
+        res
     }
 
     // Read PPUDATA
@@ -131,16 +144,34 @@ impl PpuData {
         self.latch
     }
 
+    // Read OAMDATA
+    pub fn read_oam_data(&mut self) -> u8 {
+        self.latch = unsafe { *self.oam.get_unchecked(self.oam_addr as usize) };
+        self.oam_addr = self.oam_addr.wrapping_add(1);
+        self.latch
+    }
+
     // Common routine for write operations
     pub fn write(&mut self, data: u8) { self.latch = data }
 
-    // Write PPUCONTROL
+    // Write PPUCTRL
     pub fn write_control(&mut self, data: u8) {
-        warn!("Writing into PPUCTRL is not completely implemented: 0x{:02x}", data);
+        warn!("Writing into PPUCTRL is not completely implemented: 0x{:08b}", data);
 
         self.write(data);
 
+        self.base_nametable_addr = match data & 0b0000_0011 {
+            0 => 0x2000,
+            1 => 0x2400,
+            2 => 0x2800,
+            3 => 0x2c00,
+            x => unimplemented!(),
+        };
+
         self.ram_increment = if bits::is_set(data, 2) { 32 } else { 1 };
+        self.sprite_pattern_table = if bits::is_set(data, 3) { 0x1000 } else { 0x0000 };
+        self.background_pattern_table = if bits::is_set(data, 4) { 0x1000 } else { 0x0000 };
+        self.sprite_size = if bits::is_set(data, 5) { 16 } else { 8 };
         self.generate_nmi_at_vblank = bits::is_set(data, 7);
     }
 
@@ -193,15 +224,15 @@ impl PpuData {
     // Write OAMADDR
     pub fn write_oam_addr(&mut self, data: u8) {
         self.write(data);
-        self.oam_dest = data;
+        self.oam_addr = data;
     }
 
     // Write OAMDATA
     pub fn write_oam_data(&mut self, data: u8) {
         self.write(data);
 
-        unsafe { *self.oam.get_unchecked_mut(self.oam_dest as usize) = data; }
-        self.oam_dest = self.oam_dest.wrapping_add(1);
+        unsafe { *self.oam.get_unchecked_mut(self.oam_addr as usize) = data; }
+        self.oam_addr = self.oam_addr.wrapping_add(1);
     }
 
     // Write OAMDMA
@@ -209,7 +240,7 @@ impl PpuData {
         self.write(data);
 
         self.oam_transfer = true;
-        self.oam_source = data;
+        self.oam_source = (data as u16) << 8;
     }
 
     // Check if an address refers to the palette region of memory
@@ -246,6 +277,7 @@ impl PpuData {
 
 impl fmt::Debug for PpuData {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(formatter, "PPU | {:?}", (&self.ram[..]).hex_dump())
+        writeln!(formatter, "PPU | {:?}\n", (&self.ram[..]).hex_dump())?;
+        write!(formatter, "OAM | {:?}", (&self.oam[..]).hex_dump())
     }
 }

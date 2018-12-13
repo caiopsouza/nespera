@@ -99,12 +99,15 @@ impl Bus {
                 Self::trace_read("PPUSTATUS", self.ppu.read_status())
             }
 
+            Location::OamData => {
+                Self::trace_read("OAMDATA", self.ppu.read_oam_data())
+            }
+
             Location::OamDma => { unimplemented!() }
 
             Location::PpuCtrl
             | Location::PpuMask
             | Location::OamAddr
-            | Location::OamData
             | Location::PpuAddr
             | Location::PpuScroll => {
                 warn!("Reading from write only PPU area: 0x{:04x?}, 0x{:02x}.", location, self.ppu.latch);
@@ -158,7 +161,9 @@ impl Bus {
                 Self::trace_write("PPUCTRL", data);
             }
 
-            Location::PpuStatus => {}
+            Location::PpuStatus => {
+                error!("Attempted to write to read only register PPUSTATUS: 0x{:02x}.", data)
+            }
 
             Location::OamAddr => {
                 self.ppu.write_oam_addr(data);
@@ -166,8 +171,9 @@ impl Bus {
             }
 
             Location::OamData => {
+                let addr = self.ppu.oam_addr as u16;
                 self.ppu.write_oam_data(data);
-                Self::trace_write("OAMDATA", data);
+                Self::trace_addr_write("OAMDATA", addr, data);
             }
 
             Location::PpuAddr => {
@@ -204,7 +210,9 @@ impl Bus {
     // Read an address on the CPU
     pub fn read_cpu(&mut self, addr: u16) -> u8 {
         let location = self.cartridge.cpu_read_location(addr);
-        self.read(location)
+        let data = self.read(location);
+
+        data
     }
 
     // Read the address as a zero terminated string. Used mostly for testing.
@@ -229,9 +237,9 @@ impl Bus {
 
 impl fmt::Debug for Bus {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(formatter, "{:?}", self.cpu)?;
-        writeln!(formatter, "{:?}", self.ppu)?;
-        writeln!(formatter, "{:?}", self.cartridge)?;
+        writeln!(formatter, "{:?}\n", self.cpu)?;
+        writeln!(formatter, "{:?}\n", self.ppu)?;
+        writeln!(formatter, "{:?}\n", self.cartridge)?;
         write!(formatter, "APU | {:?}", (&self.apu[..]).hex_dump())
     }
 }

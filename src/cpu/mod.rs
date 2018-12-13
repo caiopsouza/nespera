@@ -23,6 +23,7 @@ pub struct Cpu {
     // Flags to indicate internal operations
     oam_transferring: bool,
     resetting: bool,
+    interrupting: bool,
 }
 
 impl Cpu {
@@ -33,6 +34,7 @@ impl Cpu {
             bus,
             oam_transferring: false,
             resetting: false,
+            interrupting: false,
         };
         res.reset();
         res
@@ -58,30 +60,32 @@ impl Cpu {
             }}
         }
 
-        // Last cycle fetches the opcode.
         if self.reg.is_last_cycle() {
+            // Last cycle fetches the opcode.
             let pc = self.fetch_pc();
             self.reg.set_current_instr(pc);
             self.reg.set_next_cycle();
 
             let bus = self.bus.borrow();
-            if self.bus.borrow().reset {
+            if bus.reset {
                 self.resetting = true
+            } else if bus.nmi || (bus.irq && !self.reg.get_p().get_interrupt_disable()) {
+                self.interrupting = true;
             } else if bus.ppu.oam_transfer {
                 self.oam_transferring = true
-            } else if bus.nmi || (bus.irq && !self.reg.get_p().get_interrupt_disable()) {
-                // If interrupted, change the instruction to BRK.
-                self.reg.set_current_instr(0x00);
             }
 
             return;
         }
 
-        // Transfer OAM. Will clear the flag when finished.
-        if self.oam_transferring { return run!(oam); }
-
         // Reset subroutine. Will clear the flag when finished.
         if self.resetting { return run!(rst); }
+
+        // If interrupted runt the BRK instruction.
+        if self.interrupting { return run!(brk); }
+
+        // Transfer OAM. Will clear the flag when finished.
+        if self.oam_transferring { return run!(oam); }
 
         match self.reg.get_current_instr() {
             0x00 => run!(brk),                  /*bytes: 0 cycles: 7  _____=>_____ __      Brk, Implied     */

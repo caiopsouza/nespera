@@ -233,8 +233,8 @@ mod tests {
 
 impl fmt::Debug for Cartridge {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(formatter, "PRG ROM | {:?}", (&self.file[self.prg_rom.clone()]).hex_dump())?;
-        writeln!(formatter, "CHR ROM | {:?}", (&self.file[self.chr_rom.clone()]).hex_dump())?;
-        writeln!(formatter, "PRG RAM | {:?}", (&self.prg_ram[..]).hex_dump())
+        writeln!(formatter, "PRG ROM | {:?}\n", (&self.file[self.prg_rom.clone()]).hex_dump())?;
+        writeln!(formatter, "CHR ROM | {:?}\n", (&self.file[self.chr_rom.clone()]).hex_dump())?;
+        write!(formatter, "PRG RAM | {:?}", (&self.prg_ram[..]).hex_dump())
     }
 }

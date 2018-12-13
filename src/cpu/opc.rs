@@ -2,7 +2,6 @@ use crate::cpu::Cpu;
 use crate::cpu::cycle;
 use crate::cpu::flags;
 use crate::cpu::reg;
-use crate::utils::bits;
 
 impl Cpu {
     // region Miscellaneous
@@ -186,6 +185,12 @@ impl Cpu {
                     bus.irq = false;
                 }
 
+                if !self.interrupting { self.finish() }
+            }
+            cycle::T8 => {}
+            cycle::T9 => {}
+            cycle::T10 => {
+                self.interrupting = false;
                 self.finish();
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
@@ -306,29 +311,28 @@ impl Cpu {
 
     pub fn oam(&mut self) {
         let cycle = self.reg.get_cycle();
-        let index = (cycle / 2) as u8;
+        let index = ((cycle - 2) / 2) as u16;
 
-        if cycle == 1 { trace!(target: "opcode", "oam"); }
+        if cycle == 2 { trace!(target: "opcode", "oam, 0x{:04x}", self.bus.borrow().ppu.oam_source); }
 
-        if cycle % 2 == 1 {
+        if cycle % 2 == 0 {
             // Read cycle
             let mut bus = self.bus.borrow_mut();
-            let addr = bits::word(bus.ppu.oam_source, index);
+            let addr = bus.ppu.oam_source | index;
             let data = bus.read_cpu(addr);
             self.reg.set_m(data);
         } else {
             // Write cycle
             {
                 let mut bus = self.bus.borrow_mut();
-                let addr = bits::word(bus.ppu.oam_dest, index);
                 let data = self.reg.get_m();
-                bus.write_cpu(addr, data);
+                bus.write_cpu(0x2004, data);
             }
 
             if index == 255 {
                 self.oam_transferring = false;
                 self.bus.borrow_mut().ppu.oam_transfer = false;
-                self.finish();
+                self.reg.set_last_cycle();
             }
         }
     }
