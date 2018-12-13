@@ -25,17 +25,11 @@ pub fn is_set(byte: u8, index: u8) -> bool { (byte & (1 << index)) != 0 }
 pub fn is_clear(byte: u8, index: u8) -> bool { !bits::is_set(byte, index) }
 
 // Return an array of eight bytes interlacing between high and low.
-pub fn interlace(low: u8, high: u8) -> [u8; 8] {
-    [
-        (((high >> 7) & 0x01) << 1) | ((low >> 7) & 0x01),
-        (((high >> 6) & 0x01) << 1) | ((low >> 6) & 0x01),
-        (((high >> 5) & 0x01) << 1) | ((low >> 5) & 0x01),
-        (((high >> 4) & 0x01) << 1) | ((low >> 4) & 0x01),
-        (((high >> 3) & 0x01) << 1) | ((low >> 3) & 0x01),
-        (((high >> 2) & 0x01) << 1) | ((low >> 2) & 0x01),
-        (((high >> 1) & 0x01) << 1) | ((low >> 1) & 0x01),
-        ((high & 0x01) << 1) | (low & 0x01),
-    ]
+pub fn interlace(low: u8, high: u8, index: u8) -> u8 {
+    let high = high >> (7 - index);
+    let low = low >> (7 - index);
+
+    ((high & 0x01) << 1) | (low & 0x01)
 }
 
 // Create a word based on the two bytes

@@ -19,13 +19,15 @@ pub struct Console {
     pub bus: Rc<RefCell<Bus>>,
     pub cpu: Cpu,
 
+    // Rendering
+    pub screen: image::RgbImage,
     pub render_to_disk: RenderToDisk,
 
     // PPU information
     pub clock: u32,
     pub frame: u32,
     pub scanline: i32,
-    pub cycle: u32,
+    pub dot: u32,
 }
 
 impl Console {
@@ -37,11 +39,12 @@ impl Console {
         Self {
             bus,
             cpu,
+            screen: image::RgbImage::new(256, 240),
             render_to_disk: RenderToDisk::Dont,
             clock: 0,
             frame: 0,
             scanline: 0,
-            cycle: 0,
+            dot: 0,
         }
     }
 
@@ -57,7 +60,7 @@ impl Console {
                 reg.get_y(),
                 reg.get_p().as_u8(),
                 reg.get_s(),
-                self.cycle,
+                self.dot,
                 self.scanline
         )
     }
@@ -138,48 +141,55 @@ impl Console {
         image::Rgb::<u8>(rgb)
     }
 
+    // Calculates a matrix index
+    fn index(base: usize, x: usize, y: usize, width: usize) -> usize {
+        base + x + y * width
+    }
+
     // Render a frame
-    pub fn render(&mut self) -> image::RgbImage {
-        let mut res = image::RgbImage::new(256, 240);
+    pub fn render(&mut self) {
+        // Not visible in these cases.
+        if !(0..240_i32).contains(&self.scanline) { return; }
+        if !(0..256_u32).contains(&self.dot) { return; }
 
         let bus = self.bus.borrow_mut();
 
+        // Tables
         let background_table = bus.ppu.base_nametable_addr as usize;
         let attribute_table = background_table + 0x03c0;
         let pattern_table = bus.ppu.background_pattern_table;
 
-        for row in 0..30 {
-            for tile in 0..32 {
-                let background = background_table + tile + row * 32;
-                let attribute = attribute_table + (tile / 2) + (row / 2 * 32);
+        // Position on the name table.
+        let row = self.scanline as usize / 8;
+        let tile = self.dot as usize / 8;
 
-                let pattern = pattern_table + u16::from(bus.ppu.ram[background]) * 0x10;
-                let palette = bus.ppu.ram[attribute];
+        // Background
+        let background = Self::index(background_table, tile, row, 32);
+        let pattern = pattern_table + u16::from(bus.ppu.ram[background]) * 0x10;
 
-                // Color mask
-                let mask = ((row as u8 & 0x01) << 1) | (tile as u8 & 0x01);
-                let color = (palette >> (2 * mask)) << 2;
+        // Palette
+        let palette_addr = Self::index(attribute_table, tile / 4, row / 4, 8);
+        let palette = bus.ppu.ram[palette_addr];
 
-                // Line of pixels in a pattern
-                for (y, line) in (pattern..(pattern + 0x08)).enumerate() {
-                    let low = bus.cartridge.read_chr_rom(line);
-                    let high = bus.cartridge.read_chr_rom(line + 0x08);
+        // Position inside the pattern.
+        let x = self.dot as u8 % 8;
+        let y = self.scanline as u16 % 8;
 
-                    let pixels = bits::interlace(low, high);
-                    for (x, &pixel) in pixels.iter().enumerate() {
-                        let dot = if pixel == 0 { 0_u8 } else { color | pixel };
-                        let dot = 0x3f00 + dot as usize;
-                        let dot = bus.ppu.ram[dot];
+        // Pixel
+        let low = bus.cartridge.read_chr_rom(pattern + y);
+        let high = bus.cartridge.read_chr_rom(pattern + y + 8);
+        let pixel = bits::interlace(low, high, x);
 
-                        let x = 8 * tile as u32 + x as u32;
-                        let y = 8 * row as u32 + y as u32;
-                        res.put_pixel(x, y, Self::map_color(dot));
-                    }
-                }
-            }
-        }
+        // Color
+        let mask = 2 * (((row as u8 & 1) << 1) | (tile as u8 & 1));
+        let color = (palette & (0b0000_0011 << mask)) >> mask;
 
-        res
+        // Dot
+        let dot = if pixel == 0 { 0_u8 } else { (color << 2) | pixel };
+
+        let dot = 0x3f00 + dot as usize;
+        let dot = bus.ppu.ram[dot];
+        self.screen.put_pixel(self.dot, self.scanline as u32, Self::map_color(dot));
     }
 
     // Run until some condition is met
@@ -189,7 +199,7 @@ impl Console {
         loop {
             let mut should_finish = false;
 
-            // Every third PPU cycle, run one cycle of the CPU.
+            // Every third PPU dot, run one cycle of the CPU.
             if self.clock % 3 == 0 {
                 self.cpu.step();
 
@@ -198,23 +208,26 @@ impl Console {
                 }
             }
 
-            // Increment the clock, cycle and scanline
-            self.clock += 1;
-            self.cycle += 1;
+            // Render the dot
+            let is_rendering = {
+                let bus = self.bus.borrow();
+                bus.ppu.show_background || bus.ppu.show_sprites
+            };
+            if is_rendering { self.render() }
 
-            if self.cycle > 340 {
-                self.cycle = 0;
+            // Increment the clock, dot and scanline
+            self.clock += 1;
+            self.dot += 1;
+
+            if self.dot > 340 {
+                self.dot = 0;
                 self.scanline += 1;
 
                 if self.scanline == 0 {
-                    // On odd frames this cycle is skipped if rendering is enabled.
-                    let is_rendering = {
-                        let bus = self.bus.borrow();
-                        bus.ppu.show_background || bus.ppu.show_sprites
-                    };
+                    // On odd frames this dot is skipped if rendering is enabled.
                     if is_rendering && self.frame % 2 == 1 {
                         should_finish = condition(&self);
-                        self.cycle += 1
+                        self.dot += 1
                     }
                 } else if self.scanline > 260 {
                     trace!("Finished running frame {}.", self.frame);
@@ -226,7 +239,7 @@ impl Console {
                             RenderToDisk::Filename(ref filename) => { filename.clone() }
                             RenderToDisk::Dont => { unimplemented!() }
                         };
-                        self.render().save(format!("tests/screenshots/{}", filename)).unwrap();
+                        self.screen.save(format!("tests/screenshots/{}", filename)).unwrap();
                     }
 
                     self.scanline = -1;
@@ -235,7 +248,7 @@ impl Console {
             }
 
             // Vblank
-            if self.cycle == 0 {
+            if self.dot == 0 {
                 match self.scanline {
                     -1 => self.bus.borrow_mut().ppu.vblank_clear(),
                     241 => self.bus.borrow_mut().start_vblank(),
@@ -272,13 +285,13 @@ impl Console {
 
         let frame = self.frame + frames;
         let scanline = self.scanline;
-        let cycle = self.cycle;
+        let dot = self.dot;
 
         self.run_until(
             |console|
                 console.frame == frame
                     && console.scanline == scanline
-                    && console.cycle == cycle,
+                    && console.dot == dot,
             log);
     }
 
