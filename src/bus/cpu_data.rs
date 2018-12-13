@@ -12,7 +12,7 @@ pub struct CpuData {
 impl CpuData {
     pub fn new() -> Self { Self { ram: [0; RAM_CAPACITY] } }
 
-    pub fn with_ram(ram: Vec<u8>) -> Self {
+    pub fn with_ram(ram: &[u8]) -> Self {
         let mut res = Self::new();
 
         let ram_len = RAM_CAPACITY.min(ram.len());
@@ -22,11 +22,11 @@ impl CpuData {
     }
 
     pub fn read_ram(&self, addr: u16) -> u8 {
-        unsafe { *self.ram.get_unchecked((addr - 0x0000) as usize % RAM_CAPACITY) }
+        unsafe { *self.ram.get_unchecked((addr) as usize % RAM_CAPACITY) }
     }
 
     pub fn write_ram(&mut self, addr: u16, data: u8) {
-        unsafe { *self.ram.get_unchecked_mut((addr - 0x0000) as usize % RAM_CAPACITY) = data }
+        unsafe { *self.ram.get_unchecked_mut((addr) as usize % RAM_CAPACITY) = data }
     }
 }
 
@@ -34,4 +34,8 @@ impl fmt::Debug for CpuData {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(formatter, "RAM | {:?}", (&self.ram[..]).hex_dump())
     }
+}
+
+impl Default for CpuData {
+    fn default() -> Self { Self::new() }
 }

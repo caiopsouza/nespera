@@ -1,9 +1,9 @@
-use crate::mapper::location::Location;
-use crate::mapper::Mapper;
+use crate::cartridge::location::Location;
+use crate::cartridge::mapper::Mapper;
 
 pub struct Mapper000;
 
-impl Mapper000 { pub fn new() -> impl Mapper { Self } }
+impl Mapper000 { pub fn new() -> Self { Self } }
 
 impl Mapper for Mapper000 {
     fn read_cpu(&self, addr: u16) -> Location {
@@ -36,4 +36,8 @@ impl Mapper for Mapper000 {
             _ => Location::Nowhere(addr),
         }
     }
+}
+
+impl Default for Mapper000 {
+    fn default() -> Self { Self::new() }
 }

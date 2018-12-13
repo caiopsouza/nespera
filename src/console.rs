@@ -3,9 +3,9 @@ use std::fmt;
 use std::rc::Rc;
 
 use crate::bus::Bus;
+use crate::cartridge::Cartridge;
 use crate::cpu::Cpu;
 use crate::cpu::cycle;
-use crate::mapper::Cartridge;
 use crate::utils::bits;
 
 #[derive(PartialOrd, PartialEq, Ord, Eq)]
@@ -50,7 +50,7 @@ impl Console {
         let reg = &self.cpu.reg;
 
         format!("{:04X}  {:02X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{:>3} SL:{}",
-                reg.get_pc() - 1,
+                reg.get_pc().wrapping_sub(1),
                 reg.get_current_instr(),
                 reg.get_a(),
                 reg.get_x(),
@@ -66,10 +66,11 @@ impl Console {
     }
 
     // Dismiss a log. Used as callback when the log is not needed.
-    pub fn dismiss_log(_: &Console, _: String) -> bool { false }
+    pub fn dismiss_log(_: &Self, _: String) -> bool { false }
 
     // Map the color
     pub fn map_color(dot: u8) -> image::Rgb<u8> {
+        #[allow(clippy::match_same_arms)]
         let rgb = match dot {
             0x00 => [84, 84, 84],
             0x01 => [0, 30, 116],
@@ -152,7 +153,7 @@ impl Console {
                 let background = background_table + tile + row * 32;
                 let attribute = attribute_table + (tile / 2) + (row / 2 * 32);
 
-                let pattern = pattern_table + bus.ppu.ram[background] as u16 * 0x10;
+                let pattern = pattern_table + u16::from(bus.ppu.ram[background]) * 0x10;
                 let palette = bus.ppu.ram[attribute];
 
                 // Color mask
@@ -166,7 +167,7 @@ impl Console {
 
                     let pixels = bits::interlace(low, high);
                     for (x, &pixel) in pixels.iter().enumerate() {
-                        let dot = if pixel == 0 { 0u8 } else { color | pixel };
+                        let dot = if pixel == 0 { 0_u8 } else { color | pixel };
                         let dot = 0x3f00 + dot as usize;
                         let dot = bus.ppu.ram[dot];
 
@@ -183,8 +184,8 @@ impl Console {
 
     // Run until some condition is met
     pub fn run_until(&mut self,
-                     mut condition: impl FnMut(&Console) -> bool,
-                     mut log: impl FnMut(&Console, String) -> bool) {
+                     mut condition: impl FnMut(&Self) -> bool,
+                     mut log: impl FnMut(&Self, String) -> bool) {
         loop {
             let mut should_finish = false;
 
@@ -249,7 +250,7 @@ impl Console {
     pub fn run_until_cpu_memory_is(&mut self,
                                    addr: u16,
                                    data: u8,
-                                   log: &mut impl FnMut(&Console, String) -> bool) {
+                                   log: &mut impl FnMut(&Self, String) -> bool) {
         self.run_until(
             |console| console.bus.borrow_mut().read_cpu(addr) == data,
             log);
@@ -258,7 +259,7 @@ impl Console {
     pub fn run_until_cpu_memory_is_not(&mut self,
                                        addr: u16,
                                        data: u8,
-                                       log: &mut impl FnMut(&Console, String) -> bool) {
+                                       log: &mut impl FnMut(&Self, String) -> bool) {
         self.run_until(
             |console| console.bus.borrow_mut().read_cpu(addr) != data,
             log);
@@ -266,7 +267,7 @@ impl Console {
 
     pub fn run_frames(&mut self,
                       frames: u32,
-                      log: &mut impl FnMut(&Console, String) -> bool) {
+                      log: &mut impl FnMut(&Self, String) -> bool) {
         if frames == 0 { return; }
 
         let frame = self.frame + frames;
@@ -287,15 +288,13 @@ impl Console {
         self.run_until(|_| false,
                        |console, actual: String| {
                            match log.next() {
-                               Some((_, "")) => true,
+                               Some((_, "")) | None => true,
 
                                Some((line, expected)) => {
-                                   assert_eq!(actual, Console::format_log(expected), "\nat line {}\n\n{}",
+                                   assert_eq!(actual, Self::format_log(expected), "\nat line {}\n\n{}",
                                               line, console.cpu);
                                    false
                                }
-
-                               None => true,
                            }
                        });
     }
@@ -304,6 +303,6 @@ impl Console {
 impl fmt::Debug for Console {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         writeln!(formatter, "{:?}\n", self.cpu)?;
-        write!(formatter, "{:?}\n", self.bus)
+        write!(formatter, "{:?}", self.bus)
     }
 }

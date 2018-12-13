@@ -122,8 +122,8 @@ impl Reg {
     pub fn get_x(&self) -> u8 { self.x }
     pub fn get_y(&self) -> u8 { self.y }
     pub fn get_s(&self) -> u8 { self.s }
-    pub fn get_stack_addr(&self) -> u16 { self.s as u16 + 0x100 }
-    pub fn get_next_stack_addr(&self) -> u16 { self.s.wrapping_add(1) as u16 + 0x100 }
+    pub fn get_stack_addr(&self) -> u16 { u16::from(self.s) + 0x100 }
+    pub fn get_next_stack_addr(&self) -> u16 { u16::from(self.s.wrapping_add(1)) + 0x100 }
 
     pub fn get_p(&self) -> Flags { self.p }
     pub fn get_p_mut(&mut self) -> &mut Flags { &mut self.p }
@@ -166,7 +166,9 @@ impl Reg {
     pub fn write_pc(&mut self, data: u16) { self.pc = data; }
     pub fn write_pcl(&mut self, pcl: u8) { self.pc = bits::set_low(self.pc, pcl) }
     pub fn write_pch(&mut self, pch: u8) { self.pc = bits::set_high(self.pc, pch) }
-    pub fn write_pcl_pch(&mut self, pcl: u8, pch: u8) { self.pc = (pcl as u16) | ((pch as u16) << 8); }
+
+    #[allow(clippy::similar_names)]
+    pub fn write_pcl_pch(&mut self, pcl: u8, pch: u8) { self.pc = u16::from(pcl) | (u16::from(pch) << 8); }
 
     pub fn write_bit_test(&mut self, data: u8) {
         let res = data & self.get_a();
@@ -199,7 +201,7 @@ impl Reg {
     pub fn get_n(&self) -> u8 { self.n }
     pub fn get_q(&self) -> u8 { self.q }
     pub fn get_internal_overflow(&self) -> InternalOverflow { self.internal_overflow }
-    pub fn get_absolute(&self) -> u16 { ((self.n as u16) << 8) | (self.m as u16) }
+    pub fn get_absolute(&self) -> u16 { (u16::from(self.n) << 8) | u16::from(self.m) }
 
     // Setters for the internal registers
     pub fn set_m(&mut self, data: u8) { self.m = data }
@@ -210,18 +212,16 @@ impl Reg {
     pub fn set_inc_s(&mut self, data: i8) {
         if !cfg!(debug_assertions) {
             self.s = self.s.wrapping_add(data as u8)
+        } else if data < 0 {
+            let data = -data as u8;
+            let (s, overflow) = self.s.overflowing_sub(data as u8);
+            self.s = s;
+            if overflow { warn!("S overflowed when subtracting {}.", data) }
         } else {
-            if data < 0 {
-                let data = -data as u8;
-                let (s, overflow) = self.s.overflowing_sub(data as u8);
-                self.s = s;
-                if overflow { warn!("S overflowed when subtracting {}.", data) }
-            } else {
-                let data = data as u8;
-                let (s, overflow) = self.s.overflowing_add(data as u8);
-                self.s = s;
-                if overflow { warn!("S overflowed when adding {}.", data) }
-            }
+            let data = data as u8;
+            let (s, overflow) = self.s.overflowing_add(data as u8);
+            self.s = s;
+            if overflow { warn!("S overflowed when adding {}.", data) }
         }
     }
 
@@ -250,14 +250,14 @@ impl Reg {
     // Some bit manipulation is necessary here to write into PCL.
     pub fn write_inc_pcl(&mut self, data: i8) {
         // Transform into PCL then into an i16 for signed manipulation.
-        let pcl = self.pc as u8 as i16;
-        let data = data as i16;
+        let pcl = i16::from(self.pc as u8);
+        let data = i16::from(data);
 
         let new_pcl = pcl + data;
 
         // Overflows if any bit is set in the high part of the new PCL.
         self.internal_overflow =
-            if (new_pcl as u16 & 0xff00) == 0 {
+            if ((new_pcl as u16) & 0xff00) == 0 {
                 InternalOverflow::None
             } else if data > 0 {
                 InternalOverflow::Positive
@@ -323,4 +323,8 @@ impl Reg {
     pub fn s_oper(&mut self, data: u8) { self.m = data }
     pub fn s_oper_other(&mut self, data: u8) { self.n = data }
     pub fn s_oper_v(&mut self, data: InternalOverflow) { self.internal_overflow = data }
+}
+
+impl Default for Reg {
+    fn default() -> Self { Self::new() }
 }

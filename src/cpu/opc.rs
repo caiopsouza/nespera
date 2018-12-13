@@ -61,7 +61,7 @@ impl Cpu {
 
     // Read from register as an address to the external bus
     fn read_m(&mut self) -> u8 {
-        self.read(self.reg.get_m() as u16)
+        self.read(u16::from(self.reg.get_m()))
     }
 
     fn read_at_m(&mut self, addr: u16) -> u8 {
@@ -71,17 +71,17 @@ impl Cpu {
     }
 
     fn read_m_to_self(&mut self) {
-        let data = self.read(self.reg.get_m() as u16);
+        let data = self.read(u16::from(self.reg.get_m()));
         self.reg.write_m(data)
     }
 
     fn read_n_to_self(&mut self) {
-        let data = self.read(self.reg.get_n() as u16);
+        let data = self.read(u16::from(self.reg.get_n()));
         self.reg.write_n(data)
     }
 
     fn read_m_to_n(&mut self) {
-        let data = self.read(self.reg.get_m() as u16);
+        let data = self.read(u16::from(self.reg.get_m()));
         self.reg.write_n(data)
     }
 
@@ -96,7 +96,7 @@ impl Cpu {
 
     // Write from register as an address to the external bus
     fn write_n_to_m(&mut self) {
-        self.write(self.reg.get_m() as u16, self.reg.get_n())
+        self.write(u16::from(self.reg.get_m()), self.reg.get_n())
     }
 
     fn write_q_to_absolute(&mut self) {
@@ -170,12 +170,12 @@ impl Cpu {
                 }
 
                 let vector = self.reg.get_m();
-                let pcl = self.read(0xff00 | vector as u16);
+                let pcl = self.read(0xff00 | u16::from(vector));
                 self.reg.write_pcl(pcl);
             }
             cycle::T7 => {
                 let vector = self.reg.get_m() + 1;
-                let pch = self.read(0xff00 | vector as u16);
+                let pch = self.read(0xff00 | u16::from(vector));
                 self.reg.write_pch(pch);
 
                 // Clear the interrupt flags
@@ -187,8 +187,7 @@ impl Cpu {
 
                 if !self.interrupting { self.finish() }
             }
-            cycle::T8 => {}
-            cycle::T9 => {}
+            cycle::T8 | cycle::T9 => {}
             cycle::T10 => {
                 self.interrupting = false;
                 self.finish();
@@ -233,7 +232,7 @@ impl Cpu {
 
     // region Nop
 
-    pub fn nop(&mut self, _value: ()) {
+    pub fn nop(&mut self, _: ()) {
         trace!(target: "opcode", "nop");
     }
     pub fn dop(&mut self, value: u8) {
@@ -285,25 +284,25 @@ impl Cpu {
 
     // region Transfer
 
-    pub fn tax(&mut self, _value: ()) {
+    pub fn tax(&mut self, _: ()) {
         trace!(target: "opcode", "tax");
         let value = self.reg.get_a();
         self.reg.write_x(value);
     }
 
-    pub fn tay(&mut self, _value: ()) {
+    pub fn tay(&mut self, _: ()) {
         trace!(target: "opcode", "tay");
         let value = self.reg.get_a();
         self.reg.write_y(value);
     }
 
-    pub fn txa(&mut self, _value: ()) {
+    pub fn txa(&mut self, _: ()) {
         trace!(target: "opcode", "txa");
         let value = self.reg.get_x();
         self.reg.write_a(value);
     }
 
-    pub fn tya(&mut self, _value: ()) {
+    pub fn tya(&mut self, _: ()) {
         trace!(target: "opcode", "tya");
         let value = self.reg.get_y();
         self.reg.write_a(value);
@@ -311,7 +310,7 @@ impl Cpu {
 
     pub fn oam(&mut self) {
         let cycle = self.reg.get_cycle();
-        let index = ((cycle - 2) / 2) as u16;
+        let index = (cycle - 2) / 2;
 
         if cycle == 2 { trace!(target: "opcode", "oam, 0x{:04x}", self.bus.borrow().ppu.oam_source); }
 
@@ -341,13 +340,13 @@ impl Cpu {
 
     // region Stack
 
-    pub fn tsx(&mut self, _value: ()) {
+    pub fn tsx(&mut self, _: ()) {
         trace!(target: "opcode", "tsx");
         let value = self.reg.get_s();
         self.reg.write_x(value);
     }
 
-    pub fn txs(&mut self, _value: ()) {
+    pub fn txs(&mut self, _: ()) {
         trace!(target: "opcode", "txs");
         let value = self.reg.get_x();
         self.reg.write_s(value);
@@ -423,7 +422,7 @@ impl Cpu {
         // XAA has analogic behaviour.
         // "Magic" defines which bits of A will be used in the result and can vary wildly.
         // Below values happen over 98% of the time.
-        let magic = if (a & 0x01) != 0 { 0xff } else { 0xfe };
+        let magic = if (a & 0x01) == 0 { 0xfe } else { 0xff };
 
         let data = (a | magic) & self.reg.get_x() & data;
         self.reg.write_a(data);
@@ -444,12 +443,12 @@ impl Cpu {
         let a = self.reg.get_a();
         let p = self.reg.get_p_mut();
 
-        let res = a as u16 + data as u16 + p.get_carry() as u16;
+        let res = u16::from(a) + u16::from(data) + u16::from(p.get_carry());
 
         p.change_zero_negative(res as u8);
 
         // When adding, carry happens if bit 8 is set
-        p.change(flags::CARRY, (res & 0x0100u16) != 0);
+        p.change(flags::CARRY, (res & 0x0100_u16) != 0);
 
         // Overflow happens when the sign of the addends is the same and differs from the sign of the sum
         p.change(
@@ -523,13 +522,13 @@ impl Cpu {
         self.write(addr, data)
     }
 
-    pub fn inx(&mut self, _value: ()) {
+    pub fn inx(&mut self, _: ()) {
         trace!(target: "opcode", "inx");
         let data = self.reg.get_x().wrapping_add(1);
         self.reg.write_x(data)
     }
 
-    pub fn iny(&mut self, _value: ()) {
+    pub fn iny(&mut self, _: ()) {
         trace!(target: "opcode", "iny");
         let data = self.reg.get_y().wrapping_add(1);
         self.reg.write_y(data)
@@ -553,13 +552,13 @@ impl Cpu {
         self.write(addr, data)
     }
 
-    pub fn dex(&mut self, _value: ()) {
+    pub fn dex(&mut self, _: ()) {
         trace!(target: "opcode", "dex");
         let data = self.reg.get_x().wrapping_sub(1);
         self.reg.write_x(data)
     }
 
-    pub fn dey(&mut self, _value: ()) {
+    pub fn dey(&mut self, _: ()) {
         trace!(target: "opcode", "dey");
         let data = self.reg.get_y().wrapping_sub(1);
         self.reg.write_y(data)
@@ -583,14 +582,14 @@ impl Cpu {
         let res = data << 1;
         self.shift(addr,
                    res,
-                   (data & 0b10000000) != 0);
+                   (data & 0b1000_0000) != 0);
         res
     }
 
     pub fn asl_acc(&mut self, data: u8) {
         trace!(target: "opcode", "asl, data: 0x{:02x}", data);
         let p = self.reg.get_p_mut();
-        p.change(flags::CARRY, (data & 0b10000000) != 0);
+        p.change(flags::CARRY, (data & 0b1000_0000) != 0);
         self.reg.write_a(data << 1);
     }
 
@@ -599,14 +598,14 @@ impl Cpu {
         let res = data >> 1;
         self.shift(addr,
                    res,
-                   (data & 0b00000001) != 0);
+                   (data & 0b0000_0001) != 0);
         res
     }
 
     pub fn lsr_acc(&mut self, data: u8) {
         trace!(target: "opcode", "lsr, data: 0x{:02x}", data);
         let p = self.reg.get_p_mut();
-        p.change(flags::CARRY, (data & 0b00000001) != 0);
+        p.change(flags::CARRY, (data & 0b0000_0001) != 0);
         self.reg.write_a(data >> 1);
     }
 
@@ -616,7 +615,7 @@ impl Cpu {
         let res = (data << 1) | (carry as u8);
         self.shift(addr,
                    res,
-                   (data & 0b10000000) != 0);
+                   (data & 0b1000_0000) != 0);
         res
     }
 
@@ -624,7 +623,7 @@ impl Cpu {
         trace!(target: "opcode", "rol, data: 0x{:02x}", data);
         let p = self.reg.get_p_mut();
         let carry = p.get_carry();
-        p.change(flags::CARRY, (data & 0b10000000) != 0);
+        p.change(flags::CARRY, (data & 0b1000_0000) != 0);
         self.reg.write_a((data << 1) | (carry as u8));
     }
 
@@ -634,7 +633,7 @@ impl Cpu {
         let res = (data >> 1) | ((carry as u8) << 7);
         self.shift(addr,
                    res,
-                   (data & 0b00000001) != 0);
+                   (data & 0b0000_0001) != 0);
         res
     }
 
@@ -642,7 +641,7 @@ impl Cpu {
         trace!(target: "opcode", "ror, data: 0x{:02x}", data);
         let p = self.reg.get_p_mut();
         let carry = p.get_carry();
-        p.change(flags::CARRY, (data & 0b00000001) != 0);
+        p.change(flags::CARRY, (data & 0b0000_0001) != 0);
         self.reg.write_a((data >> 1) | ((carry as u8) << 7));
     }
 
@@ -667,8 +666,8 @@ impl Cpu {
     pub fn alr(&mut self, data: u8) {
         trace!(target: "opcode", "alr, data: 0x{:02x}", data);
         self.and(data);
-        let data = self.reg.get_a();
-        self.lsr_acc(data);
+        let a = self.reg.get_a();
+        self.lsr_acc(a);
     }
 
     pub fn rra(&mut self, (addr, data): (u16, u8)) {
@@ -839,31 +838,31 @@ impl Cpu {
 
     // region Status flags
 
-    pub fn clc(&mut self, _value: ()) {
+    pub fn clc(&mut self, _: ()) {
         trace!(target: "opcode", "clc");
         self.reg.get_p_mut().clear(flags::CARRY)
     }
-    pub fn cld(&mut self, _value: ()) {
+    pub fn cld(&mut self, _: ()) {
         trace!(target: "opcode", "cld");
         self.reg.get_p_mut().clear(flags::DECIMAL_MODE)
     }
-    pub fn cli(&mut self, _value: ()) {
+    pub fn cli(&mut self, _: ()) {
         trace!(target: "opcode", "cli");
         self.reg.get_p_mut().clear(flags::INTERRUPT_DISABLE)
     }
-    pub fn clv(&mut self, _value: ()) {
+    pub fn clv(&mut self, _: ()) {
         trace!(target: "opcode", "clv");
         self.reg.get_p_mut().clear(flags::OVERFLOW)
     }
-    pub fn sec(&mut self, _value: ()) {
+    pub fn sec(&mut self, _: ()) {
         trace!(target: "opcode", "sec");
         self.reg.get_p_mut().set(flags::CARRY)
     }
-    pub fn sed(&mut self, _value: ()) {
+    pub fn sed(&mut self, _: ()) {
         trace!(target: "opcode", "sed");
         self.reg.get_p_mut().set(flags::DECIMAL_MODE)
     }
-    pub fn sei(&mut self, _value: ()) {
+    pub fn sei(&mut self, _: ()) {
         trace!(target: "opcode", "sei");
         self.reg.get_p_mut().set(flags::INTERRUPT_DISABLE)
     }
@@ -905,7 +904,7 @@ impl Cpu {
             }
             cycle::T3 => {
                 self.finish();
-                Option::Some(self.reg.get_m() as u16)
+                Option::Some(u16::from(self.reg.get_m()))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -928,7 +927,7 @@ impl Cpu {
             }
             cycle::T4 => {
                 self.finish();
-                Option::Some(self.reg.get_m() as u16)
+                Option::Some(u16::from(self.reg.get_m()))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1307,7 +1306,7 @@ impl Cpu {
             }
             cycle::T5 => {
                 self.finish();
-                Option::Some((self.reg.get_m() as u16, self.reg.get_n()))
+                Option::Some((u16::from(self.reg.get_m()), self.reg.get_n()))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1340,7 +1339,7 @@ impl Cpu {
             }
             cycle::T6 => {
                 self.finish();
-                Option::Some((self.reg.get_m() as u16, self.reg.get_n()))
+                Option::Some((u16::from(self.reg.get_m()), self.reg.get_n()))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }

@@ -6,7 +6,7 @@ extern crate env_logger;
 extern crate log;
 
 pub mod bus;
+pub mod cartridge;
 pub mod console;
 pub mod cpu;
-pub mod mapper;
 pub mod utils;

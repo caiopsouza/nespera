@@ -44,6 +44,7 @@ impl Cpu {
     pub fn set_clock(&mut self, value: u32) { self.clock = value }
 
     // Step a cycle
+    #[allow(clippy::cyclomatic_complexity)]
     pub fn step(&mut self) {
         self.clock += 1;
 
@@ -87,6 +88,7 @@ impl Cpu {
         // Transfer OAM. Will clear the flag when finished.
         if self.oam_transferring { return run!(oam); }
 
+        #[allow(clippy::match_same_arms)]
         match self.reg.get_current_instr() {
             0x00 => run!(brk),                  /*bytes: 0 cycles: 7  _____=>_____ __      Brk, Implied     */
             0x01 => run!(ora, r_indirect_x),    /*bytes: 2 cycles: 6  A____=>____P R_ izx  Ora, IndirectX   */
@@ -344,6 +346,7 @@ impl Cpu {
             0xFD => run!(sbc, r_absolute_x),    /*bytes: 3 cycles: 4* A___P=>A___P R_ absx Sbc, AbsoluteX   */
             0xFE => run!(inc, rw_absolute_x),   /*bytes: 3 cycles: 7  _____=>____P RW absx Inc, AbsoluteX   */
             0xFF => run!(isc, rw_absolute_x),   /*bytes: 3 cycles: 7  A___P=>A___P RW absx Isc, AbsoluteX   */
+            _ => unimplemented!()
         }
     }
 
@@ -357,7 +360,7 @@ impl Cpu {
     }
 
     // Step until a condition is met
-    pub fn step_until(&mut self, condition: fn(&Cpu) -> bool) {
+    pub fn step_until(&mut self, condition: fn(&Self) -> bool) {
         loop {
             self.step();
             if condition(&self) { break; }
@@ -371,7 +374,7 @@ impl Cpu {
 
     // Run the instruction passed.
     // This has horrible side effects and should be used only for testing.
-    pub fn run(&mut self, code: Vec<u8>) {
+    pub fn run(&mut self, code: &[u8]) {
         let pc = self.reg.get_pc();
 
         // Copy into memory at PC
@@ -405,7 +408,7 @@ mod tests {
     use super::*;
 
     fn run(bus: Vec<u8>, size: i16, clock: u32, setup: fn(&mut Cpu), result: fn(&mut Cpu)) {
-        let bus = Bus::with_mem(bus);
+        let bus = Bus::with_mem(&bus);
         let bus_ref = Rc::new(RefCell::<Bus>::new(bus));
         let mut cpu = Cpu::new(bus_ref.clone());
         setup(&mut cpu);
@@ -416,6 +419,7 @@ mod tests {
             bus: bus_ref.clone(),
             oam_transferring: false,
             resetting: false,
+            interrupting: false,
         };
 
         // Force PC to zero

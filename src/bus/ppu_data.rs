@@ -240,7 +240,7 @@ impl PpuData {
         self.write(data);
 
         self.oam_transfer = true;
-        self.oam_source = (data as u16) << 8;
+        self.oam_source = u16::from(data) << 8;
     }
 
     // Check if an address refers to the palette region of memory
@@ -280,4 +280,8 @@ impl fmt::Debug for PpuData {
         writeln!(formatter, "PPU | {:?}\n", (&self.ram[..]).hex_dump())?;
         write!(formatter, "OAM | {:?}", (&self.oam[..]).hex_dump())
     }
+}
+
+impl Default for PpuData {
+    fn default() -> Self { Self::new() }
 }

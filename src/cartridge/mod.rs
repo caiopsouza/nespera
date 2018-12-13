@@ -1,20 +1,23 @@
+use pretty_hex::PrettyHex;
 use std::cmp;
 use std::fmt;
 use std::ops::Range;
 
-use pretty_hex::PrettyHex;
-
-use crate::mapper::location::Location;
-use crate::mapper::Mapper;
-use crate::mapper::mapper000::Mapper000;
 use crate::utils::bits;
+use crate::cartridge::mapper::Mapper;
+use crate::cartridge::mapper000::Mapper000;
+use crate::cartridge::location::Location;
+
+pub mod mapper;
+pub mod location;
+pub mod mapper000;
 
 const EIGHT_KBYTES: usize = 0x2000;
 const SIXTEEN_KBYTES: usize = 2 * EIGHT_KBYTES;
 const PRG_ROM_START: usize = 0x10;
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum CartridgeLoadError {
+pub enum LoadError {
     InvalidHeader,
     UnableToReadPrgRom,
     UnableToReadChrRom,
@@ -30,18 +33,18 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
-    pub fn new(file: Vec<u8>) -> Result<Self, CartridgeLoadError> {
+    pub fn new(file: Vec<u8>) -> Result<Self, LoadError> {
         // Check header
-        if file.get(0..4) != Some(&b"NES\x1a"[..]) { return Err(CartridgeLoadError::InvalidHeader); }
+        if file.get(0..4) != Some(&b"NES\x1a"[..]) { return Err(LoadError::InvalidHeader); }
 
         // PRG ROM has 0x04 * 16kb in size
         let prg_rom = PRG_ROM_START..PRG_ROM_START + file[0x04] as usize * SIXTEEN_KBYTES;
-        file.get(prg_rom.clone()).ok_or(CartridgeLoadError::UnableToReadPrgRom)?;
+        file.get(prg_rom.clone()).ok_or(LoadError::UnableToReadPrgRom)?;
 
         // CHR ROM has 0x05 * 8kb in size
         let chr_rom_start_byte = prg_rom.end;
         let chr_rom = chr_rom_start_byte..chr_rom_start_byte + file[0x05] as usize * EIGHT_KBYTES;
-        file.get(chr_rom.clone()).ok_or(CartridgeLoadError::UnableToReadChrRom)?;
+        file.get(chr_rom.clone()).ok_or(LoadError::UnableToReadChrRom)?;
 
         // Mapper.
         // High nybble of 6 contains the lower nybble of the mapper.
@@ -49,7 +52,7 @@ impl Cartridge {
         let mapper = ((file[0x06] & 0b1111_0000) >> 4) | (file[0x07] & 0b1111_0000);
         let mapper = match mapper {
             0 => box Mapper000::new(),
-            _ => return Result::Err(CartridgeLoadError::MapperNotImplemented),
+            _ => return Result::Err(LoadError::MapperNotImplemented),
         };
 
         // PRG RAM is present if bit is not set.
@@ -96,7 +99,7 @@ impl Cartridge {
     }
 
     pub fn read_prg_ram(&self, addr: u16) -> u8 {
-        if self.prg_ram.len() == 0 {
+        if self.prg_ram.is_empty() {
             error!("Attempt to read from PRG RAM, but cartridge reports it's not present. Defaulting to zero. 0x{:04x}",
                    addr);
             return 0;
@@ -107,7 +110,7 @@ impl Cartridge {
     }
 
     pub fn write_prg_ram(&mut self, addr: u16, data: u8) {
-        if self.prg_ram.len() == 0 {
+        if self.prg_ram.is_empty() {
             error!("Attempt to write to PRG RAM, but cartridge reports it's not present. Defaulting to zero. 0x{:04x}, 0x{:02x}",
                    addr, data);
             return;
@@ -134,7 +137,7 @@ impl Cartridge {
 
     // Common cpu locations
     fn cpu_location(&self, addr: u16) -> Location {
-        match addr {
+        #[allow(clippy::match_overlapping_arm)] match addr {
             0x0000...0x1fff => Location::CpuRam(addr),
 
             0x2000...0x3fff => {
@@ -170,7 +173,7 @@ impl Cartridge {
     pub fn cpu_read_location(&self, addr: u16) -> Location {
         match addr {
             0x6000...0x7fff => self.prg_ram_location(addr),
-            0x4020...0xffff => self.mapper.read_cpu(addr),
+            0x8000...0xffff => self.mapper.read_cpu(addr),
             _ => self.cpu_location(addr)
         }
     }
@@ -179,7 +182,7 @@ impl Cartridge {
     pub fn cpu_write_location(&self, addr: u16) -> Location {
         match addr {
             0x6000...0x7fff => self.prg_ram_location(addr),
-            0x4020...0xffff => self.mapper.write_cpu(addr),
+            0x8000...0xffff => self.mapper.write_cpu(addr),
             _ => self.cpu_location(addr)
         }
     }
@@ -197,13 +200,13 @@ mod tests {
     #[test]
     fn invalid_header() {
         let cartridge = Cartridge::new(b"666"[..].to_owned());
-        assert_eq!(cartridge.err(), Option::Some(CartridgeLoadError::InvalidHeader));
+        assert_eq!(cartridge.err(), Option::Some(LoadError::InvalidHeader));
     }
 
     #[test]
     fn prg_rom_header() {
         let cartridge = Cartridge::new(b"NES\x1a666"[..].to_owned());
-        assert_eq!(cartridge.err(), Option::Some(CartridgeLoadError::UnableToReadPrgRom));
+        assert_eq!(cartridge.err(), Option::Some(LoadError::UnableToReadPrgRom));
     }
 
     #[test]

@@ -6,8 +6,8 @@ use pretty_hex::PrettyHex;
 
 use crate::bus::cpu_data::CpuData;
 use crate::bus::ppu_data::PpuData;
-use crate::mapper::Cartridge;
-use crate::mapper::location::Location;
+use crate::cartridge::Cartridge;
+use crate::cartridge::location::Location;
 
 mod cpu_data;
 mod ppu_data;
@@ -50,7 +50,7 @@ impl Bus {
         Self::create(CpuData::new(), Cartridge::empty())
     }
 
-    pub fn with_mem(mem: Vec<u8>) -> Self {
+    pub fn with_mem(mem: &[u8]) -> Self {
         Self::create(CpuData::with_ram(mem), Cartridge::empty())
     }
 
@@ -171,7 +171,7 @@ impl Bus {
             }
 
             Location::OamData => {
-                let addr = self.ppu.oam_addr as u16;
+                let addr = u16::from(self.ppu.oam_addr);
                 self.ppu.write_oam_data(data);
                 Self::trace_addr_write("OAMDATA", addr, data);
             }
@@ -210,9 +210,7 @@ impl Bus {
     // Read an address on the CPU
     pub fn read_cpu(&mut self, addr: u16) -> u8 {
         let location = self.cartridge.cpu_read_location(addr);
-        let data = self.read(location);
-
-        data
+        self.read(location)
     }
 
     // Read the address as a zero terminated string. Used mostly for testing.
@@ -248,4 +246,8 @@ impl fmt::Display for Bus {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(formatter, "{:?}", self)
     }
+}
+
+impl Default for Bus {
+    fn default() -> Self { Self::new() }
 }

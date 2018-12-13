@@ -1,6 +1,6 @@
 // Describes a location on the console for reading and writing
 // addr describes the address at the based of the array but have no upper bound.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Location {
     // No location found for access.
     // The address is just for error reporting.

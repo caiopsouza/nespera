@@ -34,12 +34,12 @@ pub fn interlace(low: u8, high: u8) -> [u8; 8] {
         (((high >> 3) & 0x01) << 1) | ((low >> 3) & 0x01),
         (((high >> 2) & 0x01) << 1) | ((low >> 2) & 0x01),
         (((high >> 1) & 0x01) << 1) | ((low >> 1) & 0x01),
-        (((high >> 0) & 0x01) << 1) | ((low >> 0) & 0x01),
+        ((high & 0x01) << 1) | (low & 0x01),
     ]
 }
 
 // Create a word based on the two bytes
-pub fn word(high: u8, low: u8) -> u16 { ((high as u16) << 8) | (low as u16) }
+pub fn word(high: u8, low: u8) -> u16 { (u16::from(high) << 8) | u16::from(low) }
 
 // Get the high byte of a word
 pub fn low(word: u16) -> u8 { word as u8 }
@@ -49,10 +49,10 @@ pub fn high(word: u16) -> u8 { (word >> 8) as u8 }
 
 // Set the low byte of a word
 pub fn set_low(word: u16, byte: u8) -> u16 {
-    (word & 0xff00) | (byte as u16)
+    (word & 0xff00) | u16::from(byte)
 }
 
 // Set the high byte of a word
 pub fn set_high(word: u16, byte: u8) -> u16 {
-    (word & 0x00ff) | ((byte as u16) << 8)
+    (word & 0x00ff) | (u16::from(byte) << 8)
 }
