@@ -89,7 +89,7 @@ impl Cpu {
         if self.oam_transferring { return run!(oam); }
 
         #[allow(clippy::match_same_arms)]
-        match self.reg.get_current_instr() {
+            match self.reg.get_current_instr() {
             0x00 => run!(brk),                  /*bytes: 0 cycles: 7  _____=>_____ __      Brk, Implied     */
             0x01 => run!(ora, r_indirect_x),    /*bytes: 2 cycles: 6  A____=>____P R_ izx  Ora, IndirectX   */
             0x02 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
@@ -237,7 +237,7 @@ impl Cpu {
             0x90 => run!(bcc),                  /*bytes: 2 cycles: 2* ____P=>_____ __      Bcc, Relative    */
             0x91 => run!(sta, w_indirect_y),    /*bytes: 2 cycles: 6  A____=>_____ RW izy  Sta, IndirectY   */
             0x92 => run!(kil),                  /*Crashes. Stops the cycle from advancing  Kil, Implied     */
-            0x93 => unimplemented!(),           /*bytes: 2 cycles: 6  _____=>_____ RW izy  Ahx, IndirectY   */
+            0x93 => run!(ahx, rw_indirect_y),   /*bytes: 2 cycles: 6  _____=>_____ RW izy  Ahx, IndirectY   */
             0x94 => run!(sty, w_zero_page_x),   /*bytes: 2 cycles: 4  __Y__=>_____ RW zpx  Sty, ZeroPageX   */
             0x95 => run!(sta, w_zero_page_x),   /*bytes: 2 cycles: 4  A____=>_____ RW zpx  Sta, ZeroPageX   */
             0x96 => run!(stx, w_zero_page_y),   /*bytes: 2 cycles: 4  _X___=>_____ RW zpy  Stx, ZeroPageY   */
@@ -245,11 +245,11 @@ impl Cpu {
             0x98 => run!(tya, implied),         /*bytes: 1 cycles: 2  __Y__=>A___P __      Tya, Implied     */
             0x99 => run!(sta, w_absolute_y),    /*bytes: 3 cycles: 5  A____=>_____ RW absy Sta, AbsoluteY   */
             0x9A => run!(txs, implied),         /*bytes: X cycles: 2  _X___=>___S_ __      Txs, Implied     */
-            0x9B => unimplemented!(),           /*bytes: X cycles: 5  __Y__=>___S_ _W      Tas, AbsoluteY   */
-            0x9C => unimplemented!(),           /*bytes: 3 cycles: 5  __Y__=>_____ RW absx Shy, AbsoluteX   */
+            0x9B => run!(tas, w_absolute_y),    /*bytes: X cycles: 5  __Y__=>___S_ _W      Tas, AbsoluteY   */
+            0x9C => run!(shy, w_absolute_x),    /*bytes: 3 cycles: 5  __Y__=>_____ _W absx Shy, AbsoluteX   */
             0x9D => run!(sta, w_absolute_x),    /*bytes: 3 cycles: 5  A____=>_____ RW absx Sta, AbsoluteX   */
-            0x9E => unimplemented!(),           /*bytes: 3 cycles: 5  _X___=>_____ RW absy Shx, AbsoluteY   */
-            0x9F => unimplemented!(),           /*bytes: 3 cycles: 5  _____=>_____ RW absy Ahx, AbsoluteY   */
+            0x9E => run!(shx, w_absolute_y),    /*bytes: 3 cycles: 5  _X___=>_____ _W absy Shx, AbsoluteY   */
+            0x9F => run!(ahx, rw_absolute_x),   /*bytes: 3 cycles: 5  _____=>_____ RW absy Ahx, AbsoluteY   */
             0xA0 => run!(ldy, immediate),       /*bytes: 2 cycles: 2  _____=>__Y_P __      Ldy, Immediate   */
             0xA1 => run!(lda, r_indirect_x),    /*bytes: 2 cycles: 6  _____=>A___P R_ izx  Lda, IndirectX   */
             0xA2 => run!(ldx, immediate),       /*bytes: 2 cycles: 2  _____=>_X__P __      Ldx, Immediate   */
@@ -277,7 +277,7 @@ impl Cpu {
             0xB8 => run!(clv, implied),         /*bytes: 1 cycles: 2  _____=>____P __      Clv, Implied     */
             0xB9 => run!(lda, r_absolute_y),    /*bytes: 3 cycles: 4* _____=>A___P R_ absy Lda, AbsoluteY   */
             0xBA => run!(tsx, implied),         /*bytes: 1 cycles: 2  ___S_=>_X__P __      Tsx, Implied     */
-            0xBB => unimplemented!(),           /*bytes: 3 cycles: 4* ___S_=>AX_SP R_ absy Las, AbsoluteY   */
+            0xBB => run!(las, r_absolute_y),    /*bytes: 3 cycles: 4* ___S_=>AX_SP R_ absy Las, AbsoluteY   */
             0xBC => run!(ldy, r_absolute_x),    /*bytes: 3 cycles: 4* _____=>__Y_P R_ absx Ldy, AbsoluteX   */
             0xBD => run!(lda, r_absolute_x),    /*bytes: 3 cycles: 4* _____=>A___P R_ absx Lda, AbsoluteX   */
             0xBE => run!(ldx, r_absolute_y),    /*bytes: 3 cycles: 4* _____=>_X__P R_ absy Ldx, AbsoluteY   */

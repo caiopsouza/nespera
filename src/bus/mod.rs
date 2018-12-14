@@ -66,11 +66,11 @@ impl Bus {
 
     // Trace reading operations
     fn trace_read(location: &str, data: u8) -> u8 {
-        trace!("Reading from {}: 0x{:02x}", location, data);
+        trace!(target: "memory", "Reading from {}: 0x{:02x}", location, data);
         data
     }
     fn trace_addr_read(location: &str, addr: u16, data: u8) -> u8 {
-        trace!("Reading from {}: 0x{:04x}, 0x{:02x}", location, addr, data);
+        trace!(target: "memory", "Reading from {}: 0x{:04x}, 0x{:02x}", location, addr, data);
         data
     }
 
@@ -130,10 +130,10 @@ impl Bus {
 
     // Trace write operations
     fn trace_write(location: &str, data: u8) {
-        trace!("Writing to {}: 0x{:02x}", location, data)
+        trace!(target: "memory", "Writing to {}: 0x{:02x}", location, data)
     }
     fn trace_addr_write(location: &str, addr: u16, data: u8) {
-        trace!("Writing to {}: 0x{:04x}, 0x{:02x}", location, addr, data)
+        trace!(target: "memory", "Writing to {}: 0x{:04x}, 0x{:02x}", location, addr, data)
     }
 
     // Write a value to the location

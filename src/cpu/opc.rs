@@ -2,9 +2,12 @@ use crate::cpu::Cpu;
 use crate::cpu::cycle;
 use crate::cpu::flags;
 use crate::cpu::reg;
+use crate::utils::bits;
 
 impl Cpu {
     // region Miscellaneous
+
+    // Traces an opcode
 
     // Set current cycle to the last one.
     // It's actually the next to last cycle but this is always incremented later.
@@ -264,20 +267,75 @@ impl Cpu {
     // endregion
 
     // region Store
+
     pub fn sta(&mut self, addr: u16) {
         let data = self.reg.get_a();
         trace!(target: "opcode", "sta, addr: 0x{:04x}, data: 0x{:02x}", addr, data);
         self.write(addr, data)
     }
+
     pub fn stx(&mut self, addr: u16) {
         let data = self.reg.get_x();
         trace!(target: "opcode", "stx, addr: 0x{:04x}, data: 0x{:02x}", addr, data);
         self.write(addr, data)
     }
+
     pub fn sty(&mut self, addr: u16) {
         let data = self.reg.get_y();
         trace!(target: "opcode", "sty, addr: 0x{:04x}, data: 0x{:02x}", addr, data);
         self.write(addr, data)
+    }
+
+    pub fn shx(&mut self, addr: u16) {
+        let x = self.reg.get_x();
+        let data = x & (bits::high(addr) + 1);
+
+        trace!(target: "opcode", "shx, addr: 0x{:04x}, x: 0x{:02x}, data: 0x{:02x}", addr, x, data);
+
+        self.write(addr, data)
+    }
+
+    pub fn shy(&mut self, addr: u16) {
+        let y = self.reg.get_y();
+        let data = y & (bits::high(addr) + 1);
+
+        trace!(target: "opcode", "shy, addr: 0x{:04x}, y: 0x{:02x}, data: 0x{:02x}", addr, y, data);
+
+        self.write(addr, data)
+    }
+
+    pub fn ahx(&mut self, (addr, _): (u16, u8)) {
+        let a = self.reg.get_a();
+        let x = self.reg.get_x();
+        let data = a & x & (bits::high(addr) + 1);
+
+        trace!(target: "opcode", "ahx, addr: 0x{:04x}, a: 0x{:02x}, x: 0x{:02x}, data: 0x{:02x}", addr, a, x, data);
+
+        self.write(addr, data)
+    }
+
+    pub fn tas(&mut self, addr: u16) {
+        let a = self.reg.get_a();
+        let x = self.reg.get_x();
+        let s = a & x;
+        self.reg.set_s(s);
+
+        let data = s & (bits::high(addr) + 1);
+
+        trace!(target: "opcode", "tas, addr: 0x{:04x}, a: 0x{:02x}, x: 0x{:02x}, s: 0x{:02x}, data: 0x{:02x}", addr, a, x, s, data);
+
+        self.write(addr, data)
+    }
+
+    pub fn las(&mut self, data: u8) {
+        let s = self.reg.get_s();
+        let data = s & data;
+
+        trace!(target: "opcode", "las, data: 0x{:02x}, s: 0x{:02x}", data, s);
+
+        self.reg.write_a(data);
+        self.reg.write_x(data);
+        self.reg.set_s(data)
     }
 
     // endregion
@@ -707,7 +765,9 @@ impl Cpu {
     // 3    PC     copy low address byte to PCL, fetch high address byte to PCH
     pub fn jmp_absolute(&mut self) {
         match self.reg.get_cycle() {
-            cycle::T2 => { self.fetch_into_m(); }
+            cycle::T2 => {
+                self.fetch_into_m();
+            }
             cycle::T3 => {
                 self.fetch_into_n();
                 let pc = self.reg.get_absolute();
@@ -882,12 +942,12 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.read_pc();
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.reg.set_inc_s(-1);
                 self.finish();
-                Option::Some(self.reg.get_next_stack_addr())
+                Some(self.reg.get_next_stack_addr())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -900,11 +960,11 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.fetch_into_m();
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.finish();
-                Option::Some(u16::from(self.reg.get_m()))
+                Some(u16::from(self.reg.get_m()))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -918,16 +978,16 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.fetch_into_m();
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.read_m();
                 self.reg.write_inc_m(index);
-                Option::None
+                None
             }
             cycle::T4 => {
                 self.finish();
-                Option::Some(u16::from(self.reg.get_m()))
+                Some(u16::from(self.reg.get_m()))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -951,15 +1011,15 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.fetch_into_m();
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.fetch_into_n();
-                Option::None
+                None
             }
             cycle::T4 => {
                 self.finish();
-                Option::Some(self.reg.get_absolute())
+                Some(self.reg.get_absolute())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -974,21 +1034,21 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.fetch_into_m();
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.fetch_into_n();
                 self.reg.write_inc_m(index);
-                Option::None
+                None
             }
             cycle::T4 => {
                 self.reg.get_absolute();
                 self.reg.set_fix_carry_n();
-                Option::None
+                None
             }
             cycle::T5 => {
                 self.finish();
-                Option::Some(self.reg.get_absolute())
+                Some(self.reg.get_absolute())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1014,25 +1074,25 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.fetch_into_m();
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.read_m();
                 self.reg.write_inc_m_by_x();
                 self.reg.write_n(self.reg.get_m().wrapping_add(1));
-                Option::None
+                None
             }
             cycle::T4 => {
                 self.read_m_to_self();
-                Option::None
+                None
             }
             cycle::T5 => {
                 self.read_n_to_self();
-                Option::None
+                None
             }
             cycle::T6 => {
                 self.finish();
-                Option::Some(self.reg.get_absolute())
+                Some(self.reg.get_absolute())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1049,25 +1109,25 @@ impl Cpu {
             cycle::T2 => {
                 self.fetch_into_m();
                 self.reg.write_n(self.reg.get_m().wrapping_add(1));
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.read_m_to_self();
-                Option::None
+                None
             }
             cycle::T4 => {
                 self.read_n_to_self();
                 self.reg.write_inc_m_by_y();
-                Option::None
+                None
             }
             cycle::T5 => {
                 self.reg.get_absolute();
                 self.reg.set_fix_carry_n();
-                Option::None
+                None
             }
             cycle::T6 => {
                 self.finish();
-                Option::Some(self.reg.get_absolute())
+                Some(self.reg.get_absolute())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1084,7 +1144,7 @@ impl Cpu {
             cycle::T2 => {
                 self.read_pc();
                 self.finish();
-                Option::Some(())
+                Some(())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1097,7 +1157,7 @@ impl Cpu {
             cycle::T2 => {
                 self.read_pc();
                 self.finish();
-                Option::Some(self.reg.read_a())
+                Some(self.reg.read_a())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1109,7 +1169,7 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.finish();
-                Option::Some(self.fetch_pc())
+                Some(self.fetch_pc())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1123,15 +1183,15 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.read_pc();
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.reg.set_inc_s(1);
-                Option::None
+                None
             }
             cycle::T4 => {
                 self.finish();
-                Option::Some(self.read_stack())
+                Some(self.read_stack())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1140,25 +1200,25 @@ impl Cpu {
     // Zero Page
     pub fn r_zero_page(&mut self) -> Option<u8> {
         let addr = self.w_zero_page()?;
-        Option::Some(self.read_at_m(addr))
+        Some(self.read_at_m(addr))
     }
 
     pub fn r_zero_page_x(&mut self) -> Option<u8> {
         let index = self.reg.get_x();
         let addr = self.w_zero_page_indexed(index)?;
-        Option::Some(self.read_at_m(addr))
+        Some(self.read_at_m(addr))
     }
 
     pub fn r_zero_page_y(&mut self) -> Option<u8> {
         let index = self.reg.get_y();
         let addr = self.w_zero_page_indexed(index)?;
-        Option::Some(self.read_at_m(addr))
+        Some(self.read_at_m(addr))
     }
 
     // Absolute
     pub fn r_absolute(&mut self) -> Option<u8> {
         let addr = self.w_absolute()?;
-        Option::Some(self.read_at_m(addr))
+        Some(self.read_at_m(addr))
     }
 
     // Absolute indexed
@@ -1170,24 +1230,25 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.fetch_into_m();
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.fetch_into_n();
                 self.reg.write_inc_m(index);
-                Option::None
+                None
             }
             cycle::T4 => {
                 let value = self.read_absolute();
                 self.reg.set_fix_carry_n();
 
-                if self.reg.get_internal_overflow() == reg::InternalOverflow::None { self.finish() }
-
-                Option::Some(value)
+                if self.reg.get_internal_overflow() == reg::InternalOverflow::None {
+                    self.finish();
+                    Some(value)
+                } else { None }
             }
             cycle::T5 => {
                 self.finish();
-                Option::Some(self.read_absolute())
+                Some(self.read_absolute())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1206,7 +1267,7 @@ impl Cpu {
     // Indexed indirect by X
     pub fn r_indirect_x(&mut self) -> Option<u8> {
         let addr = self.w_indirect_x()?;
-        Option::Some(self.read(addr))
+        Some(self.read(addr))
     }
 
     // Indirect indexed by Y. Writing requires the 6th cycle.
@@ -1220,28 +1281,29 @@ impl Cpu {
             cycle::T2 => {
                 self.fetch_into_m();
                 self.reg.write_n(self.reg.get_m().wrapping_add(1));
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.read_m_to_self();
-                Option::None
+                None
             }
             cycle::T4 => {
                 self.read_n_to_self();
                 self.reg.write_inc_m_by_y();
-                Option::None
+                None
             }
             cycle::T5 => {
                 let value = self.read_absolute();
                 self.reg.set_fix_carry_n();
 
-                if self.reg.get_internal_overflow() == reg::InternalOverflow::None { self.finish() }
-
-                Option::Some(value)
+                if self.reg.get_internal_overflow() == reg::InternalOverflow::None {
+                    self.finish();
+                    Some(value)
+                } else { None }
             }
             cycle::T6 => {
                 self.finish();
-                Option::Some(self.read_absolute())
+                Some(self.read_absolute())
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1294,19 +1356,19 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.fetch_into_m();
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.read_m_to_n();
-                Option::None
+                None
             }
             cycle::T4 => {
                 self.write_n_to_m();
-                Option::None
+                None
             }
             cycle::T5 => {
                 self.finish();
-                Option::Some((u16::from(self.reg.get_m()), self.reg.get_n()))
+                Some((u16::from(self.reg.get_m()), self.reg.get_n()))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1322,24 +1384,24 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.fetch_into_m();
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.read_m();
                 self.reg.write_inc_m(index);
-                Option::None
+                None
             }
             cycle::T4 => {
                 self.read_m_to_n();
-                Option::None
+                None
             }
             cycle::T5 => {
                 self.write_n_to_m();
-                Option::None
+                None
             }
             cycle::T6 => {
                 self.finish();
-                Option::Some((u16::from(self.reg.get_m()), self.reg.get_n()))
+                Some((u16::from(self.reg.get_m()), self.reg.get_n()))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1365,23 +1427,23 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.fetch_into_m();
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.fetch_into_n();
-                Option::None
+                None
             }
             cycle::T4 => {
                 self.read_absolute_to_q();
-                Option::None
+                None
             }
             cycle::T5 => {
                 self.write_q_to_absolute();
-                Option::None
+                None
             }
             cycle::T6 => {
                 self.finish();
-                Option::Some((self.reg.get_absolute(), self.reg.get_q()))
+                Some((self.reg.get_absolute(), self.reg.get_q()))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1398,29 +1460,29 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.fetch_into_m();
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.fetch_into_n();
                 self.reg.write_inc_m(index);
-                Option::None
+                None
             }
             cycle::T4 => {
                 self.read_absolute();
                 self.reg.set_fix_carry_n();
-                Option::None
+                None
             }
             cycle::T5 => {
                 self.read_absolute_to_q();
-                Option::None
+                None
             }
             cycle::T6 => {
                 self.write_q_to_absolute();
-                Option::None
+                None
             }
             cycle::T7 => {
                 self.finish();
-                Option::Some((self.reg.get_absolute(), self.reg.get_q()))
+                Some((self.reg.get_absolute(), self.reg.get_q()))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1448,33 +1510,33 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.fetch_into_m();
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.read_m();
                 self.reg.write_inc_m_by_x();
                 self.reg.write_n(self.reg.get_m().wrapping_add(1));
-                Option::None
+                None
             }
             cycle::T4 => {
                 self.read_m_to_self();
-                Option::None
+                None
             }
             cycle::T5 => {
                 self.read_n_to_self();
-                Option::None
+                None
             }
             cycle::T6 => {
                 self.read_absolute_to_q();
-                Option::None
+                None
             }
             cycle::T7 => {
                 self.write_q_to_absolute();
-                Option::None
+                None
             }
             cycle::T8 => {
                 self.finish();
-                Option::Some((self.reg.get_absolute(), self.reg.get_q()))
+                Some((self.reg.get_absolute(), self.reg.get_q()))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1493,34 +1555,34 @@ impl Cpu {
             cycle::T2 => {
                 self.fetch_into_m();
                 self.reg.write_n(self.reg.get_m().wrapping_add(1));
-                Option::None
+                None
             }
             cycle::T3 => {
                 self.read_m_to_self();
-                Option::None
+                None
             }
             cycle::T4 => {
                 self.read_n_to_self();
                 self.reg.write_inc_m_by_y();
-                Option::None
+                None
             }
             cycle::T5 => {
                 self.read_absolute();
                 self.reg.set_fix_carry_n();
 
-                Option::None
+                None
             }
             cycle::T6 => {
                 self.read_absolute_to_q();
-                Option::None
+                None
             }
             cycle::T7 => {
                 self.write_q_to_absolute();
-                Option::None
+                None
             }
             cycle::T8 => {
                 self.finish();
-                Option::Some((self.reg.get_absolute(), self.reg.get_q()))
+                Some((self.reg.get_absolute(), self.reg.get_q()))
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }

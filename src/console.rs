@@ -1,5 +1,7 @@
 use std::cell::RefCell;
 use std::fmt;
+use std::fs::File;
+use std::io::Read;
 use std::rc::Rc;
 
 use crate::bus::Bus;
@@ -135,7 +137,10 @@ impl Console {
             0x3c => [160, 214, 228],
             0x3d => [160, 162, 160],
 
-            _ => [0, 0, 0],
+            _ => {
+                error!("Indexing color not mapped: 0x{:02x}. Defaulting to black.", dot);
+                [0, 0, 0]
+            }
         };
 
         image::Rgb::<u8>(rgb)
@@ -146,7 +151,7 @@ impl Console {
         base + x + y * width
     }
 
-    // Render a frame
+    // Render the current dot
     pub fn render(&mut self) {
         // Not visible in these cases.
         if !(0..240_i32).contains(&self.scanline) { return; }
@@ -186,7 +191,6 @@ impl Console {
 
         // Dot
         let dot = if pixel == 0 { 0_u8 } else { (color << 2) | pixel };
-
         let dot = 0x3f00 + dot as usize;
         let dot = bus.ppu.ram[dot];
         self.screen.put_pixel(self.dot, self.scanline as u32, Self::map_color(dot));
@@ -296,6 +300,9 @@ impl Console {
     }
 
     pub fn run_log(&mut self, log: &str) {
+        let mut log_file = File::open(log).unwrap();
+        let mut log = String::new();
+        log_file.read_to_string(&mut log).unwrap();
         let mut log = log.split("\r\n").enumerate();
 
         self.run_until(|_| false,

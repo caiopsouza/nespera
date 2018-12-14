@@ -206,6 +206,7 @@ impl Reg {
     // Setters for the internal registers
     pub fn set_m(&mut self, data: u8) { self.m = data }
     pub fn set_n(&mut self, data: u8) { self.n = data }
+    pub fn set_s(&mut self, data: u8) { self.s = data }
 
     pub fn set_inc_n(&mut self, data: i8) { self.n = self.n.wrapping_add(data as u8); }
 
