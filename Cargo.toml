@@ -6,7 +6,7 @@ edition = '2018'
 
 [dependencies]
 pretty-hex = "0.1.0"
-log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
+log = { version = "0.4", features = ["max_level_debug", "release_max_level_off"] }
 env_logger = "0.6.0"
 image = "*"
 chrono = "0.4"

@@ -1,12 +1,12 @@
-use pretty_hex::PrettyHex;
 use std::cmp;
 use std::fmt;
-use std::ops::Range;
 
-use crate::utils::bits;
-use crate::cartridge::mapper::Mapper;
-use crate::cartridge::mapper000::Mapper000;
+use pretty_hex::PrettyHex;
+
 use crate::cartridge::location::Location;
+use crate::cartridge::mapper000::Mapper000;
+use crate::cartridge::mapper::Mapper;
+use crate::utils::bits;
 
 pub mod mapper;
 pub mod location;
@@ -25,9 +25,8 @@ pub enum LoadError {
 }
 
 pub struct Cartridge {
-    file: Vec<u8>,
-    prg_rom: Range<usize>,
-    chr_rom: Range<usize>,
+    prg_rom: Vec<u8>,
+    chr_rom: Vec<u8>,
     prg_ram: Vec<u8>,
     mapper: Box<Mapper>,
 }
@@ -39,12 +38,14 @@ impl Cartridge {
 
         // PRG ROM has 0x04 * 16kb in size
         let prg_rom = PRG_ROM_START..PRG_ROM_START + file[0x04] as usize * SIXTEEN_KBYTES;
-        file.get(prg_rom.clone()).ok_or(LoadError::UnableToReadPrgRom)?;
+        let prg_rom = file.get(prg_rom).ok_or(LoadError::UnableToReadPrgRom)?;
+        let prg_rom = prg_rom.clone().to_owned();
 
         // CHR ROM has 0x05 * 8kb in size
-        let chr_rom_start_byte = prg_rom.end;
+        let chr_rom_start_byte = PRG_ROM_START + prg_rom.len();
         let chr_rom = chr_rom_start_byte..chr_rom_start_byte + file[0x05] as usize * EIGHT_KBYTES;
-        file.get(chr_rom.clone()).ok_or(LoadError::UnableToReadChrRom)?;
+        let chr_rom = file.get(chr_rom).ok_or(LoadError::UnableToReadChrRom)?;
+        let chr_rom = chr_rom.clone().to_owned();
 
         // Mapper.
         // High nybble of 6 contains the lower nybble of the mapper.
@@ -65,7 +66,6 @@ impl Cartridge {
 
         Ok(
             Self {
-                file,
                 prg_rom,
                 chr_rom,
                 prg_ram: vec![0; prg_ram_capacity],
@@ -76,26 +76,21 @@ impl Cartridge {
 
     pub fn empty() -> Self {
         Self {
-            file: vec![0],
-            prg_rom: 0..1,
-            chr_rom: 0..1,
+            prg_rom: vec![0; 0],
+            chr_rom: vec![0; 0],
             prg_ram: vec![0; 0],
             mapper: box Mapper000::new(),
         }
     }
 
     pub fn read_prg_rom(&self, addr: u16) -> u8 {
-        unsafe {
-            let prg_rom = self.file.get_unchecked(self.prg_rom.clone());
-            *prg_rom.get_unchecked(addr as usize % prg_rom.len())
-        }
+        let index = addr as usize % self.prg_rom.len();
+        unsafe { *self.prg_rom.get_unchecked(index) }
     }
 
     pub fn read_chr_rom(&self, addr: u16) -> u8 {
-        unsafe {
-            let chr_rom = self.file.get_unchecked(self.chr_rom.clone());
-            *chr_rom.get_unchecked(addr as usize % chr_rom.len())
-        }
+        let index = addr as usize % self.chr_rom.len();
+        unsafe { *self.chr_rom.get_unchecked(index) }
     }
 
     pub fn read_prg_ram(&self, addr: u16) -> u8 {
@@ -236,8 +231,8 @@ mod tests {
 
 impl fmt::Debug for Cartridge {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(formatter, "PRG ROM | {:?}\n", (&self.file[self.prg_rom.clone()]).hex_dump())?;
-        writeln!(formatter, "CHR ROM | {:?}\n", (&self.file[self.chr_rom.clone()]).hex_dump())?;
+        writeln!(formatter, "PRG ROM | {:?}\n", &self.prg_rom.hex_dump())?;
+        writeln!(formatter, "CHR ROM | {:?}\n", &self.chr_rom.hex_dump())?;
         write!(formatter, "PRG RAM | {:?}", (&self.prg_ram[..]).hex_dump())
     }
 }

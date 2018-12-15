@@ -22,7 +22,7 @@ pub enum AddrMode {
 
 // Dummy implementation.
 // Logging has a huge impact on performance, up to 10x slowdown as profiled, so remove it if not being used.
-#[cfg(not(any(max_level_trace, release_max_level_trace)))]
+#[cfg(not(any(all(debug, max_level_trace), all(release, release_max_level_trace))))]
 pub mod logging {
     use super::*;
 
@@ -47,7 +47,7 @@ pub mod logging {
 }
 
 // Actual implementation
-#[cfg(any(max_level_trace, release_max_level_trace))]
+#[cfg(any(all(debug, max_level_trace), all(release, release_max_level_trace)))]
 pub mod logging {
     use super::*;
 
@@ -136,9 +136,7 @@ pub mod logging {
 
         pub fn get(&self) -> String {
             // Remove logging
-            if !(cfg!(max_level_trace) || cfg!(release_max_level_trace)) || self.skip {
-                return "".to_owned();
-            }
+            if self.skip { return "".to_owned(); }
 
             format!("{}  {} {:5} {}{} {:<27} A:{} X:{} Y:{} P:{} SP:{} CYC:{:>3} SL:{}",
                     f_u16(self.reg.get_pc()),

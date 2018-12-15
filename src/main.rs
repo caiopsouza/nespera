@@ -29,7 +29,7 @@ fn log_setup(level: LevelFilter, start_after: usize) {
 }
 
 fn main() {
-    log_setup(LevelFilter::Warn, 1_000_000);
+    log_setup(LevelFilter::Debug, 1_000_000);
 
     let file = include_bytes!("../tests/resources/roms/Balloon Fight (JU).nes")[..].to_owned();
     let mut console = Console::new(file);
