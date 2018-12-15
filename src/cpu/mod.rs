@@ -3,14 +3,19 @@ use std::fmt;
 use std::rc::Rc;
 
 use crate::bus::Bus;
+use crate::cpu::log::Log;
 use crate::cpu::reg::Reg;
 
 pub mod cycle;
 pub mod flags;
+pub mod log;
 pub mod opc;
 pub mod reg;
 
 pub struct Cpu {
+    // Logger
+    pub log: Log,
+
     // Registers
     pub reg: Reg,
 
@@ -29,6 +34,7 @@ pub struct Cpu {
 impl Cpu {
     pub fn new(bus: Rc<RefCell<Bus>>) -> Self {
         let mut res = Self {
+            log: Log::new(),
             reg: Reg::new(),
             clock: 0,
             bus,
@@ -46,6 +52,7 @@ impl Cpu {
     // Step a cycle
     #[allow(clippy::cyclomatic_complexity)]
     pub fn step(&mut self) {
+        trace!(target: "opcode", "T{}", self.reg.get_cycle());
         self.clock += 1;
 
         // Run an opcode
@@ -56,7 +63,11 @@ impl Cpu {
             }};
 
             ($code:ident, $mode:ident) => {{
-                if let Some(res) = self.$mode() { self.$code(res); }
+                if let Some(res) = self.$mode() {
+                    self.log.unofficial = false;
+                    self.log.mnemonic = self.$code(res).0;
+                }
+
                 self.reg.set_next_cycle();
             }}
         }
@@ -79,6 +90,8 @@ impl Cpu {
             return;
         }
 
+        self.log.skip = true;
+
         // Reset subroutine. Will clear the flag when finished.
         if self.resetting { return run!(rst); }
 
@@ -87,6 +100,8 @@ impl Cpu {
 
         // Transfer OAM. Will clear the flag when finished.
         if self.oam_transferring { return run!(oam); }
+
+        self.log.skip = false;
 
         #[allow(clippy::match_same_arms)]
             match self.reg.get_current_instr() {
@@ -116,7 +131,7 @@ impl Cpu {
             0x17 => run!(slo, rw_zero_page_x),  /*bytes: 2 cycles: 6  A____=>A___P RW zpx  Slo, ZeroPageX   */
             0x18 => run!(clc, implied),         /*bytes: 1 cycles: 2  _____=>____P __      Clc, Implied     */
             0x19 => run!(ora, r_absolute_y),    /*bytes: 3 cycles: 4* A____=>A___P R_ absy Ora, AbsoluteY   */
-            0x1A => run!(nop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
+            0x1A => run!(mop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
             0x1B => run!(slo, rw_absolute_y),   /*bytes: 3 cycles: 7  A____=>A___P RW absy Slo, AbsoluteY   */
             0x1C => run!(dop, r_absolute_x),    /*bytes: 3 cycles: 4* _____=>_____ R_ absx Nop, AbsoluteX   */
             0x1D => run!(ora, r_absolute_x),    /*bytes: 3 cycles: 4* A____=>A___P R_ absx Ora, AbsoluteX   */
@@ -148,7 +163,7 @@ impl Cpu {
             0x37 => run!(rla, rw_zero_page_x),  /*bytes: 2 cycles: 6  A___P=>A___P RW zpx  Rla, ZeroPageX   */
             0x38 => run!(sec, implied),         /*bytes: 1 cycles: 2  _____=>____P __      Sec, Implied     */
             0x39 => run!(and, r_absolute_y),    /*bytes: 3 cycles: 4* A____=>A___P R_ absy And, AbsoluteY   */
-            0x3A => run!(nop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
+            0x3A => run!(mop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
             0x3B => run!(rla, rw_absolute_y),   /*bytes: 3 cycles: 7  A___P=>A___P RW absy Rla, AbsoluteY   */
             0x3C => run!(dop, r_absolute_x),    /*bytes: 3 cycles: 4* _____=>_____ R_ absx Nop, AbsoluteX   */
             0x3D => run!(and, r_absolute_x),    /*bytes: 3 cycles: 4* A____=>A___P R_ absx And, AbsoluteX   */
@@ -180,7 +195,7 @@ impl Cpu {
             0x57 => run!(sre, rw_zero_page_x),  /*bytes: 2 cycles: 6  A____=>A___P RW zpx  Sre, ZeroPageX   */
             0x58 => run!(cli, implied),         /*bytes: 1 cycles: 2  _____=>____P __      Cli, Implied     */
             0x59 => run!(eor, r_absolute_y),    /*bytes: 3 cycles: 4* A____=>A___P R_ absy Eor, AbsoluteY   */
-            0x5A => run!(nop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
+            0x5A => run!(mop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
             0x5B => run!(sre, rw_absolute_y),   /*bytes: 3 cycles: 7  A____=>A___P RW absy Sre, AbsoluteY   */
             0x5C => run!(dop, r_absolute_x),    /*bytes: 3 cycles: 4* _____=>_____ R_ absx Nop, AbsoluteX   */
             0x5D => run!(eor, r_absolute_x),    /*bytes: 3 cycles: 4* A____=>A___P R_ absx Eor, AbsoluteX   */
@@ -212,7 +227,7 @@ impl Cpu {
             0x77 => run!(rra, rw_zero_page_x),  /*bytes: 2 cycles: 6  A___P=>A___P RW zpx  Rra, ZeroPageX   */
             0x78 => run!(sei, implied),         /*bytes: 1 cycles: 2  _____=>____P __      Sei, Implied     */
             0x79 => run!(adc, r_absolute_y),    /*bytes: 3 cycles: 4* A___P=>A___P R_ absy Adc, AbsoluteY   */
-            0x7A => run!(nop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
+            0x7A => run!(mop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
             0x7B => run!(rra, rw_absolute_y),   /*bytes: 3 cycles: 7  A___P=>A___P RW absy Rra, AbsoluteY   */
             0x7C => run!(dop, r_absolute_x),    /*bytes: 3 cycles: 4* _____=>_____ R_ absx Nop, AbsoluteX   */
             0x7D => run!(adc, r_absolute_x),    /*bytes: 3 cycles: 4* A___P=>A___P R_ absx Adc, AbsoluteX   */
@@ -308,7 +323,7 @@ impl Cpu {
             0xD7 => run!(dcp, rw_zero_page_x),  /*bytes: 2 cycles: 6  A____=>____P RW zpx  Dcp, ZeroPageX   */
             0xD8 => run!(cld, implied),         /*bytes: 1 cycles: 2  _____=>____P __      Cld, Implied     */
             0xD9 => run!(cmp, r_absolute_y),    /*bytes: 3 cycles: 4* A____=>____P R_ absy Cmp, AbsoluteY   */
-            0xDA => run!(nop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
+            0xDA => run!(mop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
             0xDB => run!(dcp, rw_absolute_y),   /*bytes: 3 cycles: 7  A____=>____P RW absy Dcp, AbsoluteY   */
             0xDC => run!(dop, r_absolute_x),    /*bytes: 3 cycles: 4* _____=>_____ R_ absx Nop, AbsoluteX   */
             0xDD => run!(cmp, r_absolute_x),    /*bytes: 3 cycles: 4* A____=>____P R_ absx Cmp, AbsoluteX   */
@@ -325,7 +340,7 @@ impl Cpu {
             0xE8 => run!(inx, implied),         /*bytes: 1 cycles: 2  _X___=>_X__P __      Inx, Implied     */
             0xE9 => run!(sbc, immediate),       /*bytes: 2 cycles: 2  A___P=>A___P __      Sbc, Immediate   */
             0xEA => run!(nop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
-            0xEB => run!(sbc, immediate),       /*bytes: 2 cycles: 2  A___P=>A___P __      Sbc, Immediate   */
+            0xEB => run!(sbn, immediate),       /*bytes: 2 cycles: 2  A___P=>A___P __      Sbc, Immediate   */
             0xEC => run!(cpx, r_absolute),      /*bytes: 3 cycles: 4  _X___=>____P R_ abs  Cpx, Absolute    */
             0xED => run!(sbc, r_absolute),      /*bytes: 3 cycles: 4  A___P=>A___P R_ abs  Sbc, Absolute    */
             0xEE => run!(inc, rw_absolute),     /*bytes: 3 cycles: 6  _____=>____P RW abs  Inc, Absolute    */
@@ -340,7 +355,7 @@ impl Cpu {
             0xF7 => run!(isc, rw_zero_page_x),  /*bytes: 2 cycles: 6  A___P=>A___P RW zpx  Isc, ZeroPageX   */
             0xF8 => run!(sed, implied),         /*bytes: 1 cycles: 2  _____=>____P __      Sed, Implied     */
             0xF9 => run!(sbc, r_absolute_y),    /*bytes: 3 cycles: 4* A___P=>A___P R_ absy Sbc, AbsoluteY   */
-            0xFA => run!(nop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
+            0xFA => run!(mop, implied),         /*bytes: 1 cycles: 2  _____=>_____ __      Nop, Implied     */
             0xFB => run!(isc, rw_absolute_y),   /*bytes: 3 cycles: 7  A___P=>A___P RW absy Isc, AbsoluteY   */
             0xFC => run!(dop, r_absolute_x),    /*bytes: 3 cycles: 4* _____=>_____ R_ absx Nop, AbsoluteX   */
             0xFD => run!(sbc, r_absolute_x),    /*bytes: 3 cycles: 4* A___P=>A___P R_ absx Sbc, AbsoluteX   */
@@ -414,6 +429,7 @@ mod tests {
         setup(&mut cpu);
 
         let mut check = Cpu {
+            log: Default::default(),
             reg: cpu.reg.clone(),
             clock: clock + 7, // Account for reset routine
             bus: bus_ref.clone(),

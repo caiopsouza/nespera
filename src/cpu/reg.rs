@@ -99,7 +99,7 @@ impl Reg {
             n: 0,
             q: 0,
             internal_overflow: InternalOverflow::None,
-            current_instr: 0x00, // BRK. But will actually execute a reset as dictated by the bus
+            current_instr: 0,
             cycle: cycle::LAST,
             data_bus: 0,
             addr_bus: 0,
@@ -195,6 +195,7 @@ impl Reg {
     pub fn get_pch(&self) -> u8 { (self.pc >> 8) as u8 }
     pub fn set_pc(&mut self, pc: u16) { self.pc = pc }
     pub fn set_next_pc(&mut self) { self.pc = self.pc.wrapping_add(1) }
+    pub fn set_previous_pc(&mut self) { self.pc = self.pc.wrapping_sub(1) }
 
     // Getters for the internal registers
     pub fn get_m(&self) -> u8 { self.m }
@@ -281,8 +282,8 @@ impl Reg {
     pub fn set_fix_carry_pc(&mut self) {
         match self.internal_overflow {
             InternalOverflow::None => {}
-            InternalOverflow::Positive => self.pc = self.pc.wrapping_add(0b1_0000_0000),
-            InternalOverflow::Negative => self.pc = self.pc.wrapping_sub(0b1_0000_0000),
+            InternalOverflow::Positive => self.pc = self.pc.wrapping_add(0x100),
+            InternalOverflow::Negative => self.pc = self.pc.wrapping_sub(0x100),
         }
     }
 

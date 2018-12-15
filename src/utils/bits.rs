@@ -38,8 +38,12 @@ pub fn word(high: u8, low: u8) -> u16 { (u16::from(high) << 8) | u16::from(low) 
 // Get the high byte of a word
 pub fn low(word: u16) -> u8 { word as u8 }
 
+pub fn low_word(word: u16) -> u16 { word & 0x00ff }
+
 // Get the low byte of a word
 pub fn high(word: u16) -> u8 { (word >> 8) as u8 }
+
+pub fn high_word(word: u16) -> u16 { word & 0xff00 }
 
 // Set the low byte of a word
 pub fn set_low(word: u16, byte: u8) -> u16 {

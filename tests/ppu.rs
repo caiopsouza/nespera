@@ -9,7 +9,7 @@ fn nestest() {
     let file = include_bytes!("resources/cpu/nestest.nes")[..].to_owned();
     let mut console = Console::new(file);
 
-    console.run_frames(5, &mut Console::dismiss_log);
+    console.run_frames(5);
 
     let comparison = console.screen.pixels().zip(reference.pixels());
     for (pixel, (pixel_screen, (_, _, pixel_reference))) in comparison.enumerate() {

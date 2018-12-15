@@ -51,24 +51,7 @@ impl Console {
     }
 
     // Logs the current console status for comparing with Nintendulator.
-    pub fn log(&self) -> String {
-        let reg = &self.cpu.reg;
-
-        format!("{:04X}  {:02X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{:>3} SL:{}",
-                reg.get_pc().wrapping_sub(1),
-                reg.get_current_instr(),
-                reg.get_a(),
-                reg.get_x(),
-                reg.get_y(),
-                reg.get_p().as_u8(),
-                reg.get_s(),
-                self.dot,
-                self.scanline
-        )
-    }
-    pub fn format_log(log: &str) -> String {
-        format!("{} {}", &log[..8], &log[48..])
-    }
+    pub fn log(&self) -> String { self.cpu.log.get() }
 
     // Dismiss a log. Used as callback when the log is not needed.
     pub fn dismiss_log(_: &Self, _: String) -> bool { false }
@@ -91,6 +74,8 @@ impl Console {
             0x0b => [0, 60, 0],
             0x0c => [0, 50, 60],
             0x0d => [0, 0, 0],
+            0x0e => [0, 0, 0],
+            0x0f => [0, 0, 0],
 
             0x10 => [152, 150, 152],
             0x11 => [8, 76, 196],
@@ -106,6 +91,8 @@ impl Console {
             0x1b => [0, 118, 40],
             0x1c => [0, 102, 120],
             0x1d => [0, 0, 0],
+            0x1e => [0, 0, 0],
+            0x1f => [0, 0, 0],
 
             0x20 => [236, 238, 236],
             0x21 => [76, 154, 236],
@@ -121,6 +108,8 @@ impl Console {
             0x2b => [56, 204, 108],
             0x2c => [56, 180, 204],
             0x2d => [60, 60, 60],
+            0x2e => [0, 0, 0],
+            0x2f => [0, 0, 0],
 
             0x30 => [236, 238, 236],
             0x31 => [168, 204, 236],
@@ -136,6 +125,8 @@ impl Console {
             0x3b => [152, 226, 180],
             0x3c => [160, 214, 228],
             0x3d => [160, 162, 160],
+            0x3e => [0, 0, 0],
+            0x3f => [0, 0, 0],
 
             _ => {
                 error!("Indexing color not mapped: 0x{:02x}. Defaulting to black.", dot);
@@ -205,11 +196,28 @@ impl Console {
 
             // Every third PPU dot, run one cycle of the CPU.
             if self.clock % 3 == 0 {
-                self.cpu.step();
+                // Save logs on the first cycle and report it on the last
+                match self.cpu.reg.get_cycle() {
+                    cycle::FIRST => {
+                        self.cpu.log.reg = self.cpu.reg.clone();
+                        self.cpu.log.reg.set_previous_pc();
+                    }
 
-                if self.cpu.reg.get_cycle() == cycle::FIRST {
-                    should_finish = log(&self, self.log())
+                    cycle::LAST => {
+                        let log_res = self.log();
+                        if log_res != "" {
+                            trace!(target: "opcode", "{}", log_res);
+                            should_finish = log(&self, log_res)
+                        }
+
+                        self.cpu.log.dot = self.dot;
+                        self.cpu.log.scanline = self.scanline;
+                    }
+
+                    _ => {}
                 }
+
+                self.cpu.step();
             }
 
             // Render the dot
@@ -273,18 +281,13 @@ impl Console {
             log);
     }
 
-    pub fn run_until_cpu_memory_is_not(&mut self,
-                                       addr: u16,
-                                       data: u8,
-                                       log: &mut impl FnMut(&Self, String) -> bool) {
+    pub fn run_until_cpu_memory_is_not(&mut self, addr: u16, data: u8) {
         self.run_until(
             |console| console.bus.borrow_mut().read_cpu(addr) != data,
-            log);
+            Self::dismiss_log);
     }
 
-    pub fn run_frames(&mut self,
-                      frames: u32,
-                      log: &mut impl FnMut(&Self, String) -> bool) {
+    pub fn run_frames(&mut self, frames: u32) {
         if frames == 0 { return; }
 
         let frame = self.frame + frames;
@@ -296,7 +299,7 @@ impl Console {
                 console.frame == frame
                     && console.scanline == scanline
                     && console.dot == dot,
-            log);
+            Self::dismiss_log);
     }
 
     pub fn run_log(&mut self, log: &str) {
@@ -311,8 +314,8 @@ impl Console {
                                Some((_, "")) | None => true,
 
                                Some((line, expected)) => {
-                                   assert_eq!(actual, Self::format_log(expected), "\nat line {}\n\n{}",
-                                              line, console.cpu);
+                                   assert_eq!(actual, expected, "\nat line {}\n\n{}",
+                                              line + 1, console.cpu);
                                    false
                                }
                            }

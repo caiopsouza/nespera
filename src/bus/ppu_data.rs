@@ -108,9 +108,14 @@ impl PpuData {
         res
     }
 
+    // Peek PPUDATA
+    pub fn peek_data(&self) -> u8 {
+         unsafe { *self.ram.get_unchecked(self.get_addr()) }
+    }
+
     // Read PPUDATA
     pub fn read_data(&mut self) -> u8 {
-        let data = unsafe { *self.ram.get_unchecked(self.get_addr()) };
+        let data = self.peek_data();
 
         // Palette data is read immediately.
         // Everything else is read into a buffer and the previous contents of the buffer is returned.
@@ -129,13 +134,19 @@ impl PpuData {
         self.latch
     }
 
+    // Peek PPUSTATUS
+    pub fn peek_status(&self) -> u8 {
+        // PPU status has some unused bits, so fill in from the latch.
+        bits::copy(self.status, self.latch, 0b0001_1111)
+    }
+
     // Read PPUSTATUS
     pub fn read_status(&mut self) -> u8 {
         // Reading the status resets the write toggle.
         self.w = false;
 
         // PPU status has some unused bits, so fill in from the latch.
-        self.latch = bits::copy(self.status, self.latch, 0b0001_1111);
+        self.latch = self.peek_status();
         trace!("Reading from PPUSTATUS: 0x{:04x}", self.latch);
 
         // Vertical blank is cleared after reading status
@@ -144,9 +155,14 @@ impl PpuData {
         self.latch
     }
 
+    // Peek OAMDATA
+    pub fn peek_oam_data(&self) -> u8 {
+        unsafe { *self.oam.get_unchecked(self.oam_addr as usize) }
+    }
+
     // Read OAMDATA
     pub fn read_oam_data(&mut self) -> u8 {
-        self.latch = unsafe { *self.oam.get_unchecked(self.oam_addr as usize) };
+        self.latch = self.peek_oam_data();
         self.oam_addr = self.oam_addr.wrapping_add(1);
         self.latch
     }

@@ -28,9 +28,12 @@ fn log_setup(level: LevelFilter, start_after: usize) {
 }
 
 fn main() {
-    log_setup(LevelFilter::Trace, 10_000_000);
-    let file = include_bytes!("../tests/resources/cpu/instr_test/07-abs_xy.nes")[..].to_owned();
+    log_setup(LevelFilter::Trace, 1_000_000);
+    let file = include_bytes!("../tests/resources/roms/Donkey Kong (JU).nes")[..].to_owned();
     let mut console = Console::new(file);
-    console.run_log("tests/resources/cpu/instr_test/07-abs_xy.log");
-    println!("{:?}", console);
+    //console.scanline = 240;
+    //console.dot = 267;
+    //console.run_log("tests/resources/roms/Donkey Kong (JU).log");
+    //println!("{:?}", console);
+    console.run_frames(50);
 }

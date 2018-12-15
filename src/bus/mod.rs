@@ -74,8 +74,8 @@ impl Bus {
         data
     }
 
-    // Read a value from the location
-    fn read(&mut self, location: Location) -> u8 {
+    // Peek a value from this location. Should have no side effects.
+    fn peek(&self, location: Location) -> u8 {
         match location {
             Location::Nowhere(addr) => {
                 error!("Attempted to read from nowhere in CPU. Defaulting to zero. 0x{:02x}", addr);
@@ -87,44 +87,35 @@ impl Bus {
                 Self::trace_addr_read("APU", addr, data)
             }
 
-            Location::CpuRam(addr) => {
-                Self::trace_addr_read("CPU RAM", addr, self.cpu.read_ram(addr))
-            }
+            Location::CpuRam(addr) => Self::trace_addr_read("CPU RAM", addr, self.cpu.read_ram(addr)),
 
-            Location::PpuData => {
-                Self::trace_read("PPUDATA", self.ppu.read_data())
-            }
+            Location::PpuData => Self::trace_read("PPUDATA", 0xff/*self.ppu.peek_data()*/),
+            Location::PpuStatus => Self::trace_read("PPUSTATUS", 0xff/*self.ppu.peek_status()*/),
+            Location::OamData => Self::trace_read("OAMDATA", 0xff/*self.ppu.peek_oam_data()*/),
 
-            Location::PpuStatus => {
-                Self::trace_read("PPUSTATUS", self.ppu.read_status())
-            }
-
-            Location::OamData => {
-                Self::trace_read("OAMDATA", self.ppu.read_oam_data())
-            }
-
-            Location::OamDma => { unimplemented!() }
-
-            Location::PpuCtrl
+            | Location::OamDma
+            | Location::PpuCtrl
             | Location::PpuMask
             | Location::OamAddr
             | Location::PpuAddr
             | Location::PpuScroll => {
-                warn!("Reading from write only PPU area: 0x{:04x?}, 0x{:02x}.", location, self.ppu.latch);
+                warn!("Reading from write only PPU area: {:?}, 0x{:02x}.", location, self.ppu.latch);
                 self.ppu.latch
             }
 
-            Location::PrgRam(addr) => {
-                Self::trace_addr_read("PRG RAM", addr, self.cartridge.read_prg_ram(addr))
-            }
+            Location::PrgRam(addr) => Self::trace_addr_read("PRG RAM", addr, self.cartridge.read_prg_ram(addr)),
+            Location::PrgRom(addr) => Self::trace_addr_read("PRG ROM", addr, self.cartridge.read_prg_rom(addr)),
+            Location::ChrRom(addr) => Self::trace_addr_read("CHR ROM", addr, self.cartridge.read_chr_rom(addr)),
+        }
+    }
 
-            Location::PrgRom(addr) => {
-                Self::trace_addr_read("PRG ROM", addr, self.cartridge.read_prg_rom(addr))
-            }
-
-            Location::ChrRom(addr) => {
-                Self::trace_addr_read("CHR ROM", addr, self.cartridge.read_chr_rom(addr))
-            }
+    // Read a value from this location.
+    fn read(&mut self, location: Location) -> u8 {
+        match location {
+            Location::PpuData => Self::trace_read("PPUDATA", self.ppu.read_data()),
+            Location::PpuStatus => Self::trace_read("PPUSTATUS", self.ppu.read_status()),
+            Location::OamData => Self::trace_read("OAMDATA", self.ppu.read_oam_data()),
+            _ => self.peek(location),
         }
     }
 
@@ -205,6 +196,12 @@ impl Bus {
                 error!("Attempted to write to read only memory in cartridge. {:04x?}, {:#02x}", location, data)
             }
         }
+    }
+
+    // Peek at an address on the CPU. Performs no side effects.
+    pub fn peek_cpu(&self, addr: u16) -> u8 {
+        let location = self.cartridge.cpu_read_location(addr);
+        self.peek(location)
     }
 
     // Read an address on the CPU
