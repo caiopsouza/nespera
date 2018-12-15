@@ -49,33 +49,6 @@ pub struct Reg {
     addr_bus: u16,
 }
 
-impl fmt::Debug for Reg {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        let p = self.get_p();
-        let pu8: u8 = p.into();
-
-        write!(formatter,
-               "Regs | 0x{:02x}, a: {:02x}, x: {:02x}, y: {:02x}, pc: {:04x}, s: {:02x}, p: {:02x} {}{}{}{}{}{}{}{}",
-               self.current_instr,
-               self.a, self.x, self.y,
-               self.pc, self.s, pu8,
-               if p.get_negative() { 'n' } else { '_' },
-               if p.get_overflow() { 'v' } else { '_' },
-               if p.get_unused() { 'u' } else { '_' },
-               if p.get_break_command() { 'b' } else { '_' },
-               if p.get_decimal_mode() { 'd' } else { '_' },
-               if p.get_interrupt_disable() { 'i' } else { '_' },
-               if p.get_zero() { 'z' } else { '_' },
-               if p.get_carry() { 'c' } else { '_' })
-    }
-}
-
-impl fmt::Display for Reg {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(formatter, "{:?}", self)
-    }
-}
-
 // Type of transfer functions:
 //
 // - get: Directly get to values.
@@ -104,6 +77,10 @@ impl Reg {
             data_bus: 0,
             addr_bus: 0,
         }
+    }
+
+    pub fn clone_with_pc(&self, pc: u16) -> Self {
+        Self { pc, ..self.clone() }
     }
 
     // Some transfers must save their value in the data bus.
@@ -299,6 +276,33 @@ impl Reg {
     // Buses' getters
     pub fn get_data_bus(&self) -> u8 { self.data_bus }
     pub fn get_addr_bus(&self) -> u16 { self.addr_bus }
+}
+
+impl fmt::Debug for Reg {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        let p = self.get_p();
+        let pu8: u8 = p.into();
+
+        write!(formatter,
+               "Regs | 0x{:02x}, a: {:02x}, x: {:02x}, y: {:02x}, pc: {:04x}, s: {:02x}, p: {:02x} {}{}{}{}{}{}{}{}",
+               self.current_instr,
+               self.a, self.x, self.y,
+               self.pc, self.s, pu8,
+               if p.get_negative() { 'n' } else { '_' },
+               if p.get_overflow() { 'v' } else { '_' },
+               if p.get_unused() { 'u' } else { '_' },
+               if p.get_break_command() { 'b' } else { '_' },
+               if p.get_decimal_mode() { 'd' } else { '_' },
+               if p.get_interrupt_disable() { 'i' } else { '_' },
+               if p.get_zero() { 'z' } else { '_' },
+               if p.get_carry() { 'c' } else { '_' })
+    }
+}
+
+impl fmt::Display for Reg {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(formatter, "{:?}", self)
+    }
 }
 
 // Unsafe setters. These should be used only for debug and testing.

@@ -64,8 +64,9 @@ impl Cpu {
 
             ($code:ident, $mode:ident) => {{
                 if let Some(res) = self.$mode() {
-                    self.log.unofficial = false;
-                    self.log.mnemonic = self.$code(res).0;
+                    self.log.set_unofficial(false);
+                    let mnemonic = self.$code(res).0;
+                    self.log.set_mnemonic(mnemonic);
                 }
 
                 self.reg.set_next_cycle();
@@ -90,7 +91,7 @@ impl Cpu {
             return;
         }
 
-        self.log.skip = true;
+        self.log.set_skip(true);
 
         // Reset subroutine. Will clear the flag when finished.
         if self.resetting { return run!(rst); }
@@ -101,7 +102,7 @@ impl Cpu {
         // Transfer OAM. Will clear the flag when finished.
         if self.oam_transferring { return run!(oam); }
 
-        self.log.skip = false;
+        self.log.set_skip(false);
 
         #[allow(clippy::match_same_arms)]
             match self.reg.get_current_instr() {
@@ -361,7 +362,6 @@ impl Cpu {
             0xFD => run!(sbc, r_absolute_x),    /*bytes: 3 cycles: 4* A___P=>A___P R_ absx Sbc, AbsoluteX   */
             0xFE => run!(inc, rw_absolute_x),   /*bytes: 3 cycles: 7  _____=>____P RW absx Inc, AbsoluteX   */
             0xFF => run!(isc, rw_absolute_x),   /*bytes: 3 cycles: 7  A___P=>A___P RW absx Isc, AbsoluteX   */
-            _ => unimplemented!()
         }
     }
 

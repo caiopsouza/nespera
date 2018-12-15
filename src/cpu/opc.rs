@@ -128,8 +128,8 @@ impl Cpu {
     pub fn kil(&mut self) {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.log.mnemonic = "KIL";
-                self.log.mode = AddrMode::Implied;
+                self.log.set_mnemonic("KIL");
+                self.log.set_mode(AddrMode::Implied);
                 self.read_pc();
             }
             cycle::T3 => {
@@ -150,8 +150,8 @@ impl Cpu {
     pub fn brk(&mut self) {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.log.mnemonic = "BRK";
-                self.log.mode = AddrMode::Implied;
+                self.log.set_mnemonic("BRK");
+                self.log.set_mode(AddrMode::Implied);
                 self.fetch_pc();
             }
             cycle::T3 => { self.push(self.reg.get_pch()); }
@@ -244,12 +244,12 @@ impl Cpu {
     pub fn nop(&mut self, _: ()) -> (&'static str, u8) { ("NOP", 0) }
 
     pub fn mop(&mut self, _: ()) -> (&'static str, u8) {
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("NOP", 0)
     }
 
     pub fn dop(&mut self, _: u8) -> (&'static str, u8) {
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("NOP", 0)
     }
 
@@ -276,7 +276,7 @@ impl Cpu {
         self.reg.write_a(data);
         self.reg.write_x(data);
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("LAX", data)
     }
 
@@ -307,7 +307,7 @@ impl Cpu {
         let data = x & (bits::high(addr) + 1);
         self.write(addr, data);
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("SHX", data)
     }
 
@@ -316,7 +316,7 @@ impl Cpu {
         let data = y & (bits::high(addr) + 1);
         self.write(addr, data);
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("SHY", data)
     }
 
@@ -327,7 +327,7 @@ impl Cpu {
         let data = a & x & (bits::high(addr) + 1);
         self.write(addr, data);
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("AHX", data)
     }
 
@@ -340,7 +340,7 @@ impl Cpu {
         let data = s & (bits::high(addr) + 1);
         self.write(addr, data);
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("TAS", data)
     }
 
@@ -352,7 +352,7 @@ impl Cpu {
         self.reg.write_x(data);
         self.reg.set_s(data);
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("LAS", data)
     }
 
@@ -491,7 +491,7 @@ impl Cpu {
         let p = self.reg.get_p_mut();
         p.change(flags::CARRY, p.get_negative());
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("ANC", data)
     }
 
@@ -507,7 +507,7 @@ impl Cpu {
         let data = (a | magic) & self.reg.get_x() & data;
         self.reg.write_a(data);
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("XAA", data)
     }
 
@@ -515,7 +515,7 @@ impl Cpu {
         let data = self.reg.get_a() & self.reg.get_x();
         self.write(addr, data);
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("SAX", data)
     }
 
@@ -553,7 +553,7 @@ impl Cpu {
 
     // Unofficial SBC
     pub fn sbn(&mut self, value: u8) -> (&'static str, u8) {
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         self.sbc(value)
     }
 
@@ -586,7 +586,7 @@ impl Cpu {
         self.write(addr, data);
         self.reg.get_p_mut().change_cmp(source, data);
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("DCP", data)
     }
 
@@ -602,7 +602,7 @@ impl Cpu {
         // Overflow flag in not affected, so change to the old value.
         p.change(flags::OVERFLOW, v);
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("AXS", p.as_u8())
     }
 
@@ -635,7 +635,7 @@ impl Cpu {
         self.sbc(data);
         self.write(addr, data);
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("ISC", data)
     }
 
@@ -755,7 +755,7 @@ impl Cpu {
         let data = self.asl((addr, data)).1;
         let data = self.ora(data).1;
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("SLO", data)
     }
 
@@ -763,7 +763,7 @@ impl Cpu {
         let data = self.lsr((addr, data)).1;
         let data = self.eor(data).1;
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("SRE", data)
     }
 
@@ -771,7 +771,7 @@ impl Cpu {
         let data = self.rol((addr, data)).1;
         let data = self.and(data).1;
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("RLA", data)
     }
 
@@ -780,7 +780,7 @@ impl Cpu {
         let a = self.reg.get_a();
         let res = self.lsr_acc(a).1;
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("ALR", res)
     }
 
@@ -788,7 +788,7 @@ impl Cpu {
         let data = self.ror((addr, data)).1;
         let data = self.adc(data).1;
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("RRA", data)
     }
 
@@ -812,7 +812,7 @@ impl Cpu {
 
         self.reg.write_a(res);
 
-        self.log.unofficial = true;
+        self.log.set_unofficial(true);
         ("ARR", res)
     }
 
@@ -834,8 +834,8 @@ impl Cpu {
                 let pc = self.reg.get_absolute();
                 self.reg.write_pc(pc);
 
-                self.log.mnemonic = "JMP";
-                self.log.mode = AddrMode::Direct(pc);
+                self.log.set_mnemonic("JMP");
+                self.log.set_mode(AddrMode::Direct(pc));
 
                 self.finish();
             }
@@ -858,8 +858,8 @@ impl Cpu {
                 let pcl = self.reg.get_q();
                 let pch = self.peek(self.reg.get_absolute().wrapping_add(1));
                 let addr = bits::word(pch, pcl);
-                self.log.mnemonic = "JMP";
-                self.log.mode = AddrMode::Indirect(self.reg.get_absolute(), addr);
+                self.log.set_mnemonic("JMP");
+                self.log.set_mode(AddrMode::Indirect(self.reg.get_absolute(), addr));
 
                 // A bug on the hardware makes it not respect page cross. This is emulate here.
                 self.reg.write_inc_m(1);
@@ -891,8 +891,8 @@ impl Cpu {
                 self.reg.write_pcl_pch(m, n);
                 self.finish();
 
-                self.log.mnemonic = "JSR";
-                self.log.mode = AddrMode::Direct(self.reg.get_pc());
+                self.log.set_mnemonic("JSR");
+                self.log.set_mode(AddrMode::Direct(self.reg.get_pc()));
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -923,8 +923,8 @@ impl Cpu {
                 self.finish();
                 trace!(target: "opcode", "rti, addr: 0x{:04x}", self.reg.get_pc());
 
-                self.log.mnemonic = "RTI";
-                self.log.mode = AddrMode::Implied;
+                self.log.set_mnemonic("RTI");
+                self.log.set_mode(AddrMode::Implied);
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -952,8 +952,8 @@ impl Cpu {
                 self.reg.set_next_pc();
                 self.finish();
 
-                self.log.mnemonic = "RTS";
-                self.log.mode = AddrMode::Implied;
+                self.log.set_mnemonic("RTS");
+                self.log.set_mode(AddrMode::Implied);
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
         }
@@ -1036,7 +1036,7 @@ impl Cpu {
                 None
             }
             cycle::T3 => {
-                self.log.mode = AddrMode::Implied;
+                self.log.set_mode(AddrMode::Implied);
                 self.reg.set_inc_s(-1);
                 self.finish();
                 Some(self.reg.get_next_stack_addr())
@@ -1056,7 +1056,7 @@ impl Cpu {
             }
             cycle::T3 => {
                 let m = self.reg.get_m();
-                self.log.mode = AddrMode::ZeroPage(m, self.peek(u16::from(m)));
+                self.log.set_mode(AddrMode::ZeroPage(m, self.peek(u16::from(m))));
                 self.finish();
                 Some(u16::from(m))
             }
@@ -1090,14 +1090,14 @@ impl Cpu {
     pub fn w_zero_page_x(&mut self) -> Option<u16> {
         let index = self.reg.get_x();
         let addr = self.w_zero_page_indexed(index)?;
-        self.log.mode = AddrMode::ZeroPageX(self.peek(self.reg.get_pc() - 1), addr as u8, self.peek(addr));
+        self.log.set_mode(AddrMode::ZeroPageX(self.peek(self.reg.get_pc() - 1), addr as u8, self.peek(addr)));
         Some(addr)
     }
 
     pub fn w_zero_page_y(&mut self) -> Option<u16> {
         let index = self.reg.get_y();
         let addr = self.w_zero_page_indexed(index)?;
-        self.log.mode = AddrMode::ZeroPageY(self.peek(self.reg.get_pc() - 1), addr as u8, self.peek(addr));
+        self.log.set_mode(AddrMode::ZeroPageY(self.peek(self.reg.get_pc() - 1), addr as u8, self.peek(addr)));
         Some(addr)
     }
 
@@ -1118,7 +1118,7 @@ impl Cpu {
             cycle::T4 => {
                 self.finish();
                 let addr = self.reg.get_absolute();
-                self.log.mode = AddrMode::Absolute(addr, self.peek(addr));
+                self.log.set_mode(AddrMode::Absolute(addr, self.peek(addr)));
                 Some(addr)
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
@@ -1157,24 +1157,24 @@ impl Cpu {
     pub fn w_absolute_x(&mut self) -> Option<u16> {
         let index = self.reg.get_x();
         let addr = self.w_absolute_indexed(index)?;
-        self.log.mode = AddrMode::AbsoluteX(
+        self.log.set_mode(AddrMode::AbsoluteX(
             bits::word(
                 self.peek(self.reg.get_pc() - 1),
                 self.peek(self.reg.get_pc() - 2)),
             addr,
-            self.peek(addr));
+            self.peek(addr)));
         Some(addr)
     }
 
     pub fn w_absolute_y(&mut self) -> Option<u16> {
         let index = self.reg.get_y();
         let addr = self.w_absolute_indexed(index)?;
-        self.log.mode = AddrMode::AbsoluteY(
+        self.log.set_mode(AddrMode::AbsoluteY(
             bits::word(
                 self.peek(self.reg.get_pc() - 1),
                 self.peek(self.reg.get_pc() - 2)),
             addr,
-            self.peek(addr));
+            self.peek(addr)));
         Some(addr)
     }
 
@@ -1208,12 +1208,12 @@ impl Cpu {
                 let addr = self.reg.get_absolute();
                 let op0 = self.peek(self.reg.get_pc() - 1);
 
-                self.log.mode = AddrMode::IndirectX(
+                self.log.set_mode(AddrMode::IndirectX(
                     op0,
                     op0.wrapping_add(self.reg.get_x()),
                     addr,
                     self.peek(addr),
-                );
+                ));
 
                 self.finish();
                 Some(addr)
@@ -1252,12 +1252,12 @@ impl Cpu {
             cycle::T6 => {
                 let addr = self.reg.get_absolute();
                 let table = addr.wrapping_sub(u16::from(self.reg.get_y()));
-                self.log.mode = AddrMode::IndirectY(
+                self.log.set_mode(AddrMode::IndirectY(
                     self.peek(self.reg.get_pc() - 1),
                     table,
                     addr,
                     self.peek(addr),
-                );
+                ));
 
                 self.finish();
                 Some(addr)
@@ -1275,7 +1275,7 @@ impl Cpu {
     pub fn implied(&mut self) -> Option<()> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.log.mode = AddrMode::Implied;
+                self.log.set_mode(AddrMode::Implied);
 
                 self.read_pc();
                 self.finish();
@@ -1291,7 +1291,7 @@ impl Cpu {
     pub fn accumulator(&mut self) -> Option<u8> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.log.mode = AddrMode::Accumulator;
+                self.log.set_mode(AddrMode::Accumulator);
                 self.read_pc();
                 self.finish();
                 Some(self.reg.read_a())
@@ -1305,7 +1305,7 @@ impl Cpu {
     pub fn immediate(&mut self) -> Option<u8> {
         match self.reg.get_cycle() {
             cycle::T2 => {
-                self.log.mode = AddrMode::Immediate(self.peek(self.reg.get_pc()));
+                self.log.set_mode(AddrMode::Immediate(self.peek(self.reg.get_pc())));
                 self.finish();
                 Some(self.fetch_pc())
             }
@@ -1328,7 +1328,7 @@ impl Cpu {
                 None
             }
             cycle::T4 => {
-                self.log.mode = AddrMode::Implied;
+                self.log.set_mode(AddrMode::Implied);
                 self.finish();
                 Some(self.read_stack())
             }
@@ -1347,7 +1347,7 @@ impl Cpu {
         let addr = self.w_zero_page_indexed(index)?;
         let data = self.read_at_m(addr);
 
-        self.log.mode = AddrMode::ZeroPageX(self.peek(self.reg.get_pc() - 1), addr as u8, data);
+        self.log.set_mode(AddrMode::ZeroPageX(self.peek(self.reg.get_pc() - 1), addr as u8, data));
 
         Some(data)
     }
@@ -1357,7 +1357,7 @@ impl Cpu {
         let addr = self.w_zero_page_indexed(index)?;
         let data = self.read_at_m(addr);
 
-        self.log.mode = AddrMode::ZeroPageY(self.peek(self.reg.get_pc() - 1), addr as u8, data);
+        self.log.set_mode(AddrMode::ZeroPageY(self.peek(self.reg.get_pc() - 1), addr as u8, data));
 
         Some(data)
     }
@@ -1405,12 +1405,12 @@ impl Cpu {
         let index = self.reg.get_x();
         let res = self.r_absolute_indexed(index)?;
 
-        self.log.mode = AddrMode::AbsoluteX(
+        self.log.set_mode(AddrMode::AbsoluteX(
             bits::word(
                 self.peek(self.reg.get_pc() - 1),
                 self.peek(self.reg.get_pc() - 2)),
             res.0,
-            res.1);
+            res.1));
 
         Some(res.1)
     }
@@ -1419,12 +1419,12 @@ impl Cpu {
         let index = self.reg.get_y();
         let res = self.r_absolute_indexed(index)?;
 
-        self.log.mode = AddrMode::AbsoluteY(
+        self.log.set_mode(AddrMode::AbsoluteY(
             bits::word(
                 self.peek(self.reg.get_pc() - 1),
                 self.peek(self.reg.get_pc() - 2)),
             res.0,
-            res.1);
+            res.1));
 
         Some(res.1)
     }
@@ -1457,12 +1457,12 @@ impl Cpu {
 
                 let absolute = self.reg.get_absolute();
                 let addr = absolute.wrapping_add(u16::from(self.reg.get_y()));
-                self.log.mode = AddrMode::IndirectY(
+                self.log.set_mode(AddrMode::IndirectY(
                     self.peek(self.reg.get_pc() - 1),
                     absolute,
                     addr,
                     self.peek(addr),
-                );
+                ));
 
                 self.reg.write_inc_m_by_y();
                 None
@@ -1492,14 +1492,14 @@ impl Cpu {
         match self.reg.get_cycle() {
             cycle::T2 => {
                 self.fetch_into_m();
-                self.log.mnemonic = opcode;
+                self.log.set_mnemonic(opcode);
 
                 if !branch_taken {
                     //let pc = self.reg.get_pc();
                     //let pc = (bits::high_word(pc)) | bits::low_word(pc).wrapping_add(u16::from(self.reg.get_m()));
 
                     let m = i16::from(self.reg.get_m() as i8) as u16;
-                    self.log.mode = AddrMode::Relative(self.reg.get_m(), self.reg.get_pc().wrapping_add(m));
+                    self.log.set_mode(AddrMode::Relative(self.reg.get_m(), self.reg.get_pc().wrapping_add(m)));
                     self.finish();
                 }
             }
@@ -1510,14 +1510,14 @@ impl Cpu {
                 self.reg.write_inc_pcl(m);
 
                 if self.reg.get_internal_overflow() == reg::InternalOverflow::None {
-                    self.log.mode = AddrMode::Relative(self.reg.get_m(), self.reg.get_pc());
+                    self.log.set_mode(AddrMode::Relative(self.reg.get_m(), self.reg.get_pc()));
                     self.finish();
                 }
             }
             cycle::T4 => {
                 self.prefetch_pc();
                 self.reg.set_fix_carry_pc();
-                self.log.mode = AddrMode::Relative(self.reg.get_m(), self.reg.get_pc());
+                self.log.set_mode(AddrMode::Relative(self.reg.get_m(), self.reg.get_pc()));
                 self.finish()
             }
             _ => unimplemented!("Shouldn't reach cycle {}", self.reg.get_cycle()),
@@ -1550,7 +1550,7 @@ impl Cpu {
             cycle::T5 => {
                 let m = self.reg.get_m();
                 let n = self.reg.get_n();
-                self.log.mode = AddrMode::ZeroPage(m, n);
+                self.log.set_mode(AddrMode::ZeroPage(m, n));
                 self.finish();
                 Some((u16::from(m), n))
             }
@@ -1594,14 +1594,14 @@ impl Cpu {
     pub fn rw_zero_page_x(&mut self) -> Option<(u16, u8)> {
         let index = self.reg.get_x();
         let res = self.rw_zero_page_indexed(index)?;
-        self.log.mode = AddrMode::ZeroPageX(self.peek(self.reg.get_pc() - 1), res.0 as u8, res.1);
+        self.log.set_mode(AddrMode::ZeroPageX(self.peek(self.reg.get_pc() - 1), res.0 as u8, res.1));
         Some(res)
     }
 
     pub fn rw_zero_page_y(&mut self) -> Option<(u16, u8)> {
         let index = self.reg.get_y();
         let res = self.rw_zero_page_indexed(index)?;
-        self.log.mode = AddrMode::ZeroPageY(self.peek(self.reg.get_pc() - 1), res.0 as u8, res.1);
+        self.log.set_mode(AddrMode::ZeroPageY(self.peek(self.reg.get_pc() - 1), res.0 as u8, res.1));
         Some(res)
     }
 
@@ -1631,7 +1631,7 @@ impl Cpu {
             }
             cycle::T6 => {
                 let res = (self.reg.get_absolute(), self.reg.get_q());
-                self.log.mode = AddrMode::Absolute(res.0, res.1);
+                self.log.set_mode(AddrMode::Absolute(res.0, res.1));
                 self.finish();
                 Some(res)
             }
@@ -1682,12 +1682,12 @@ impl Cpu {
         let index = self.reg.get_x();
         let res = self.rw_absolute_indexed(index)?;
 
-        self.log.mode = AddrMode::AbsoluteX(
+        self.log.set_mode(AddrMode::AbsoluteX(
             bits::word(
                 self.peek(self.reg.get_pc() - 1),
                 self.peek(self.reg.get_pc() - 2)),
             res.0,
-            res.1);
+            res.1));
 
         Some(res)
     }
@@ -1696,12 +1696,12 @@ impl Cpu {
         let index = self.reg.get_y();
         let res = self.rw_absolute_indexed(index)?;
 
-        self.log.mode = AddrMode::AbsoluteY(
+        self.log.set_mode(AddrMode::AbsoluteY(
             bits::word(
                 self.peek(self.reg.get_pc() - 1),
                 self.peek(self.reg.get_pc() - 2)),
             res.0,
-            res.1);
+            res.1));
 
         Some(res)
     }
@@ -1747,12 +1747,12 @@ impl Cpu {
                 let op0 = self.peek(self.reg.get_pc() - 1);
                 let data = self.reg.get_q();
 
-                self.log.mode = AddrMode::IndirectX(
+                self.log.set_mode(AddrMode::IndirectX(
                     op0,
                     op0.wrapping_add(self.reg.get_x()),
                     addr,
                     data,
-                );
+                ));
 
                 self.finish();
                 Some((addr, data))
@@ -1805,12 +1805,12 @@ impl Cpu {
                 // Logs the correct address, respecting cross page.
                 let op0 = self.peek(self.reg.get_pc() - 1);
 
-                self.log.mode = AddrMode::IndirectY(
+                self.log.set_mode(AddrMode::IndirectY(
                     op0,
                     addr.wrapping_sub(u16::from(self.reg.get_y())),
                     addr,
                     data,
-                );
+                ));
 
                 self.finish();
                 Some((addr, data))

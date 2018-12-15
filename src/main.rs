@@ -6,6 +6,7 @@ use env_logger::Builder;
 use log::LevelFilter;
 
 use nespera::console::Console;
+use nespera::ui;
 
 // Starts logging after the specified amount of logs has passed.
 // Tracing is very verbose so you might need to limit how much is logged in order to speed up execution.
@@ -28,12 +29,9 @@ fn log_setup(level: LevelFilter, start_after: usize) {
 }
 
 fn main() {
-    log_setup(LevelFilter::Trace, 1_000_000);
-    let file = include_bytes!("../tests/resources/roms/Donkey Kong (JU).nes")[..].to_owned();
+    log_setup(LevelFilter::Warn, 1_000_000);
+
+    let file = include_bytes!("../tests/resources/roms/Balloon Fight (JU).nes")[..].to_owned();
     let mut console = Console::new(file);
-    //console.scanline = 240;
-    //console.dot = 267;
-    //console.run_log("tests/resources/roms/Donkey Kong (JU).log");
-    //println!("{:?}", console);
-    console.run_frames(50);
+    ui::run(&mut console);
 }

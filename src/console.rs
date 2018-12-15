@@ -3,6 +3,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::rc::Rc;
+use std::time::Instant;
 
 use crate::bus::Bus;
 use crate::cartridge::Cartridge;
@@ -21,8 +22,12 @@ pub struct Console {
     pub bus: Rc<RefCell<Bus>>,
     pub cpu: Cpu,
 
+    // Fps calculation
+    frame_start: Instant,
+    pub fps: f64,
+
     // Rendering
-    pub screen: image::RgbImage,
+    pub screen: image::RgbaImage,
     pub render_to_disk: RenderToDisk,
 
     // PPU information
@@ -41,7 +46,9 @@ impl Console {
         Self {
             bus,
             cpu,
-            screen: image::RgbImage::new(256, 240),
+            frame_start: Instant::now(),
+            fps: 0_f64,
+            screen: image::RgbaImage::new(256, 240),
             render_to_disk: RenderToDisk::Dont,
             clock: 0,
             frame: 0,
@@ -57,84 +64,84 @@ impl Console {
     pub fn dismiss_log(_: &Self, _: String) -> bool { false }
 
     // Map the color
-    pub fn map_color(dot: u8) -> image::Rgb<u8> {
+    pub fn map_color(dot: u8) -> image::Rgba<u8> {
         #[allow(clippy::match_same_arms)]
-        let rgb = match dot {
-            0x00 => [84, 84, 84],
-            0x01 => [0, 30, 116],
-            0x02 => [8, 16, 144],
-            0x03 => [48, 0, 136],
-            0x04 => [68, 0, 100],
-            0x05 => [92, 0, 48],
-            0x06 => [84, 4, 0],
-            0x07 => [60, 24, 0],
-            0x08 => [32, 42, 0],
-            0x09 => [8, 58, 0],
-            0x0a => [0, 64, 0],
-            0x0b => [0, 60, 0],
-            0x0c => [0, 50, 60],
-            0x0d => [0, 0, 0],
-            0x0e => [0, 0, 0],
-            0x0f => [0, 0, 0],
+        let rgba = match dot {
+            0x00 => [84, 84, 84, 255],
+            0x01 => [0, 30, 116, 255],
+            0x02 => [8, 16, 144, 255],
+            0x03 => [48, 0, 136, 255],
+            0x04 => [68, 0, 100, 255],
+            0x05 => [92, 0, 48, 255],
+            0x06 => [84, 4, 0, 255],
+            0x07 => [60, 24, 0, 255],
+            0x08 => [32, 42, 0, 255],
+            0x09 => [8, 58, 0, 255],
+            0x0a => [0, 64, 0, 255],
+            0x0b => [0, 60, 0, 255],
+            0x0c => [0, 50, 60, 255],
+            0x0d => [0, 0, 0, 255],
+            0x0e => [0, 0, 0, 255],
+            0x0f => [0, 0, 0, 255],
 
-            0x10 => [152, 150, 152],
-            0x11 => [8, 76, 196],
-            0x12 => [48, 50, 236],
-            0x13 => [92, 30, 228],
-            0x14 => [136, 20, 176],
-            0x15 => [160, 20, 100],
-            0x16 => [152, 34, 32],
-            0x17 => [120, 60, 0],
-            0x18 => [84, 90, 0],
-            0x19 => [40, 114, 0],
-            0x1a => [8, 124, 0],
-            0x1b => [0, 118, 40],
-            0x1c => [0, 102, 120],
-            0x1d => [0, 0, 0],
-            0x1e => [0, 0, 0],
-            0x1f => [0, 0, 0],
+            0x10 => [152, 150, 152, 255],
+            0x11 => [8, 76, 196, 255],
+            0x12 => [48, 50, 236, 255],
+            0x13 => [92, 30, 228, 255],
+            0x14 => [136, 20, 176, 255],
+            0x15 => [160, 20, 100, 255],
+            0x16 => [152, 34, 32, 255],
+            0x17 => [120, 60, 0, 255],
+            0x18 => [84, 90, 0, 255],
+            0x19 => [40, 114, 0, 255],
+            0x1a => [8, 124, 0, 255],
+            0x1b => [0, 118, 40, 255],
+            0x1c => [0, 102, 120, 255],
+            0x1d => [0, 0, 0, 255],
+            0x1e => [0, 0, 0, 255],
+            0x1f => [0, 0, 0, 255],
 
-            0x20 => [236, 238, 236],
-            0x21 => [76, 154, 236],
-            0x22 => [120, 124, 236],
-            0x23 => [176, 98, 236],
-            0x24 => [228, 84, 236],
-            0x25 => [236, 88, 180],
-            0x26 => [236, 106, 100],
-            0x27 => [212, 136, 32],
-            0x28 => [160, 170, 0],
-            0x29 => [116, 196, 0],
-            0x2a => [76, 208, 32],
-            0x2b => [56, 204, 108],
-            0x2c => [56, 180, 204],
-            0x2d => [60, 60, 60],
-            0x2e => [0, 0, 0],
-            0x2f => [0, 0, 0],
+            0x20 => [236, 238, 236, 255],
+            0x21 => [76, 154, 236, 255],
+            0x22 => [120, 124, 236, 255],
+            0x23 => [176, 98, 236, 255],
+            0x24 => [228, 84, 236, 255],
+            0x25 => [236, 88, 180, 255],
+            0x26 => [236, 106, 100, 255],
+            0x27 => [212, 136, 32, 255],
+            0x28 => [160, 170, 0, 255],
+            0x29 => [116, 196, 0, 255],
+            0x2a => [76, 208, 32, 255],
+            0x2b => [56, 204, 108, 255],
+            0x2c => [56, 180, 204, 255],
+            0x2d => [60, 60, 60, 255],
+            0x2e => [0, 0, 0, 255],
+            0x2f => [0, 0, 0, 255],
 
-            0x30 => [236, 238, 236],
-            0x31 => [168, 204, 236],
-            0x32 => [188, 188, 236],
-            0x33 => [212, 178, 236],
-            0x34 => [236, 174, 236],
-            0x35 => [236, 174, 212],
-            0x36 => [236, 180, 176],
-            0x37 => [228, 196, 144],
-            0x38 => [204, 210, 120],
-            0x39 => [180, 222, 120],
-            0x3a => [168, 226, 144],
-            0x3b => [152, 226, 180],
-            0x3c => [160, 214, 228],
-            0x3d => [160, 162, 160],
-            0x3e => [0, 0, 0],
-            0x3f => [0, 0, 0],
+            0x30 => [236, 238, 236, 255],
+            0x31 => [168, 204, 236, 255],
+            0x32 => [188, 188, 236, 255],
+            0x33 => [212, 178, 236, 255],
+            0x34 => [236, 174, 236, 255],
+            0x35 => [236, 174, 212, 255],
+            0x36 => [236, 180, 176, 255],
+            0x37 => [228, 196, 144, 255],
+            0x38 => [204, 210, 120, 255],
+            0x39 => [180, 222, 120, 255],
+            0x3a => [168, 226, 144, 255],
+            0x3b => [152, 226, 180, 255],
+            0x3c => [160, 214, 228, 255],
+            0x3d => [160, 162, 160, 255],
+            0x3e => [0, 0, 0, 255],
+            0x3f => [0, 0, 0, 255],
 
             _ => {
                 error!("Indexing color not mapped: 0x{:02x}. Defaulting to black.", dot);
-                [0, 0, 0]
+                [0, 0, 0, 255]
             }
         };
 
-        image::Rgb::<u8>(rgb)
+        image::Rgba::<u8>(rgba)
     }
 
     // Calculates a matrix index
@@ -199,8 +206,8 @@ impl Console {
                 // Save logs on the first cycle and report it on the last
                 match self.cpu.reg.get_cycle() {
                     cycle::FIRST => {
-                        self.cpu.log.reg = self.cpu.reg.clone();
-                        self.cpu.log.reg.set_previous_pc();
+                        let reg = &self.cpu.reg;
+                        self.cpu.log.set_reg(reg.clone_with_pc(reg.get_pc() - 1));
                     }
 
                     cycle::LAST => {
@@ -210,8 +217,8 @@ impl Console {
                             should_finish = log(&self, log_res)
                         }
 
-                        self.cpu.log.dot = self.dot;
-                        self.cpu.log.scanline = self.scanline;
+                        self.cpu.log.set_dot(self.dot);
+                        self.cpu.log.set_scanline(self.scanline);
                     }
 
                     _ => {}
@@ -256,6 +263,11 @@ impl Console {
 
                     self.scanline = -1;
                     self.frame += 1;
+
+                    // Update fps
+                    let now = Instant::now();
+                    self.fps = 1_f64 / (now - self.frame_start).as_float_secs();
+                    self.frame_start = now;
                 }
             }
 
