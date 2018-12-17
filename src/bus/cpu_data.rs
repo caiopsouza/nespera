@@ -22,11 +22,12 @@ impl CpuData {
     }
 
     pub fn read_ram(&self, addr: u16) -> u8 {
-        unsafe { *self.ram.get_unchecked((addr) as usize % RAM_CAPACITY) }
+        unsafe { *self.ram.get_unchecked((addr) as usize % self.ram.len()) }
     }
 
     pub fn write_ram(&mut self, addr: u16, data: u8) {
-        unsafe { *self.ram.get_unchecked_mut((addr) as usize % RAM_CAPACITY) = data }
+        let len = self.ram.len();
+        unsafe { *self.ram.get_unchecked_mut((addr) as usize % len) = data }
     }
 }
 

@@ -9,8 +9,8 @@ use crate::bus::ppu_data::PpuData;
 use crate::cartridge::Cartridge;
 use crate::cartridge::location::Location;
 
-mod cpu_data;
-mod ppu_data;
+pub mod cpu_data;
+pub mod ppu_data;
 
 const APU_CAPACITY: usize = 0x0018;
 
@@ -83,15 +83,15 @@ impl Bus {
             }
 
             Location::Apu(addr) => {
-                let data = unsafe { *self.apu.get_unchecked(addr as usize % APU_CAPACITY) };
+                let data = unsafe { *self.apu.get_unchecked(addr as usize % self.apu.len()) };
                 Self::trace_addr_read("APU", addr, data)
             }
 
             Location::CpuRam(addr) => Self::trace_addr_read("CPU RAM", addr, self.cpu.read_ram(addr)),
 
-            Location::PpuData => Self::trace_read("PPUDATA", 0xff/*self.ppu.peek_data()*/),
-            Location::PpuStatus => Self::trace_read("PPUSTATUS", 0xff/*self.ppu.peek_status()*/),
-            Location::OamData => Self::trace_read("OAMDATA", 0xff/*self.ppu.peek_oam_data()*/),
+            Location::PpuData => Self::trace_read("PPUDATA", self.ppu.peek_data()),
+            Location::PpuStatus => Self::trace_read("PPUSTATUS", self.ppu.peek_status()),
+            Location::OamData => Self::trace_read("OAMDATA", self.ppu.peek_oam_data()),
 
             | Location::OamDma
             | Location::PpuCtrl
@@ -133,7 +133,8 @@ impl Bus {
             Location::Nowhere(addr) => error!("Attempted to write to nowhere in CPU: 0x{:04x}, 0x{:02x}.", addr, data),
 
             Location::Apu(addr) => {
-                unsafe { *self.apu.get_unchecked_mut(addr as usize % APU_CAPACITY) = data }
+                let len = self.apu.len();
+                unsafe { *self.apu.get_unchecked_mut(addr as usize % len) = data }
                 Self::trace_addr_write("APU", addr, data)
             }
 

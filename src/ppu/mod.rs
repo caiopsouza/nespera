@@ -1,8 +1,10 @@
 use std::cell::RefCell;
+use std::intrinsics::assume;
 use std::rc::Rc;
 use std::time::Instant;
 
 use crate::bus::Bus;
+use crate::bus::ppu_data::SpriteSize;
 use crate::utils::bits;
 
 pub const SCREEN_WIDTH: usize = 256;
@@ -48,11 +50,87 @@ impl Ppu {
 
     // Screen operations
     pub unsafe fn get_dot(&mut self, x: usize, y: usize) -> u8 {
-        *self.screen.get_unchecked(Self::screen_index(x, y))
+        if cfg!(debug_assertions) {
+            *self.screen.get(Self::screen_index(x, y)).unwrap()
+        } else {
+            *self.screen.get_unchecked(Self::screen_index(x, y))
+        }
     }
 
     unsafe fn put_dot(&mut self, x: usize, y: usize, dot: u8) {
-        *self.screen.get_unchecked_mut(Self::screen_index(x, y)) = dot
+        if cfg!(debug_assertions) {
+            *self.screen.get_mut(Self::screen_index(x, y)).unwrap() = dot
+        } else {
+            *self.screen.get_unchecked_mut(Self::screen_index(x, y)) = dot
+        }
+    }
+
+    // Render all sprites from OAM.
+    fn render_sprites(&mut self) {
+        const CHUNKS_SIZE: usize = 4;
+
+        let bus = self.bus.borrow();
+
+        let sprite_table = bus.ppu.sprite_pattern_table;
+        let sprite_size = bus.ppu.sprite_size;
+
+        for sprite in bus.ppu.oam_chunks(CHUNKS_SIZE) {
+            let y_sprite;
+            let tile;
+            let attr;
+            let x_sprite;
+
+            unsafe {
+                assume(sprite.len() == CHUNKS_SIZE);
+
+                y_sprite = sprite[0];
+                tile = u16::from(sprite[1]);
+                attr = sprite[2];
+                x_sprite = sprite[3];
+            }
+
+            // Not visible
+            if (0xef_u8..=0xff_u8).contains(&y_sprite) { continue; }
+
+            // Pattern.
+            // TODO: Don't assume the sprite is 8 pixels high.
+            let addr = match sprite_size {
+                SpriteSize::S8 => sprite_table + 0x10 * tile,
+                SpriteSize::S16 => { 0x1000 * (tile & 1) + (0x10 * (tile >> 1)) }
+            };
+
+            // Palette
+            let palette = bits::mask(attr, 0b_0011) as usize;
+
+            // Flip the sprite
+            let flip_x = bits::is_set(attr, 6);
+            let flip_y = bits::is_set(attr, 7);
+
+            for y in 0..8 {
+                let y = if flip_y { 7 - y } else { y };
+
+                for x in 0..8 {
+                    let low = bus.cartridge.read_chr_rom(addr + y);
+                    let high = bus.cartridge.read_chr_rom(addr + y + 8);
+                    let pixel = bits::interlace(low, high, x);
+
+                    // Transparent
+                    if pixel == 0 { continue; }
+
+                    let pixel = 0x3f10 + 0x04 * palette + pixel as usize;
+                    let pixel = unsafe { bus.ppu.peek_ram(pixel) };
+
+                    let x = if flip_x { 7 - x } else { x };
+
+                    let x = (x_sprite).wrapping_add(x) as usize;
+                    let y = (y_sprite).wrapping_add(y as u8) as usize;
+
+                    // Out of bound
+                    if x > SCREEN_WIDTH || y > SCREEN_HEIGHT { continue; }
+                    unsafe { *self.screen.get_unchecked_mut(Self::screen_index(x, y)) = pixel }
+                }
+            }
+        }
     }
 
     // Render the current dot
@@ -80,8 +158,8 @@ impl Ppu {
         let pattern = pattern_table + u16::from(unsafe { bus.ppu.peek_ram(background) }) * 0x10;
 
         // Palette
-        let palette_addr = Self::index(attribute_table, tile / 4, row / 4, 8);
-        let palette = unsafe { bus.ppu.peek_ram(palette_addr) };
+        let palette = Self::index(attribute_table, tile / 4, row / 4, 8);
+        let palette = unsafe { bus.ppu.peek_ram(palette) };
 
         // Position inside the pattern.
         let x = dot as u8 % 8;
@@ -130,6 +208,10 @@ impl Ppu {
                 if is_rendering && self.frame % 2 == 1 { self.dot += 1 }
             } else if self.scanline > 260 {
                 trace!("Finished running frame {}.", self.frame);
+
+                // Render all sprites.
+                // TODO: Make this per pixel as the background.
+                self.render_sprites();
 
                 self.scanline = -1;
                 self.frame += 1;

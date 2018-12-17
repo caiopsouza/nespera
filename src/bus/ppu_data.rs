@@ -1,4 +1,5 @@
 use std::fmt;
+use std::slice::Chunks;
 
 use pretty_hex::PrettyHex;
 
@@ -11,6 +12,9 @@ const PPU_CAPACITY: usize = 0x4000;
 const RAM_CAPACITY: usize = 0x4000;
 const OAM_CAPACITY: usize = 0x0100;
 
+#[derive(Debug, Copy, Clone)]
+pub enum SpriteSize { S8, S16 }
+
 // Information about the PPU registers decoded from writing to them
 pub struct PpuData {
     // PPUCTRL
@@ -18,7 +22,7 @@ pub struct PpuData {
     pub ram_increment: u16,
     pub sprite_pattern_table: u16,
     pub background_pattern_table: u16,
-    pub sprite_size: u8,
+    pub sprite_size: SpriteSize,
     pub generate_nmi_at_vblank: bool,
 
     // PPUMASK
@@ -71,7 +75,7 @@ impl PpuData {
             ram_increment: 0,
             sprite_pattern_table: 0,
             background_pattern_table: 0,
-            sprite_size: 0,
+            sprite_size: SpriteSize::S8,
             generate_nmi_at_vblank: false,
 
             // PPUMASK
@@ -109,10 +113,39 @@ impl PpuData {
     }
 
     // Direct RAM and OAM access.
-    pub unsafe fn peek_ram(&self, addr: usize) -> u8 { *self.ram.get_unchecked(addr) }
-    pub unsafe fn peek_oam(&self, addr: usize) -> u8 { *self.oam.get_unchecked(addr) }
-    unsafe fn poke_ram(&mut self, addr: usize, data: u8) { *self.ram.get_unchecked_mut(addr) = data }
-    unsafe fn poke_oam(&mut self, addr: usize, data: u8) { *self.oam.get_unchecked_mut(addr) = data }
+    pub unsafe fn peek_ram(&self, addr: usize) -> u8 {
+        if cfg!(debug_assertions) {
+            *self.ram.get(addr).unwrap()
+        } else {
+            *self.ram.get_unchecked(addr)
+        }
+    }
+
+    pub unsafe fn peek_oam(&self, addr: usize) -> u8 {
+        if cfg!(debug_assertions) {
+            *self.oam.get(addr).unwrap()
+        } else {
+            *self.oam.get_unchecked(addr)
+        }
+    }
+
+    pub fn oam_chunks(&self, size: usize) -> Chunks<u8> { self.oam.chunks(size) }
+
+    unsafe fn poke_ram(&mut self, addr: usize, data: u8) {
+        *if cfg!(debug_assertions) {
+            self.ram.get_mut(addr).unwrap()
+        } else {
+            self.ram.get_unchecked_mut(addr)
+        } = data
+    }
+
+    unsafe fn poke_oam(&mut self, addr: usize, data: u8) {
+        *if cfg!(debug_assertions) {
+            self.oam.get_mut(addr).unwrap()
+        } else {
+            self.oam.get_unchecked_mut(addr)
+        } = data
+    }
 
     // Peek PPUDATA
     pub fn peek_data(&self) -> u8 { unsafe { self.peek_ram(self.get_addr()) } }
@@ -189,7 +222,7 @@ impl PpuData {
         self.ram_increment = if bits::is_set(data, 2) { 32 } else { 1 };
         self.sprite_pattern_table = if bits::is_set(data, 3) { 0x1000 } else { 0x0000 };
         self.background_pattern_table = if bits::is_set(data, 4) { 0x1000 } else { 0x0000 };
-        self.sprite_size = if bits::is_set(data, 5) { 16 } else { 8 };
+        self.sprite_size = if bits::is_set(data, 5) { SpriteSize::S16 } else { SpriteSize::S8 };
         self.generate_nmi_at_vblank = bits::is_set(data, 7);
     }
 

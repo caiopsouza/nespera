@@ -31,8 +31,8 @@ fn log_setup(level: LevelFilter, start_after: usize) {
 }
 
 fn main() {
-    log_setup(LevelFilter::Debug, 1_000_000);
-    let cartridge = Cartridge::from_file("tests/resources/roms/Balloon Fight (JU).nes").unwrap();
+    log_setup(LevelFilter::Off, 0);
+    let cartridge = Cartridge::from_file("tests/resources/roms/Donkey Kong (JU).nes").unwrap();
     let palette = Palette::from_file("tests/resources/palettes/RP2C03.pal").unwrap();
     let mut console = Console::new(cartridge);
     ui::run(&mut console, &palette);

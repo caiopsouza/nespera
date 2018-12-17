@@ -32,6 +32,7 @@ pub fn run(console: &mut Console, palette: &Palette) {
     while let Some(event) = window.next() {
         if event.render_args().is_some() {
             console.run_frames(1);
+
             window.set_title(format!("Nespera | fps: {:.2}", console.ppu.fps));
 
             palette.map(&console.ppu.screen, &mut screen);
