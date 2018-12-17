@@ -11,5 +11,6 @@ pub mod bus;
 pub mod cartridge;
 pub mod console;
 pub mod cpu;
+pub mod ppu;
 pub mod ui;
 pub mod utils;
