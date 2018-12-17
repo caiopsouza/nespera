@@ -66,7 +66,7 @@ impl Console {
                 self.cpu.step();
             }
 
-            self.ppu.render();
+            self.ppu.step();
 
             if should_finish || condition(&self) { break; }
         }
@@ -91,14 +91,9 @@ impl Console {
         if frames == 0 { return; }
 
         let frame = self.ppu.frame + frames;
-        let scanline = self.ppu.scanline;
-        let dot = self.ppu.dot;
 
         self.run_until(
-            |console|
-                console.ppu.frame == frame
-                    && console.ppu.scanline == scanline
-                    && console.ppu.dot == dot,
+            |console| console.ppu.frame == frame,
             Self::dismiss_log);
     }
 
