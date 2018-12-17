@@ -134,23 +134,18 @@ pub mod logging {
         pub fn set_dot(&mut self, dot: u32) { self.dot = dot }
         pub fn set_scanline(&mut self, scanline: i32) { self.scanline = scanline }
 
-        pub fn set_mode(&mut self, mode: AddrMode) {
-            if log::LevelFilter::Trace >= log::STATIC_MAX_LEVEL
-                || log::LevelFilter::Trace >= log::max_level()
-                || self.skip {
-                return;
-            }
+        fn is_logging(&self) -> bool {
+            log::STATIC_MAX_LEVEL >= log::LevelFilter::Trace
+                && log::max_level() >= log::LevelFilter::Trace
+                && !self.skip
+        }
 
-            self.mode = mode
+        pub fn set_mode(&mut self, mode: AddrMode) {
+            if self.is_logging() { self.mode = mode; }
         }
 
         pub fn get(&self) -> String {
-            // Remove logging
-            if log::LevelFilter::Trace >= log::STATIC_MAX_LEVEL
-                || log::LevelFilter::Trace >= log::max_level()
-                || self.skip {
-                return "".to_owned();
-            }
+            if !self.is_logging() { return "".to_owned(); }
 
             format!("{}  {} {:5} {}{} {:<27} A:{} X:{} Y:{} P:{} SP:{} CYC:{:>3} SL:{}",
                     f_u16(self.reg.get_pc()),
