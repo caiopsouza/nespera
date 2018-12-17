@@ -20,9 +20,8 @@ pub enum AddrMode {
     IndirectY(u8, u16, u16, u8),
 }
 
-// Dummy implementation.
-// Logging has a huge impact on performance, up to 10x slowdown as profiled, so remove it if not being used.
-#[cfg(not(any(all(debug, max_level_trace), all(release, release_max_level_trace))))]
+// Dummy implementation. Used when not logging.
+#[cfg(not(debug_assertions))]
 pub mod logging {
     use super::*;
 
@@ -47,8 +46,10 @@ pub mod logging {
 }
 
 // Actual implementation
-#[cfg(any(all(debug, max_level_trace), all(release, release_max_level_trace)))]
+#[cfg(debug_assertions)]
 pub mod logging {
+    use crate::utils::bits;
+
     use super::*;
 
     fn f_u8(data: u8) -> String { format!("{:02X}", data) }
@@ -130,13 +131,26 @@ pub mod logging {
         pub fn set_reg(&mut self, reg: Reg) { self.reg = reg }
         pub fn set_unofficial(&mut self, unofficial: bool) { self.unofficial = unofficial }
         pub fn set_mnemonic(&mut self, mnemonic: &'static str) { self.mnemonic = mnemonic }
-        pub fn set_mode(&mut self, mode: AddrMode) { self.mode = mode }
         pub fn set_dot(&mut self, dot: u32) { self.dot = dot }
         pub fn set_scanline(&mut self, scanline: i32) { self.scanline = scanline }
 
+        pub fn set_mode(&mut self, mode: AddrMode) {
+            if log::LevelFilter::Trace >= log::STATIC_MAX_LEVEL
+                || log::LevelFilter::Trace >= log::max_level()
+                || self.skip {
+                return;
+            }
+
+            self.mode = mode
+        }
+
         pub fn get(&self) -> String {
             // Remove logging
-            if self.skip { return "".to_owned(); }
+            if log::LevelFilter::Trace >= log::STATIC_MAX_LEVEL
+                || log::LevelFilter::Trace >= log::max_level()
+                || self.skip {
+                return "".to_owned();
+            }
 
             format!("{}  {} {:5} {}{} {:<27} A:{} X:{} Y:{} P:{} SP:{} CYC:{:>3} SL:{}",
                     f_u16(self.reg.get_pc()),

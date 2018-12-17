@@ -56,8 +56,8 @@ pub struct PpuData {
     pub w: bool,
 
     // RAM
-    pub ram: [u8; RAM_CAPACITY],
-    pub oam: [u8; OAM_CAPACITY],
+    ram: [u8; RAM_CAPACITY],
+    oam: [u8; OAM_CAPACITY],
     pub ram_buffer: u8,
 }
 
@@ -108,10 +108,14 @@ impl PpuData {
         res
     }
 
+    // Direct RAM and OAM access.
+    pub unsafe fn peek_ram(&self, addr: usize) -> u8 { *self.ram.get_unchecked(addr) }
+    pub unsafe fn peek_oam(&self, addr: usize) -> u8 { *self.oam.get_unchecked(addr) }
+    unsafe fn poke_ram(&mut self, addr: usize, data: u8) { *self.ram.get_unchecked_mut(addr) = data }
+    unsafe fn poke_oam(&mut self, addr: usize, data: u8) { *self.oam.get_unchecked_mut(addr) = data }
+
     // Peek PPUDATA
-    pub fn peek_data(&self) -> u8 {
-         unsafe { *self.ram.get_unchecked(self.get_addr()) }
-    }
+    pub fn peek_data(&self) -> u8 { unsafe { self.peek_ram(self.get_addr()) } }
 
     // Read PPUDATA
     pub fn read_data(&mut self) -> u8 {
@@ -156,9 +160,7 @@ impl PpuData {
     }
 
     // Peek OAMDATA
-    pub fn peek_oam_data(&self) -> u8 {
-        unsafe { *self.oam.get_unchecked(self.oam_addr as usize) }
-    }
+    pub fn peek_oam_data(&self) -> u8 { unsafe { self.peek_oam(self.oam_addr as usize) } }
 
     // Read OAMDATA
     pub fn read_oam_data(&mut self) -> u8 {
@@ -232,7 +234,7 @@ impl PpuData {
         self.write(data);
 
         let addr = self.get_addr();
-        unsafe { *self.ram.get_unchecked_mut(addr) = data; }
+        unsafe { self.poke_ram(addr, data) }
 
         self.inc_ram_addr()
     }
@@ -247,7 +249,7 @@ impl PpuData {
     pub fn write_oam_data(&mut self, data: u8) {
         self.write(data);
 
-        unsafe { *self.oam.get_unchecked_mut(self.oam_addr as usize) = data; }
+        unsafe { self.poke_oam(self.oam_addr as usize, data) }
         self.oam_addr = self.oam_addr.wrapping_add(1);
     }
 

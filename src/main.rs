@@ -5,8 +5,10 @@ use chrono::Local;
 use env_logger::Builder;
 use log::LevelFilter;
 
+use nespera::cartridge::Cartridge;
 use nespera::console::Console;
 use nespera::ui;
+use nespera::ui::palette::Palette;
 
 // Starts logging after the specified amount of logs has passed.
 // Tracing is very verbose so you might need to limit how much is logged in order to speed up execution.
@@ -30,8 +32,8 @@ fn log_setup(level: LevelFilter, start_after: usize) {
 
 fn main() {
     log_setup(LevelFilter::Debug, 1_000_000);
-
-    let file = include_bytes!("../tests/resources/roms/Balloon Fight (JU).nes")[..].to_owned();
-    let mut console = Console::new(file);
-    ui::run(&mut console);
+    let cartridge = Cartridge::from_file("tests/resources/roms/Balloon Fight (JU).nes").unwrap();
+    let palette = Palette::from_file("tests/resources/palettes/RP2C03.pal").unwrap();
+    let mut console = Console::new(cartridge);
+    ui::run(&mut console, &palette);
 }

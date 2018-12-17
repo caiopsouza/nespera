@@ -8,11 +8,9 @@ use crate::utils::bits;
 impl Cpu {
     // region Miscellaneous
 
-    // Traces an opcode
-
     // Set current cycle to the last one.
     // It's actually the next to last cycle but this is always incremented later.
-    // First cycle is always fetching the opcode
+    // First cycle is always fetching the opcode.
     fn finish(&mut self) { self.reg.set_next_to_last_cycle() }
 
     fn read(&mut self, addr: u16) -> u8 {
@@ -66,7 +64,7 @@ impl Cpu {
         res
     }
 
-    // Read from register as an address to the external bus
+    // Read from register as an address to the external bus.
     fn read_m(&mut self) -> u8 {
         self.read(u16::from(self.reg.get_m()))
     }
@@ -101,7 +99,7 @@ impl Cpu {
         self.reg.write_q(data)
     }
 
-    // Write from register as an address to the external bus
+    // Write from register as an address to the external bus.
     fn write_n_to_m(&mut self) {
         self.write(u16::from(self.reg.get_m()), self.reg.get_n())
     }

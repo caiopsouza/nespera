@@ -1,5 +1,8 @@
 use std::cmp;
 use std::fmt;
+use std::fs::File;
+use std::io;
+use std::io::Read;
 
 use pretty_hex::PrettyHex;
 
@@ -16,12 +19,17 @@ const EIGHT_KBYTES: usize = 0x2000;
 const SIXTEEN_KBYTES: usize = 2 * EIGHT_KBYTES;
 const PRG_ROM_START: usize = 0x10;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub enum LoadError {
+    Io(io::Error),
     InvalidHeader,
     UnableToReadPrgRom,
     UnableToReadChrRom,
     MapperNotImplemented,
+}
+
+impl From<io::Error> for LoadError {
+    fn from(error: io::Error) -> Self { LoadError::Io(error) }
 }
 
 pub struct Cartridge {
@@ -32,25 +40,25 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
-    pub fn new(file: Vec<u8>) -> Result<Self, LoadError> {
+    pub fn new(data: &[u8]) -> Result<Self, LoadError> {
         // Check header
-        if file.get(0..4) != Some(&b"NES\x1a"[..]) { return Err(LoadError::InvalidHeader); }
+        if data.get(0..4) != Some(&b"NES\x1a"[..]) { return Err(LoadError::InvalidHeader); }
 
         // PRG ROM has 0x04 * 16kb in size
-        let prg_rom = PRG_ROM_START..PRG_ROM_START + file[0x04] as usize * SIXTEEN_KBYTES;
-        let prg_rom = file.get(prg_rom).ok_or(LoadError::UnableToReadPrgRom)?;
-        let prg_rom = prg_rom.clone().to_owned();
+        let prg_rom = PRG_ROM_START..PRG_ROM_START + data[0x04] as usize * SIXTEEN_KBYTES;
+        let prg_rom = data.get(prg_rom).ok_or(LoadError::UnableToReadPrgRom)?;
+        let prg_rom = prg_rom.to_owned();
 
         // CHR ROM has 0x05 * 8kb in size
         let chr_rom_start_byte = PRG_ROM_START + prg_rom.len();
-        let chr_rom = chr_rom_start_byte..chr_rom_start_byte + file[0x05] as usize * EIGHT_KBYTES;
-        let chr_rom = file.get(chr_rom).ok_or(LoadError::UnableToReadChrRom)?;
-        let chr_rom = chr_rom.clone().to_owned();
+        let chr_rom = chr_rom_start_byte..chr_rom_start_byte + data[0x05] as usize * EIGHT_KBYTES;
+        let chr_rom = data.get(chr_rom).ok_or(LoadError::UnableToReadChrRom)?;
+        let chr_rom = chr_rom.to_owned();
 
         // Mapper.
         // High nybble of 6 contains the lower nybble of the mapper.
         // High nybble of 7 contains the higher nybble of the mapper.
-        let mapper = ((file[0x06] & 0b1111_0000) >> 4) | (file[0x07] & 0b1111_0000);
+        let mapper = ((data[0x06] & 0b1111_0000) >> 4) | (data[0x07] & 0b1111_0000);
         let mapper = match mapper {
             0 => box Mapper000::new(),
             _ => return Result::Err(LoadError::MapperNotImplemented),
@@ -58,10 +66,10 @@ impl Cartridge {
 
         // PRG RAM is present if bit is not set.
         let prg_ram_capacity =
-            if bits::is_set(file[0x0a], 4) {
+            if bits::is_set(data[0x0a], 4) {
                 0
             } else {
-                EIGHT_KBYTES * cmp::max(file[0x08] as usize, 1)
+                EIGHT_KBYTES * cmp::max(data[0x08] as usize, 1)
             };
 
         Ok(
@@ -73,11 +81,17 @@ impl Cartridge {
             }
         )
     }
+    pub fn from_file(file: &str) -> Result<Self, LoadError> {
+        let mut file = File::open(file)?;
+        let mut data = Vec::<u8>::new();
+        file.read_to_end(&mut data)?;
+        Self::new(&data)
+    }
 
     pub fn empty() -> Self {
         Self {
-            prg_rom: vec![0; 0],
-            chr_rom: vec![0; 0],
+            prg_rom: vec![0; SIXTEEN_KBYTES],
+            chr_rom: vec![0; EIGHT_KBYTES],
             prg_ram: vec![0; 0],
             mapper: box Mapper000::new(),
         }
@@ -183,25 +197,36 @@ impl Cartridge {
     }
 }
 
+impl fmt::Debug for Cartridge {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(formatter, "PRG ROM | {:?}\n", &self.prg_rom.hex_dump())?;
+        writeln!(formatter, "CHR ROM | {:?}\n", &self.chr_rom.hex_dump())?;
+        write!(formatter, "PRG RAM | {:?}", (&self.prg_ram[..]).hex_dump())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn load_test() -> Cartridge {
-        let file = include_bytes!("../../tests/resources/cpu/nestest.nes")[..].to_owned();
-        Cartridge::new(file).unwrap()
-    }
+    fn load_test() -> Cartridge { Cartridge::from_file("tests/resources/cpu/nestest.nes").unwrap() }
 
     #[test]
     fn invalid_header() {
-        let cartridge = Cartridge::new(b"666"[..].to_owned());
-        assert_eq!(cartridge.err(), Option::Some(LoadError::InvalidHeader));
+        let cartridge = Cartridge::new(&b"666"[..]);
+        assert!(match cartridge.expect_err("") {
+            LoadError::InvalidHeader => true,
+            _ => false
+        });
     }
 
     #[test]
     fn prg_rom_header() {
-        let cartridge = Cartridge::new(b"NES\x1a666"[..].to_owned());
-        assert_eq!(cartridge.err(), Option::Some(LoadError::UnableToReadPrgRom));
+        let cartridge = Cartridge::new(&b"NES\x1a666"[..]);
+        assert!(match cartridge.expect_err("") {
+            LoadError::UnableToReadPrgRom => true,
+            _ => false
+        });
     }
 
     #[test]
@@ -214,25 +239,5 @@ mod tests {
     fn prg_rom_end() {
         let cartridge = load_test();
         assert_eq!(cartridge.cpu_read_location(0x8000 + 0x3fff), Location::PrgRom(0x3fff));
-    }
-
-    #[test]
-    fn prg_chr_start() {
-        let cartridge = load_test();
-        assert_eq!(cartridge.chr_rom.start, 0x4010);
-    }
-
-    #[test]
-    fn chr_rom_end() {
-        let cartridge = load_test();
-        assert_eq!(cartridge.chr_rom.end, 0x6010);
-    }
-}
-
-impl fmt::Debug for Cartridge {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(formatter, "PRG ROM | {:?}\n", &self.prg_rom.hex_dump())?;
-        writeln!(formatter, "CHR ROM | {:?}\n", &self.chr_rom.hex_dump())?;
-        write!(formatter, "PRG RAM | {:?}", (&self.prg_ram[..]).hex_dump())
     }
 }
