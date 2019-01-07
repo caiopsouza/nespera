@@ -4,6 +4,9 @@ use std::slice::Chunks;
 use pretty_hex::PrettyHex;
 
 use crate::utils::bits;
+use crate::cartridge::Mirror;
+
+const NAMETABLE_BASE: usize = 0x2000;
 
 // PPU capacity. Ends with the palette.
 pub const PALETTE_CAPACITY: usize = 0x0020;
@@ -15,10 +18,78 @@ const OAM_CAPACITY: usize = 0x0100;
 #[derive(Debug, Copy, Clone)]
 pub enum SpriteSize { S8, S16 }
 
+// T and V are composed this way during rendering:
+// yyy NN YYYYY XXXXX
+// ||| || ||||| +++++-- coarse X scroll
+// ||| || +++++-------- coarse Y scroll
+// ||| ++-------------- nametable select
+// +++----------------- fine Y scroll
+#[derive(Debug)]
+pub struct VRamAddr {
+    coarse_x: u16,
+    coarse_y: u16,
+    horizontal_nametable: bool,
+    vertical_nametable: bool,
+    fine_y: u16,
+}
+
+impl VRamAddr {
+    pub fn new(value: u16) -> Self {
+        Self {
+            coarse_x: (value & 0b000_00_00000_11111),
+            coarse_y: (value & 0b000_00_11111_00000) >> 5,
+            horizontal_nametable: (value & 0b000_01_00000_00000) != 0,
+            vertical_nametable: (value & 0b000_10_00000_00000) != 0,
+            fine_y: (value & 0b111_00_00000_00000) >> 12,
+        }
+    }
+
+    pub fn as_u16(&self) -> u16 {
+        debug_assert!(self.coarse_x <= 0b11111);
+        debug_assert!(self.coarse_y <= 0b11111);
+        debug_assert!(self.fine_y <= 0b111);
+
+        self.coarse_x
+            | self.coarse_y << 5
+            | (u16::from(self.horizontal_nametable)) << 10
+            | (u16::from(self.vertical_nametable)) << 11
+            | self.fine_y << 12
+    }
+
+    pub fn inc_coarse_x(&mut self) {
+        if self.coarse_x < 31 {
+            self.coarse_x += 1;
+            return;
+        }
+
+        self.coarse_x = 0;
+        self.horizontal_nametable = !self.horizontal_nametable;
+    }
+
+    pub fn inc_fine_y(&mut self) {
+        if self.fine_y < 7 {
+            self.fine_y += 1;
+            return;
+        }
+
+        self.fine_y = 0;
+
+        // Increment coarse Y
+        if self.coarse_y == 29 {
+            self.coarse_y = 0;
+            self.vertical_nametable = !self.vertical_nametable;
+        } else if self.coarse_y == 31 {
+            self.coarse_y = 0;
+        } else {
+            self.coarse_y += 1;
+        }
+    }
+}
+
 // Information about the PPU registers decoded from writing to them
 pub struct PpuData {
     // PPUCTRL
-    pub base_nametable_addr: u16,
+    pub base_nametable_addr: usize,
     pub ram_increment: u16,
     pub sprite_pattern_table: u16,
     pub background_pattern_table: u16,
@@ -53,10 +124,17 @@ pub struct PpuData {
     pub latch: u8,
 
     // Internal registers
-    // 15 bits. Current VRAM address.
+    // Current VRAM address. 15 bits.
     pub v: u16,
 
-    // 1 bit. Write toggle.
+    // Temporary VRAM address. 15 bits.
+    // Can also be thought of as the address of the top left onscreen tile.
+    pub t: u16,
+
+    // Fine X scroll. 3 bits.
+    pub x: u8,
+
+    // Write toggle. 1 bit.
     pub w: bool,
 
     // RAM
@@ -97,6 +175,8 @@ impl PpuData {
             oam_source: 0,
 
             v: 0,
+            t: 0,
+            x: 0,
             w: false,
 
             ram: [0; RAM_CAPACITY],
@@ -114,37 +194,89 @@ impl PpuData {
 
     // Direct RAM and OAM access.
     pub unsafe fn peek_ram(&self, addr: usize) -> u8 {
-        if cfg!(debug_assertions) {
-            *self.ram.get(addr).unwrap()
-        } else {
-            *self.ram.get_unchecked(addr)
-        }
+        debug_assert!(addr < self.ram.len(), "PPU RAM out of bounds: {}", addr);
+        *self.ram.get_unchecked(addr)
     }
 
     pub unsafe fn peek_oam(&self, addr: usize) -> u8 {
-        if cfg!(debug_assertions) {
-            *self.oam.get(addr).unwrap()
-        } else {
-            *self.oam.get_unchecked(addr)
-        }
+        debug_assert!(addr < self.oam.len(), "PPU OAM out of bounds: {}", addr);
+        *self.oam.get_unchecked(addr)
     }
 
     pub fn oam_chunks(&self, size: usize) -> Chunks<u8> { self.oam.chunks(size) }
 
     unsafe fn poke_ram(&mut self, addr: usize, data: u8) {
-        *if cfg!(debug_assertions) {
-            self.ram.get_mut(addr).unwrap()
-        } else {
-            self.ram.get_unchecked_mut(addr)
-        } = data
+        debug_assert!(addr < self.ram.len(), "PPU RAM out of bounds: {}", addr);
+        *self.ram.get_unchecked_mut(addr) = data
     }
 
     unsafe fn poke_oam(&mut self, addr: usize, data: u8) {
-        *if cfg!(debug_assertions) {
-            self.oam.get_mut(addr).unwrap()
+        debug_assert!(addr < self.oam.len(), "PPU OAM out of bounds: {}", addr);
+        *self.oam.get_unchecked_mut(addr) = data
+    }
+
+    // Vram attributes
+    pub fn get_fine_y(&self) -> u16 { VRamAddr::new(self.v).fine_y }
+
+    pub fn inc_coarse_x(&mut self) {
+        let mut v = VRamAddr::new(self.v);
+        v.inc_coarse_x();
+        self.v = v.as_u16();
+    }
+
+    pub fn inc_fine_y(&mut self) {
+        let mut v = VRamAddr::new(self.v);
+        v.inc_fine_y();
+        self.v = v.as_u16();
+    }
+
+    pub fn copy_horizontal_v(&mut self) {
+        let t = VRamAddr::new(self.t);
+        let mut v = VRamAddr::new(self.v);
+        v.coarse_x = t.coarse_x;
+        v.horizontal_nametable = t.horizontal_nametable;
+        self.v = v.as_u16();
+    }
+
+    pub fn copy_vertical_v(&mut self) {
+        let t = VRamAddr::new(self.t);
+        let mut v = VRamAddr::new(self.v);
+        v.coarse_y = t.coarse_y;
+        v.vertical_nametable = t.vertical_nametable;
+        v.fine_y = t.fine_y;
+        self.v = v.as_u16();
+    }
+
+    pub fn fetch_nametable(&self, mirror: Mirror) -> u8 {
+        let mut v = VRamAddr::new(self.v);
+        v.fine_y = 0;
+
+        if mirror == Mirror::Vertical {
+            v.vertical_nametable = false
         } else {
-            self.oam.get_unchecked_mut(addr)
-        } = data
+            v.horizontal_nametable = false
+        }
+
+        let addr = NAMETABLE_BASE | (v.as_u16() as usize);
+        unsafe { self.peek_ram(addr) }
+    }
+
+    pub fn fetch_attribute(&self) -> u16 {
+        // Address of attribute is composed like so:
+        // NN 1111 YYY XXX
+        // || |||| ||| +++-- high 3 bits of coarse X (x/4)
+        // || |||| +++------ high 3 bits of coarse Y (y/4)
+        // || ++++---------- attribute offset (960 bytes)
+        // ++--------------- nametable select
+        let v = VRamAddr::new(self.v);
+        let addr = NAMETABLE_BASE
+            | ((v.vertical_nametable as usize) << 12)
+            | ((v.horizontal_nametable as usize) << 11)
+            | 0b00_1111_000_000
+            | ((v.coarse_y as usize >> 2) << 3)
+            | (v.coarse_x as usize >> 2)
+            ;
+        unsafe { self.peek_ram(addr) as u16 }
     }
 
     // Peek PPUDATA
@@ -182,7 +314,6 @@ impl PpuData {
         // Reading the status resets the write toggle.
         self.w = false;
 
-        // PPU status has some unused bits, so fill in from the latch.
         self.latch = self.peek_status();
         trace!("Reading from PPUSTATUS: 0x{:04x}", self.latch);
 
@@ -207,8 +338,6 @@ impl PpuData {
 
     // Write PPUCTRL
     pub fn write_control(&mut self, data: u8) {
-        warn!("Writing into PPUCTRL is not completely implemented: 0x{:08b}", data);
-
         self.write(data);
 
         self.base_nametable_addr = match data & 0b0000_0011 {
@@ -218,6 +347,11 @@ impl PpuData {
             3 => 0x2c00,
             x => unimplemented!(),
         };
+
+        let mut t = VRamAddr::new(self.t);
+        t.horizontal_nametable = bits::is_set(data, 0);
+        t.vertical_nametable = bits::is_set(data, 1);
+        self.t = t.as_u16();
 
         self.ram_increment = if bits::is_set(data, 2) { 32 } else { 1 };
         self.sprite_pattern_table = if bits::is_set(data, 3) { 0x1000 } else { 0x0000 };
@@ -243,7 +377,23 @@ impl PpuData {
     // Write PPUSCROLL
     pub fn write_scroll(&mut self, data: u8) {
         self.write(data);
-        error!("Writing to PPUSCROLL is not implemented.");
+        let data = u16::from(data);
+
+        let fine = data & 0b000000_0111;
+        let coarse = data & 0b1111_1000 >> 3;
+
+        let mut t = VRamAddr::new(self.t);
+
+        if self.w {
+            t.coarse_y = coarse;
+            t.fine_y = fine;
+        } else {
+            t.coarse_x = coarse;
+            self.x = fine as u8; // Fine X is read from its own register.
+        }
+
+        self.t = t.as_u16();
+        self.w = !self.w;
     }
 
     // Write PPUADDR
@@ -251,15 +401,14 @@ impl PpuData {
         self.write(data);
 
         if self.w {
-            self.v = bits::set_low(self.v, data);
+            self.t = bits::set_low(self.t, data);
+            self.v = self.t;
         } else {
-            self.v = bits::set_high(self.v, data);
+            // Address has 14 bits at most.
+            self.t = bits::set_high(self.t, data) & 0b0011_1111_1111_1111;
         }
 
         self.w = !self.w;
-
-        // 15 bits only
-        self.v &= 0b0111_1111_1111_1111;
     }
 
     // Write PPUDATA

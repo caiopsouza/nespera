@@ -74,6 +74,10 @@ impl Bus {
         data
     }
 
+    pub fn get_ppu_and_cartridge(&mut self) -> (&mut PpuData, &Cartridge) {
+        (&mut self.ppu, &self.cartridge)
+    }
+
     // Peek a value from this location. Should have no side effects.
     fn peek(&self, location: Location) -> u8 {
         match location {

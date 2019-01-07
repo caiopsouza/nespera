@@ -27,7 +27,8 @@ impl Palette {
     // Map a list of pixels into an image
     pub fn map(&self, pixels: &[u8], image: &mut image::RgbaImage) {
         for (dest, &source) in image.pixels_mut().zip(pixels) {
-            *dest = self.colors[source as usize];
+            debug_assert!((source as usize) < self.colors.len(), "Palette index out of range: {}", source);
+            *dest = unsafe { *self.colors.get_unchecked((source as usize) % self.colors.len()) };
         }
     }
 }

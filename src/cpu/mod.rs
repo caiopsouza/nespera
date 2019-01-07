@@ -370,7 +370,7 @@ impl Cpu {
             self.step();
             if self.reg.get_cycle() == cycle::LAST
                 || self.reg.get_current_instr() == 0x22 // KIL
-                { break; }
+            { break; }
         }
     }
 

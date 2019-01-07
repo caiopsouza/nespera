@@ -1,11 +1,11 @@
 use std::cell::RefCell;
-use std::intrinsics::assume;
 use std::rc::Rc;
 use std::time::Instant;
 
 use crate::bus::Bus;
-use crate::bus::ppu_data::SpriteSize;
 use crate::utils::bits;
+use crate::bus::ppu_data::SpriteSize;
+use std::intrinsics::assume;
 
 pub const SCREEN_WIDTH: usize = 256;
 pub const SCREEN_HEIGHT: usize = 240;
@@ -22,6 +22,13 @@ pub struct Ppu {
     pub scanline: i32,
     pub dot: u32,
 
+    // Rendering data.
+    background: [u8; 8],
+    name_table: u8,
+    attribute: u16,
+    low_background: u8,
+    high_background: u8,
+
     // Fps calculation
     frame_start: Instant,
     pub fps: f64,
@@ -35,9 +42,17 @@ impl Ppu {
         Self {
             clock: 0,
             bus,
+
             frame: 0,
-            scanline: 0,
+            scanline: -1,
             dot: 0,
+
+            background: [0; 8],
+            name_table: 0,
+            attribute: 0,
+            low_background: 0,
+            high_background: 0,
+
             frame_start: Instant::now(),
             fps: 0_f64,
             screen: [0; SCREEN_SIZE],
@@ -48,21 +63,13 @@ impl Ppu {
     fn index(base: usize, x: usize, y: usize, width: usize) -> usize { base + x + y * width }
     fn screen_index(x: usize, y: usize) -> usize { Self::index(0, x, y, SCREEN_WIDTH) }
 
-    // Screen operations
-    pub unsafe fn get_dot(&mut self, x: usize, y: usize) -> u8 {
-        if cfg!(debug_assertions) {
-            *self.screen.get(Self::screen_index(x, y)).unwrap()
-        } else {
-            *self.screen.get_unchecked(Self::screen_index(x, y))
-        }
+    unsafe fn put_dot_on_screen(screen: &mut [u8; SCREEN_SIZE], x: usize, y: usize, dot: u8) {
+        debug_assert!(x < SCREEN_WIDTH && y < SCREEN_HEIGHT, "Screen point out of bounds. x: {}, y: {}", x, y);
+        *screen.get_unchecked_mut(Self::screen_index(x, y)) = dot
     }
 
     unsafe fn put_dot(&mut self, x: usize, y: usize, dot: u8) {
-        if cfg!(debug_assertions) {
-            *self.screen.get_mut(Self::screen_index(x, y)).unwrap() = dot
-        } else {
-            *self.screen.get_unchecked_mut(Self::screen_index(x, y)) = dot
-        }
+        Self::put_dot_on_screen(&mut self.screen, x, y, dot)
     }
 
     // Render all sprites from OAM.
@@ -93,7 +100,6 @@ impl Ppu {
             if (0xef_u8..=0xff_u8).contains(&y_sprite) { continue; }
 
             // Pattern.
-            // TODO: Don't assume the sprite is 8 pixels high.
             let addr = match sprite_size {
                 SpriteSize::S8 => sprite_table + 0x10 * tile,
                 SpriteSize::S16 => { 0x1000 * (tile & 1) + (0x10 * (tile >> 1)) }
@@ -112,7 +118,7 @@ impl Ppu {
                 for x in 0..8 {
                     let low = bus.cartridge.read_chr_rom(addr + y);
                     let high = bus.cartridge.read_chr_rom(addr + y + 8);
-                    let pixel = bits::interlace(low, high, x);
+                    let pixel = bits::interlace(low, high)[x as usize];
 
                     // Transparent
                     if pixel == 0 { continue; }
@@ -145,7 +151,7 @@ impl Ppu {
         let bus = self.bus.borrow_mut();
 
         // Tables
-        let background_table = bus.ppu.base_nametable_addr as usize;
+        let background_table = bus.ppu.base_nametable_addr;
         let attribute_table = background_table + 0x03c0;
         let pattern_table = bus.ppu.background_pattern_table;
 
@@ -162,13 +168,13 @@ impl Ppu {
         let palette = unsafe { bus.ppu.peek_ram(palette) };
 
         // Position inside the pattern.
-        let x = dot as u8 % 8;
+        let x = dot % 8;
         let y = scanline as u16 % 8;
 
         // Pixel
         let low = bus.cartridge.read_chr_rom(pattern + y);
         let high = bus.cartridge.read_chr_rom(pattern + y + 8);
-        let pixel = bits::interlace(low, high, x);
+        let pixel = bits::interlace(low, high)[x];
 
         let pixel = if pixel == 0 {
             0_u8
@@ -186,16 +192,60 @@ impl Ppu {
         unsafe { self.put_dot(dot, scanline, pixel) }
     }
 
-    // Run until some condition is met
+    // Run one step on the PPU.
     pub fn step(&mut self) {
-        // Render the dot
-        let is_rendering = {
-            let bus = self.bus.borrow();
-            bus.ppu.show_background || bus.ppu.show_sprites
-        };
-        if is_rendering { self.render() }
+        let mut bus = self.bus.borrow_mut();
+        let (data, cartridge) = bus.get_ppu_and_cartridge();
 
-        // Increment the clock, dot and scanline
+        // Various PPU states.
+        let rendering_enabled = data.show_background || data.show_sprites;
+        let show_background = data.show_background;
+
+        let fetch_scanline = self.scanline < 240;
+        let fetch_dot = (1..257).contains(&self.dot) || (321..341).contains(&self.dot);
+
+        let visible_scanline = (0..240).contains(&self.scanline);
+        let visible_dot = (0..256).contains(&self.dot);
+
+        let copy_vertical_scanline = self.scanline == -1;
+        let copy_vertical_dot = (280..305).contains(&self.dot);
+
+        // Fetch data.
+        if rendering_enabled && fetch_scanline && fetch_dot {
+            // Each fetch takes two cycles starting at dot 1.
+            match self.dot % 8 {
+                0 => self.background = bits::interlace(self.low_background, self.high_background),
+                1 => self.name_table = data.fetch_nametable(cartridge.ppu_mirror),
+                3 => self.attribute = data.fetch_attribute(),
+                5 => self.low_background = cartridge.read_chr_rom(self.attribute + data.get_fine_y()),
+                7 => self.high_background = cartridge.read_chr_rom(self.attribute + data.get_fine_y() + 8),
+                _ => {}
+            }
+
+            // Increment VRAM
+            if (self.dot % 8) == 0 { data.inc_coarse_x() }
+        }
+
+        // Vertical position.
+        if rendering_enabled {
+            if copy_vertical_scanline && copy_vertical_dot {
+                data.copy_vertical_v();
+            }
+
+            if fetch_scanline {
+                if self.dot == 256 {
+                    data.inc_fine_y();
+                } else if self.dot == 257 {
+                    data.copy_horizontal_v()
+                }
+            }
+        }
+
+        // Render background
+        drop(bus);
+        if show_background && visible_scanline && visible_dot { self.render(); }
+
+        // Increment the clock, dot and scanline.
         self.clock += 1;
         self.dot += 1;
 
@@ -205,12 +255,10 @@ impl Ppu {
 
             if self.scanline == 0 {
                 // On odd frames this dot is skipped if rendering is enabled.
-                if is_rendering && self.frame % 2 == 1 { self.dot += 1 }
+                if rendering_enabled && self.frame % 2 == 1 { self.dot += 1 }
             } else if self.scanline > 260 {
                 trace!("Finished running frame {}.", self.frame);
 
-                // Render all sprites.
-                // TODO: Make this per pixel as the background.
                 self.render_sprites();
 
                 self.scanline = -1;
@@ -224,10 +272,11 @@ impl Ppu {
         }
 
         // Vblank
-        if self.dot == 0 {
+        let mut bus = self.bus.borrow_mut();
+        if self.dot == 1 {
             match self.scanline {
-                -1 => self.bus.borrow_mut().ppu.vblank_clear(),
-                241 => self.bus.borrow_mut().start_vblank(),
+                -1 => bus.ppu.vblank_clear(),
+                241 => bus.start_vblank(),
                 _ => {}
             }
         }

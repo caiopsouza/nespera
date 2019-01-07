@@ -25,11 +25,17 @@ pub enum LoadError {
     InvalidHeader,
     UnableToReadPrgRom,
     UnableToReadChrRom,
-    MapperNotImplemented,
+    MapperNotImplemented(u8),
 }
 
 impl From<io::Error> for LoadError {
     fn from(error: io::Error) -> Self { LoadError::Io(error) }
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum Mirror {
+    Horizontal,
+    Vertical,
 }
 
 pub struct Cartridge {
@@ -37,6 +43,7 @@ pub struct Cartridge {
     chr_rom: Vec<u8>,
     prg_ram: Vec<u8>,
     mapper: Box<Mapper>,
+    pub ppu_mirror: Mirror,
 }
 
 impl Cartridge {
@@ -55,13 +62,20 @@ impl Cartridge {
         let chr_rom = data.get(chr_rom).ok_or(LoadError::UnableToReadChrRom)?;
         let chr_rom = chr_rom.to_owned();
 
+        // PPU mirror type.
+        let ppu_mirror = if bits::is_set(data[0x05], 0) {
+            Mirror::Vertical
+        } else {
+            Mirror::Horizontal
+        };
+
         // Mapper.
         // High nybble of 6 contains the lower nybble of the mapper.
         // High nybble of 7 contains the higher nybble of the mapper.
         let mapper = ((data[0x06] & 0b1111_0000) >> 4) | (data[0x07] & 0b1111_0000);
         let mapper = match mapper {
             0 => box Mapper000::new(),
-            _ => return Result::Err(LoadError::MapperNotImplemented),
+            _ => return Result::Err(LoadError::MapperNotImplemented(mapper)),
         };
 
         // PRG RAM is present if bit is not set.
@@ -78,6 +92,7 @@ impl Cartridge {
                 chr_rom,
                 prg_ram: vec![0; prg_ram_capacity],
                 mapper,
+                ppu_mirror,
             }
         )
     }
@@ -94,6 +109,7 @@ impl Cartridge {
             chr_rom: vec![0; EIGHT_KBYTES],
             prg_ram: vec![0; 0],
             mapper: box Mapper000::new(),
+            ppu_mirror: Mirror::Horizontal,
         }
     }
 
