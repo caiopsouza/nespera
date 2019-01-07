@@ -26,11 +26,11 @@ pub enum SpriteSize { S8, S16 }
 // +++----------------- fine Y scroll
 #[derive(Debug)]
 pub struct VRamAddr {
-    coarse_x: u16,
-    coarse_y: u16,
-    horizontal_nametable: bool,
-    vertical_nametable: bool,
-    fine_y: u16,
+    pub coarse_x: u16,
+    pub coarse_y: u16,
+    pub horizontal_nametable: bool,
+    pub vertical_nametable: bool,
+    pub fine_y: u16,
 }
 
 impl VRamAddr {

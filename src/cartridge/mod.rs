@@ -119,14 +119,18 @@ impl Cartridge {
     }
 
     pub fn read_chr_rom(&self, addr: u16) -> u8 {
+        if self.chr_rom.is_empty() {
+            error!("Attempt to read from CHR ROM, but cartridge reports it's not present. Defaulting to zero. 0x{:04x}", addr);
+            return 0;
+        }
+
         let index = addr as usize % self.chr_rom.len();
         unsafe { *self.chr_rom.get_unchecked(index) }
     }
 
     pub fn read_prg_ram(&self, addr: u16) -> u8 {
         if self.prg_ram.is_empty() {
-            error!("Attempt to read from PRG RAM, but cartridge reports it's not present. Defaulting to zero. 0x{:04x}",
-                   addr);
+            error!("Attempt to read from PRG RAM, but cartridge reports it's not present. Defaulting to zero. 0x{:04x}", addr);
             return 0;
         }
 

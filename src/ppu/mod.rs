@@ -6,10 +6,17 @@ use crate::bus::Bus;
 use crate::utils::bits;
 use crate::bus::ppu_data::SpriteSize;
 use std::intrinsics::assume;
+use crate::bus::ppu_data::VRamAddr;
 
 pub const SCREEN_WIDTH: usize = 256;
 pub const SCREEN_HEIGHT: usize = 240;
 pub const SCREEN_SIZE: usize = SCREEN_WIDTH * SCREEN_HEIGHT;
+
+#[derive(Copy, Clone)]
+struct RenderInfo {
+    background: [u8; 8],
+    attribute: u16,
+}
 
 pub struct Ppu {
     pub clock: u32,
@@ -23,8 +30,8 @@ pub struct Ppu {
     pub dot: u32,
 
     // Rendering data.
-    background: [u8; 8],
-    name_table: u8,
+    render: [RenderInfo; 2],
+    name_table: u16,
     attribute: u16,
     low_background: u8,
     high_background: u8,
@@ -39,6 +46,11 @@ pub struct Ppu {
 
 impl Ppu {
     pub fn new(bus: Rc<RefCell<Bus>>) -> Self {
+        let render = RenderInfo {
+            background: [0; 8],
+            attribute: 0,
+        };
+
         Self {
             clock: 0,
             bus,
@@ -47,7 +59,8 @@ impl Ppu {
             scanline: -1,
             dot: 0,
 
-            background: [0; 8],
+            render: [render; 2],
+
             name_table: 0,
             attribute: 0,
             low_background: 0,
@@ -196,6 +209,7 @@ impl Ppu {
     pub fn step(&mut self) {
         let mut bus = self.bus.borrow_mut();
         let (data, cartridge) = bus.get_ppu_and_cartridge();
+        let v = VRamAddr::new(data.v);
 
         // Various PPU states.
         let rendering_enabled = data.show_background || data.show_sprites;
@@ -214,16 +228,45 @@ impl Ppu {
         if rendering_enabled && fetch_scanline && fetch_dot {
             // Each fetch takes two cycles starting at dot 1.
             match self.dot % 8 {
-                0 => self.background = bits::interlace(self.low_background, self.high_background),
-                1 => self.name_table = data.fetch_nametable(cartridge.ppu_mirror),
+                1 => {
+                    let name_table = u16::from(data.fetch_nametable(cartridge.ppu_mirror));
+                    self.name_table = data.background_pattern_table + (name_table << 4);
+                }
                 3 => self.attribute = data.fetch_attribute(),
-                5 => self.low_background = cartridge.read_chr_rom(self.attribute + data.get_fine_y()),
-                7 => self.high_background = cartridge.read_chr_rom(self.attribute + data.get_fine_y() + 8),
+                5 => self.low_background = cartridge.read_chr_rom(self.name_table + v.fine_y),
+                7 => self.high_background = cartridge.read_chr_rom(self.name_table + v.fine_y + 8),
+                0 => {
+                    data.inc_coarse_x();
+                    self.render[0] = self.render[1];
+                    self.render[1].background = bits::interlace(self.low_background, self.high_background);
+                    self.render[1].attribute = self.attribute;
+                }
                 _ => {}
             }
+        }
 
-            // Increment VRAM
-            if (self.dot % 8) == 0 { data.inc_coarse_x() }
+        // Render background
+        if show_background && visible_scanline && visible_dot {
+            let scanline = self.scanline as usize;
+            let dot = self.dot as usize;
+            let render = self.render[0];
+
+            // Pixel
+            let pixel = render.background[dot % 8 + data.x as usize];
+            let pixel = if pixel == 0 {
+                0_u8
+            } else {
+                let mask = 2 * (((v.coarse_y as u8 & 1) << 1) | (v.coarse_x as u8 & 1));
+                let color = ((render.attribute as u8) & (0b0000_0011 << mask)) >> mask;
+
+                (color << 2) | pixel
+            };
+
+            //let pixel = 0x3f00 + pixel as usize;
+            let pixel = (pixel as usize % 0x0020) + 0x3f00;
+            let pixel = unsafe { data.peek_ram(pixel) };
+
+            unsafe { Self::put_dot_on_screen(&mut self.screen, dot, scanline, pixel) }
         }
 
         // Vertical position.
@@ -241,11 +284,8 @@ impl Ppu {
             }
         }
 
-        // Render background
-        drop(bus);
-        if show_background && visible_scanline && visible_dot { self.render(); }
-
         // Increment the clock, dot and scanline.
+        drop(bus);
         self.clock += 1;
         self.dot += 1;
 
