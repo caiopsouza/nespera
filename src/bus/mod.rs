@@ -93,9 +93,9 @@ impl Bus {
 
             Location::CpuRam(addr) => Self::trace_addr_read("CPU RAM", addr, self.cpu.read_ram(addr)),
 
-            Location::PpuData => Self::trace_read("PPUDATA", self.ppu.peek_data()),
-            Location::PpuStatus => Self::trace_read("PPUSTATUS", self.ppu.peek_status()),
-            Location::OamData => Self::trace_read("OAMDATA", self.ppu.peek_oam_data()),
+            Location::PpuData => Self::trace_read("Peek: PPUDATA", self.ppu.peek_data()),
+            Location::PpuStatus => Self::trace_read("Peek: PPUSTATUS", self.ppu.peek_status()),
+            Location::OamData => Self::trace_read("Peek: OAMDATA", self.ppu.peek_oam_data()),
 
             | Location::OamDma
             | Location::PpuCtrl
@@ -154,7 +154,7 @@ impl Bus {
 
             Location::PpuMask => {
                 self.ppu.write_mask(data);
-                Self::trace_write("PPUCTRL", data);
+                Self::trace_write("PPUMASK", data);
             }
 
             Location::PpuStatus => {

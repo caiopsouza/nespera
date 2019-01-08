@@ -55,9 +55,9 @@ impl Ppu {
             clock: 0,
             bus,
 
-            frame: 0,
-            scanline: -1,
-            dot: 0,
+            frame: 1,
+            scanline: 0,
+            dot: 30,
 
             render: [render; 2],
 
@@ -296,13 +296,13 @@ impl Ppu {
             if self.scanline == 0 {
                 // On odd frames this dot is skipped if rendering is enabled.
                 if rendering_enabled && self.frame % 2 == 1 { self.dot += 1 }
+            } else if self.scanline == 240 {
+                self.frame += 1;
+                self.render_sprites();
             } else if self.scanline > 260 {
                 trace!("Finished running frame {}.", self.frame);
 
-                self.render_sprites();
-
                 self.scanline = -1;
-                self.frame += 1;
 
                 // Update fps
                 let now = Instant::now();
@@ -312,8 +312,8 @@ impl Ppu {
         }
 
         // Vblank
-        let mut bus = self.bus.borrow_mut();
-        if self.dot == 1 {
+        if self.dot == 4 {
+            let mut bus = self.bus.borrow_mut();
             match self.scanline {
                 -1 => bus.ppu.vblank_clear(),
                 241 => bus.start_vblank(),

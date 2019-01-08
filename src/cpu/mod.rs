@@ -27,6 +27,7 @@ pub struct Cpu {
 
     // Flags to indicate internal operations
     oam_transferring: bool,
+    skip_oam_transferring: bool,
     resetting: bool,
     interrupting: bool,
 }
@@ -39,6 +40,7 @@ impl Cpu {
             clock: 0,
             bus,
             oam_transferring: false,
+            skip_oam_transferring: false,
             resetting: false,
             interrupting: false,
         };
@@ -85,7 +87,9 @@ impl Cpu {
             } else if bus.nmi || (bus.irq && !self.reg.get_p().get_interrupt_disable()) {
                 self.interrupting = true;
             } else if bus.ppu.oam_transfer {
-                self.oam_transferring = true
+                self.oam_transferring = true;
+                // OAM transfer starts only in a even cycle.
+                self.skip_oam_transferring = (self.clock % 2) != 0;
             }
 
             return;
@@ -100,7 +104,13 @@ impl Cpu {
         if self.interrupting { return run!(brk); }
 
         // Transfer OAM. Will clear the flag when finished.
-        if self.oam_transferring { return run!(oam); }
+        if self.oam_transferring {
+            if self.skip_oam_transferring {
+                self.skip_oam_transferring = false;
+                return;
+            }
+            return run!(oam);
+        }
 
         self.log.set_skip(false);
 
@@ -434,6 +444,7 @@ mod tests {
             clock: clock + 7, // Account for reset routine
             bus: bus_ref.clone(),
             oam_transferring: false,
+            skip_oam_transferring: false,
             resetting: false,
             interrupting: false,
         };

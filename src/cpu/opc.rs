@@ -148,6 +148,10 @@ impl Cpu {
     pub fn brk(&mut self) {
         match self.reg.get_cycle() {
             cycle::T2 => {
+                {
+                    let bus = self.bus.borrow();
+                    trace!("{}", if bus.nmi { "NMI" } else if bus.irq { "IRC" } else { "BRK" });
+                }
                 self.log.set_mnemonic("BRK");
                 self.log.set_mode(AddrMode::Implied);
                 self.fetch_pc();

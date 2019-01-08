@@ -29,8 +29,8 @@ impl Console {
         }
     }
 
-    // Logs the current console status for comparing with Nintendulator.
-    pub fn log(&self) -> String { self.cpu.log.get() }
+    // Logs the current console status.
+    pub fn log(&self) -> String { self.cpu.log.get(&self.bus.borrow()) }
 
     // Dismiss a log. Used as callback when the log is not needed.
     pub fn dismiss_log(_: &Self, _: String) -> bool { false }
@@ -53,11 +53,15 @@ impl Console {
 
                     cycle::LAST => {
                         let log_res = self.log();
-                        if log_res != "" { trace!(target: "opcode", "{}", log_res) }
-                        should_finish = log(&self, log_res);
+                        if log_res != "" && !log_res.starts_with("0000") && !log_res.contains("BRK") {
+                            trace!(target: "opcode", "{}", log_res);
+                            should_finish = log(&self, log_res);
+                        }
 
                         self.cpu.log.set_dot(self.ppu.dot);
                         self.cpu.log.set_scanline(self.ppu.scanline);
+                        self.cpu.log.set_clock(self.cpu.get_clock() - 7);
+                        self.cpu.log.set_frame(self.ppu.frame);
                     }
 
                     _ => {}
@@ -111,6 +115,7 @@ impl Console {
                                Some((line, expected)) => {
                                    assert_eq!(actual, expected, "\nat line {}\n\n{}",
                                               line + 1, console.cpu);
+                                   println!("{}", actual);
                                    false
                                }
                            }

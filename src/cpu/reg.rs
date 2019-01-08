@@ -66,7 +66,7 @@ impl Reg {
             x: 0,
             y: 0,
             pc: 0,
-            p: flags::INTERRUPT_DISABLE | flags::UNUSED,
+            p: flags::INTERRUPT_DISABLE,
             s: 0,
             m: 0,
             n: 0,

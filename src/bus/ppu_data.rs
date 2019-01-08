@@ -299,7 +299,6 @@ impl PpuData {
 
         self.inc_ram_addr();
 
-        trace!("Reading from PPUDATA: 0x{:04x}", self.latch);
         self.latch
     }
 
@@ -315,7 +314,6 @@ impl PpuData {
         self.w = false;
 
         self.latch = self.peek_status();
-        trace!("Reading from PPUSTATUS: 0x{:04x}", self.latch);
 
         // Vertical blank is cleared after reading status
         self.vblank_clear();
