@@ -1,9 +1,7 @@
 // Describes a location on the console for reading and writing
-// addr describes the address at the based of the array but have no upper bound.
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Location {
-    // No location found for access.
-    // The address is just for error reporting.
+    // No location found for access. Used for error reporting only.
     Nowhere(u16),
 
     // APU. Not implemented yet.

@@ -33,7 +33,7 @@ impl From<io::Error> for LoadError {
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum Mirror {
+pub enum PpuMirror {
     Horizontal,
     Vertical,
 }
@@ -43,7 +43,7 @@ pub struct Cartridge {
     chr_rom: Vec<u8>,
     prg_ram: Vec<u8>,
     mapper: Box<Mapper>,
-    pub ppu_mirror: Mirror,
+    pub ppu_mirror: PpuMirror,
 }
 
 impl Cartridge {
@@ -64,9 +64,9 @@ impl Cartridge {
 
         // PPU mirror type.
         let ppu_mirror = if bits::is_set(data[0x05], 0) {
-            Mirror::Vertical
+            PpuMirror::Vertical
         } else {
-            Mirror::Horizontal
+            PpuMirror::Horizontal
         };
 
         // Mapper.
@@ -109,7 +109,7 @@ impl Cartridge {
             chr_rom: vec![0; EIGHT_KBYTES],
             prg_ram: vec![0; 0],
             mapper: box Mapper000::new(),
-            ppu_mirror: Mirror::Horizontal,
+            ppu_mirror: PpuMirror::Horizontal,
         }
     }
 
@@ -140,7 +140,7 @@ impl Cartridge {
 
     pub fn write_prg_ram(&mut self, addr: u16, data: u8) {
         if self.prg_ram.is_empty() {
-            error!("Attempt to write to PRG RAM, but cartridge reports it's not present. Defaulting to zero. 0x{:04x}, 0x{:02x}",
+            error!("Attempt to write to PRG RAM, but cartridge reports it's not present. 0x{:04x}, 0x{:02x}",
                    addr, data);
             return;
         }
@@ -153,7 +153,7 @@ impl Cartridge {
     fn canon_ppu_register_addr(addr: u16) -> u16 {
         const PPU_REG_AMOUNT: u16 = 0x08;
         const PPU_REGS_ADDR_START: u16 = 0x2000;
-        (addr - PPU_REGS_ADDR_START) % PPU_REG_AMOUNT + PPU_REGS_ADDR_START
+        PPU_REGS_ADDR_START + (addr - PPU_REGS_ADDR_START) % PPU_REG_AMOUNT
     }
 
     // Common PRG RAM location
@@ -170,8 +170,8 @@ impl Cartridge {
             0x0000...0x1fff => Location::CpuRam(addr),
 
             0x2000...0x3fff => {
-                let addr = Self::canon_ppu_register_addr(addr);
-                match addr {
+                let canon_addr = Self::canon_ppu_register_addr(addr);
+                match canon_addr {
                     0x2000 => Location::PpuCtrl,
                     0x2001 => Location::PpuMask,
                     0x2002 => Location::PpuStatus,

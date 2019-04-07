@@ -180,9 +180,9 @@ pub mod logging {
         pub fn set_clock(&mut self, clock: u32) { self.clock = clock }
 
         fn is_logging(&self) -> bool {
-            /*log::STATIC_MAX_LEVEL >= log::LevelFilter::Trace
+            log::STATIC_MAX_LEVEL >= log::LevelFilter::Trace
                 && log::max_level() >= log::LevelFilter::Trace
-                && !self.skip*/ true
+                && !self.skip
         }
 
         pub fn set_mode(&mut self, mode: AddrMode) {

@@ -4,7 +4,7 @@ use std::slice::Chunks;
 use pretty_hex::PrettyHex;
 
 use crate::utils::bits;
-use crate::cartridge::Mirror;
+use crate::cartridge::PpuMirror;
 
 const NAMETABLE_BASE: usize = 0x2000;
 
@@ -247,11 +247,11 @@ impl PpuData {
         self.v = v.as_u16();
     }
 
-    pub fn fetch_nametable(&self, mirror: Mirror) -> u8 {
+    pub fn fetch_nametable(&self, mirror: PpuMirror) -> u8 {
         let mut v = VRamAddr::new(self.v);
         v.fine_y = 0;
 
-        if mirror == Mirror::Vertical {
+        if mirror == PpuMirror::Vertical {
             v.vertical_nametable = false
         } else {
             v.horizontal_nametable = false
