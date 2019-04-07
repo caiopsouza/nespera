@@ -2,7 +2,6 @@
 #![feature(core_intrinsics)]
 #![feature(duration_float)]
 #![feature(nll)]
-#![feature(range_contains)]
 
 extern crate env_logger;
 #[macro_use]

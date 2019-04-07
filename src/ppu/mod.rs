@@ -306,7 +306,7 @@ impl Ppu {
 
                 // Update fps
                 let now = Instant::now();
-                self.fps = 1_f64 / (now - self.frame_start).as_float_secs();
+                self.fps = 1_f64 / (now - self.frame_start).as_secs_f64();
                 self.frame_start = now;
             }
         }
